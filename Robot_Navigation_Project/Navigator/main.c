@@ -345,18 +345,18 @@ int main(void)
         #error "Only MAIN_CONTROLLER or EDGE_DETECT can be active at the same time."
     #endif
 
-        Edge_Detect_Enabled = 1;
-
-        if (Edge_Detect_Done == 1) {
-
-            printf("Edge Counter: %d\n", Edge_Counter);
-            uint8_t button_status = Get_Buttons_Status();
-            if (button_status == 0x10) {
-                Edge_Counter = 0;
-                Edge_Detect_Done = 0;
-            }
-            Clock_Delay1ms(200);
-        }
+//        Edge_Detect_Enabled = 1;
+//
+//        if (Edge_Detect_Done == 1) {
+//
+//            printf("Edge Counter: %d\n", Edge_Counter);
+//            uint8_t button_status = Get_Buttons_Status();
+//            if (button_status == 0x10) {
+//                Edge_Counter = 0;
+//                Edge_Detect_Done = 0;
+//            }
+//            Clock_Delay1ms(200);
+//        }
 
 #elif defined MAIN_CONTROLLER
     #if defined EDGE_DETECT

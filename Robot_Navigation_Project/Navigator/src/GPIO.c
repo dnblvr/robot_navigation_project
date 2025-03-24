@@ -184,10 +184,12 @@ void LED_Pattern_1(uint8_t button_status)
 
 void LED_Pattern_2()
 {
+    int led_count;
+
     LED1_Output(RED_LED_ON);
     LED2_Output(RGB_LED_RED);
 
-    for (int led_count = 0; led_count <= 0xFF; led_count++)
+    for (led_count = 0; led_count <= 0xFF; led_count++)
     {
         PMOD_8LD_Output(led_count);
         Clock_Delay1ms(100);

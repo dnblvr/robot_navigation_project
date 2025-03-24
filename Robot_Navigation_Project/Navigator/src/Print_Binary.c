@@ -14,6 +14,8 @@
 
 void Print_Binary(uint8_t value_to_convert)
 {
+    int i;
+
     if (value_to_convert == 0)
     {
         printf("Line Sensor: 0000_0000\n");
@@ -22,7 +24,7 @@ void Print_Binary(uint8_t value_to_convert)
 
     printf("Line Sensor: ");
 
-    for (int i = 7; i >= 0; i--)
+    for (i = 7; i >= 0; i--)
     {
         printf("%d", (value_to_convert >> i) & 1);
 

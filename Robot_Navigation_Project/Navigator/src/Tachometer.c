@@ -121,8 +121,9 @@ uint16_t Average_of_Buffer(uint16_t *buffer, int buffer_length)
 {
     uint32_t buffer_sum = 0;
     uint16_t buffer_average = 0;
+    int i;
 
-    for (int i = 0; i < buffer_length; i++)
+    for (i = 0; i < buffer_length; i++)
     {
         buffer_sum = buffer_sum + buffer[i];
     }

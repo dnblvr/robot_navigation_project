@@ -338,6 +338,8 @@ int main(void)
 
     while (1)
     {
+        int i;
+
 #if defined EDGE_DETECT
     #if defined MAIN_CONTROLLER
         #error "Only MAIN_CONTROLLER or EDGE_DETECT can be active at the same time."
@@ -377,7 +379,7 @@ int main(void)
         }
 
         // Flash the LEDs to indicate exit from while-loop (i.e. bumper switches have been pressed)
-        for (int i = 0; i < 5; i++)
+        for (i = 0; i < 5; i++)
         {
             LED1_Output(RED_LED_OFF);
             LED2_Output(RGB_LED_OFF);

@@ -269,14 +269,17 @@ void rewire(
  */
 
 int main() {
+  
   srand(time(NULL));
 
   Tree tree;
 
   initialize_tree(&tree, 0.0, 0.0); // Start at (0,0)
 
-  Obstacle obstacles[]  = {{{5,5,10,10}}}; // Example obstacle
-  int num_obstacles     = 1;
+
+  // Example obstacle
+  Obstacle  obstacles[]   = {{{5,5,10,10}}}; 
+  int       num_obstacles = 1;
 
   double  goal_x    = 50.0,
           goal_y    = 50.0;
@@ -289,7 +292,7 @@ int main() {
             sample_y;
 
     
-    if ((double)rand()/RAND_MAX < 0.1) {
+    if ( (double)rand()/RAND_MAX < 0.1 ) {
       sample_x = goal_x; sample_y = goal_y;
 
     } else {
@@ -299,7 +302,7 @@ int main() {
     }
 
     Node* nearest = nearest_node(&tree, sample_x, sample_y);
-    Node new_node;
+    Node  new_node;
     steer(nearest, sample_x, sample_y, &new_node);
 
 

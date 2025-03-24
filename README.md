@@ -33,7 +33,7 @@ The materials involved include:
 |      1|TI-RSLK Chassis|Two-Wheeled Platform     |[link](https://www.pololu.com/category/268/classic-ti-rslk-parts-and-accessories)| 
 |    4-6|VL53L5CX       |SparkFun Qwiic ToF Imager|[link](https://www.sparkfun.com/sparkfun-qwiic-tof-imager-vl53l5cx.html)|
 |      1|GPS Receiver   |N/A                      |[link](https://www.amazon.com/Compass-Precision-Receiver-Navigation-Compatible/dp/B08NY9JSZ3/ref=sr_1_2?dib=eyJ2IjoiMSJ9.XT_dNZlid3N-zIIKsz0sS6ufhONAOEd6FSHYqXoP1tgYoVX7mtJPDXYRUguvWZ7W367EmTH3uLescGuIo7sPs-TMsNMaFllqgas-jb2gNPZ1uJGPUgV_eVoV2rAoHWB1nxIc1jXiEHc8nMauXs_k15Q2yoDn5R3qHHB0jo1v-GS-xK5vMUVpUvDs8qQtRbzrj0wwi5eAwvVcUlPNiZev8AdNTxt2Km72APc1Xbaab4FttpjDiZD9_e8H1B8XR71YBkdhbD8iYK01ZLLfikIhatyjCK7LOw4M4rc5JLc5yuoaY-Jowv8odZFbYbH26AwIm8j2M3-KEOD-rTCtMG0HAgbnBJ_h9qgQYffT5arNXN3Qbvv4CajLsvO4z03AARv4hzvp11JcmnTkw8BuDAQrxHz36J_WWOgW0XFisVyl71PsU8URlDe6dpef7FJaf8ui.5AMQjqJR9CL6uwsu181CL24B4M93u4Ul71RllzvcN3M&dib_tag=se&keywords=pixhawk+gps&mfadid=adm&qid=1741988169&sr=8-2)|
-|     1|ICM-20948     |MARG Sensor                |[link](http://www.sparkfun.com/sparkfun-9dof-imu-breakout-icm-20948-qwiic.html)
+|      1|ICM-20948      |MARG Sensor              |[link](http://www.sparkfun.com/sparkfun-9dof-imu-breakout-icm-20948-qwiic.html)
 
 
 ## Checklist

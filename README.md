@@ -66,7 +66,7 @@ In general, for all tasks, they should follow the same guidelines:
 
 ### Main Tasks
 
-Both me and Lucy:
+#### Both Gian and Lucy:
 * [ ] RRT* simulation on C (Visual Studio Code)
 * [ ] multizone LiDAR configuration (wk 9-11)
   * [ ] configure with Timer_Ax interrupt hardware
@@ -75,7 +75,7 @@ Both me and Lucy:
 
 * [ ] combine all our code together (wk 12-13)
      
-Me:
+#### Gian:
 * [ ] Odometry  (wk 9-10)
 * [ ] GraphSLAM (wk 9-11)
   * [ ] I will look into what the inputs and outputs of this thing will require

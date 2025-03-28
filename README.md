@@ -4,6 +4,16 @@ Principal Authors: &nbsp; **Lucero Aguilar-Larios** & **Gian Fajardo**
 
 Faculty Advisor: &emsp; **Dr. Shahnam Mirzaei**
 
+## Table of Contents
+
+* [Goals](#goals)
+* [Methods](#methods)
+* [Materials](#materials)
+* [Online Resources](#online_resources)
+* [Checklist](#checklist)
+  * [Main Tasks](#main_tasks)
+
+
 ## Goals
 
 ![alt text](<./images/image 1.png>)
@@ -34,6 +44,16 @@ The materials involved include:
 |    4-6|VL53L5CX       |SparkFun Qwiic ToF Imager|[link](https://www.sparkfun.com/sparkfun-qwiic-tof-imager-vl53l5cx.html)|
 |      1|GPS Receiver   |N/A                      |[link](https://www.amazon.com/Compass-Precision-Receiver-Navigation-Compatible/dp/B08NY9JSZ3/ref=sr_1_2?dib=eyJ2IjoiMSJ9.XT_dNZlid3N-zIIKsz0sS6ufhONAOEd6FSHYqXoP1tgYoVX7mtJPDXYRUguvWZ7W367EmTH3uLescGuIo7sPs-TMsNMaFllqgas-jb2gNPZ1uJGPUgV_eVoV2rAoHWB1nxIc1jXiEHc8nMauXs_k15Q2yoDn5R3qHHB0jo1v-GS-xK5vMUVpUvDs8qQtRbzrj0wwi5eAwvVcUlPNiZev8AdNTxt2Km72APc1Xbaab4FttpjDiZD9_e8H1B8XR71YBkdhbD8iYK01ZLLfikIhatyjCK7LOw4M4rc5JLc5yuoaY-Jowv8odZFbYbH26AwIm8j2M3-KEOD-rTCtMG0HAgbnBJ_h9qgQYffT5arNXN3Qbvv4CajLsvO4z03AARv4hzvp11JcmnTkw8BuDAQrxHz36J_WWOgW0XFisVyl71PsU8URlDe6dpef7FJaf8ui.5AMQjqJR9CL6uwsu181CL24B4M93u4Ul71RllzvcN3M&dib_tag=se&keywords=pixhawk+gps&mfadid=adm&qid=1741988169&sr=8-2)|
 |      1|ICM-20948      |MARG Sensor              |[link](http://www.sparkfun.com/sparkfun-9dof-imu-breakout-icm-20948-qwiic.html)
+
+## Online Resources
+
+* [libc\.pdf](https://www.gnu.org/software/libc/manual/pdf/libc.pdf "libc.pdf")
+* [SparkFun\_ICM\-20948\_ArduinoLibrary\/examples\/PortableC\/Example999\_Portable\/Example999\_Portable\.ino at main · sparkfun\/SparkFun\_ICM\-20948\_ArduinoLibrary](https://github.com/sparkfun/SparkFun_ICM-20948_ArduinoLibrary/blob/main/examples/PortableC/Example999_Portable/Example999_Portable.ino "SparkFun_ICM-20948_ArduinoLibrary/examples/PortableC/Example999_Portable/Example999_Portable.ino at main · sparkfun/SparkFun_ICM-20948_ArduinoLibrary")
+* [\(94\) Path Planning with A\* and RRT \| Autonomous Navigation\, Part 4 \- YouTube](https://www.youtube.com/watch?v=QR3U1dgc5RE "\(94\) Path Planning with A* and RRT | Autonomous Navigation, Part 4 - YouTube")
+* [\(94\) Understanding SLAM Using Pose Graph Optimization \| Autonomous Navigation\, Part 3 \- YouTube](https://www.youtube.com/watch?v=saVZtgPyyJQ&t=161s "\(94\) Understanding SLAM Using Pose Graph Optimization | Autonomous Navigation, Part 3 - YouTube")
+* [A brief introduction to GraphSLAM \| by Shiva Chandrachary \| Medium](https://shivachandrachary.medium.com/a-brief-introduction-to-graphslam-4204b4fce2f0 "A brief introduction to GraphSLAM | by Shiva Chandrachary | Medium")
+  * [Application of Maximum Likelihood Estimation in GraphSLAM \| by Shiva Chandrachary \| Medium](https://shivachandrachary.medium.com/application-of-maximum-likelihood-estimation-in-graphslam-db4897f0083b "Application of Maximum Likelihood Estimation in GraphSLAM | by Shiva Chandrachary | Medium")
+  * [An application of Numerical Solution to Maximum Likelihood Estimation in GraphSLAM \| by Shiva Chandrachary \| Medium](https://shivachandrachary.medium.com/an-application-of-numerical-solutions-to-maximum-likelihood-estimation-in-graphslam-31a7284721e3 "An application of Numerical Solution to Maximum Likelihood Estimation in GraphSLAM | by Shiva Chandrachary | Medium")
 
 
 ## Checklist

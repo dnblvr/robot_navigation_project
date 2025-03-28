@@ -9,9 +9,9 @@ Faculty Advisor: &emsp; **Dr. Shahnam Mirzaei**
 * [Goals](#goals)
 * [Methods](#methods)
 * [Materials](#materials)
-* [Online Resources](#online_resources)
+* [Online Resources](#online-resources)
 * [Checklist](#checklist)
-  * [Main Tasks](#main_tasks)
+  * [Main Tasks](#main-tasks)
 
 
 ## Goals

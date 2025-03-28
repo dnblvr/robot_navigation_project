@@ -51,7 +51,7 @@ Both me and Lucy:
 * [ ] multizone LiDAR configuration (wk 9-11)
   * [ ] configure with Timer_Ax interrupt hardware
   * [ ] configure I2C with interrupt!
-  * [ ] implement state machine to know when to read and write
+  * [ ] implement state machine to know when to read
 
 * [ ] combine all our code together (wk 12-13)
      

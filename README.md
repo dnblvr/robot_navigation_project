@@ -11,7 +11,7 @@ Faculty Advisor: &emsp; **Dr. Shahnam Mirzaei**
 3. [Materials](#materials)
 4. [Online Resources](#online-resources)
 5. [Checklist](#checklist)
-  i. [Main Tasks](#main-tasks)
+  1. [Main Tasks](#main-tasks)
 
 
 ## Goals

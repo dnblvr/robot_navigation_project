@@ -6,12 +6,12 @@ Faculty Advisor: &emsp; **Dr. Shahnam Mirzaei**
 
 ## Table of Contents
 
-* [Goals](#goals)
-* [Methods](#methods)
-* [Materials](#materials)
-* [Online Resources](#online-resources)
-* [Checklist](#checklist)
-  * [Main Tasks](#main-tasks)
+1. [Goals](#goals)
+2. [Methods](#methods)
+3. [Materials](#materials)
+4. [Online Resources](#online-resources)
+5. [Checklist](#checklist)
+  i. [Main Tasks](#main-tasks)
 
 
 ## Goals

@@ -66,19 +66,28 @@ In general, for all tasks, they should follow the same guidelines:
 
 ### Main Tasks
 
-#### Both Gian and Lucy:
-* [ ] RRT* simulation on C (Visual Studio Code)
-* [ ] multizone LiDAR configuration (wk 9-11)
-  * [ ] configure with Timer_Ax interrupt hardware
-  * [ ] configure I2C with interrupt!
-  * [ ] implement state machine to know when to read
+* [ ] RRT*
+  * [x] simulation on C and Python [^1]
+  * [ ] MSP432 implementation (wk 13) [^1]
+    * [ ] configure the correct I/O required [^2]
 
-* [ ] combine all our code together (wk 12-13)
-     
-#### Gian:
-* [ ] Odometry  (wk 9-10)
-* [ ] GraphSLAM (wk 9-11)
-  * [ ] I will look into what the inputs and outputs of this thing will require
+* [ ] multizone LiDAR configuration (wk 10-12)
+  * [ ] configure I2C with interrupt! [^1]
+  * [ ] configure with Timer_Ax interrupt hardware [^1]
+  * [ ] implement state machine to know when to read [^2]
 
-* [ ] RRT* implementation on MSP 432 (wk 12)
-  * [ ] configure the correct I/O required
+* [ ] Odometry  (wk 10-11)
+  * [x] extended Kalman Filter [^2]
+  * [ ] simulation in C/Python [^1]
+
+* [ ] GraphSLAM (wk 10-12) [^1]
+  * [ ] research [^2]
+    * [ ] landmark selection [^1]
+    * [ ] I will look into what the I/O of this thing will require [^2]
+
+
+
+* [ ] combine all our code together (wk 14-17)
+
+[^1]: assigned to both Gian and Lucy
+[^2]: assigned to Gian

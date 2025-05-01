@@ -1,0 +1,436 @@
+/**
+  *
+  * Copyright (c) 2021 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
+  ******************************************************************************
+  */
+
+
+
+#include "../inc/platform.h"
+
+
+
+
+void EUSCI_B0_I2C_Init()
+{
+
+    // Hold the EUSCI_B0 module in reset mode by setting the
+    // UCSWRST bit (Bit 0) in the UCBxCTLW0 register
+    EUSCI_B0->CTLW0 |= 0x0001;
+
+    // ----------------------------------------------------------------------------------------------------------
+
+
+    // Configure the master and slave device addresses to be 7 bits by clearing the
+    // UCA10 and UCSLA10 bits (Bits 15 to 14) in the UCBxCTLW0 register
+    EUSCI_B0->CTLW0 &= ~0xC000;
+
+
+    // Configure the EUSCI_B0 module to operate as a single master by clearing the
+    // UCMM bit (Bit 13) in the UCBxCTLW0 register
+    EUSCI_B0->CTLW0 &= ~0x2000;
+
+
+    // Configure the EUSCI_B0 module to operate in master mode by
+    // setting the UCMST bit (Bit 11) in the UCBxCTLW0 register
+    EUSCI_B0->CTLW0 |= 0x0800;
+
+
+    // Configure the EUSCI_B0 module to use I2C mode by writing a value of
+    // 11b (0x3) in the UCMODEx field (Bits 10 to 9) in the UCBxCTLW0 register
+    EUSCI_B0->CTLW0 |= 0x0600;
+
+
+    // Enable synchronous mode for the EUSCI_B0 module by setting
+    // the UCSYNC bit (Bit 8) in the UCBxCTLW0 register
+    EUSCI_B0->CTLW0 |= 0x0100;
+
+
+    // Select SMCLK as the clock source for the EUSCI_B0 module by writing a value of
+    // 11b (0x3) in the UCSSELx field (Bits 7 to 6) in the UCBxCTLW0 register
+    EUSCI_B0->CTLW0 |= 0x00C0;
+
+
+    // Configure the EUSCI_B0 module to not transmit the ACK condition in slave mode
+    // with enabled address mask by clearing the UCTXACK bit (Bit 5) in the UCBxCTLW0 register
+    EUSCI_B0->CTLW0 &= ~0x0020;
+
+
+    // Configure the EUSCI_B0 module to operate in I2C master receiver mode by clearing the
+    // UCTR bit (Bit 4) in the UCBxCTLW0 register
+    EUSCI_B0->CTLW0 &= ~0x0010;
+
+
+    // Clear the UCTXNACK bit (Bit 3) in the UCBxCTLW0 register since it is used only in slave receiver mode
+    EUSCI_B0->CTLW0 &= ~0x0008;
+
+
+    // Configure the EUSCI_B0 module not to generate the STOP condition in master mode by clearing
+    // the UCTXSTP bit (Bit 2) in the UCBxCTLW0 register. Note that in master receiver mode,
+    // the STOP condition is preceded by a NACK
+    EUSCI_B0->CTLW0 &= ~0x0004;
+
+
+    // Configure the EUSCI_B0 module to not generate the START condition in master mode by clearing
+    // the UCTXSTT bit (Bit 1) in the UCBxCTLW0 register. Note that in master receiver mode,
+    // the START condition is preceded by a NACK
+    EUSCI_B0->CTLW0 &= ~0x0002;
+
+
+    // Clear all of the bits in the UCBxCTLW1 register (Bits 8 to 0) since the
+    // advanced I2C features will not be used
+    EUSCI_B0->CTLW1 &= ~0x01FF;
+
+
+    // Set the I2C clock prescaler value to 30 to divide the SMCLK clock frequency
+    // from 12 MHz to 400 kHz
+    // N = (Clock Frequency) / (SCL Frequency) = (12,000,000 / 400,000) = 30
+//    EUSCI_B0->BRW = 30;
+    EUSCI_B0->BRW = 120;
+
+
+    // Configure the P1.6 (SDA) and P1.7 (SCL)  pins to use the primary module function (I2C)
+    // by setting Bits 7 to 6 in the SEL0 register and clearing Bits 7 to 6 in the SEL1 register
+    P1->SEL0 |=  0xC0;
+    P1->SEL1 &= ~0xC0;
+
+
+    // ----------------------------------------------------------------------------------------------------------
+
+    // Take the EUSCI_B0 module out of reset mode by clearing the
+    // UCSWRST bit (Bit 0) in the UCBxCTLW0 register
+    EUSCI_B0->CTLW0 &= ~0x0001;
+
+
+    // Ensure that all of the I2C interrupts are disabled by clearing
+    // Bits 14 to 0 in the UCBxIE register
+//    EUSCI_B0->IE &= ~0x7FFF;
+
+    // Ensure that all of the I2C interrupts but the RXIFG are disabled by clearing
+    // Bits 14 to 0 in the UCBxIE register
+    EUSCI_B0->IE |= 0x0001;
+
+
+    // set the 20th bit to enable IRQ number 20, or the EUSCIB0_IRQHander
+    NVIC->ISER[0] |= 0x00100000;
+}
+
+
+void EUSCI_B0_RX_Stop(void) {
+    // clear the RXIFG I2C interrupt
+    EUSCI_B0->IE &= ~0x0001;
+
+    // clear it in hte nested vector interrupt table
+    NVIC->ICER[0] &= ~0x00100000;
+}
+
+/**
+ * @brief   Some description. sup
+ */
+
+void EUSCIB0_IRQHandler(void) {
+
+    if (EUSCI_B0->IFG &   0x0001) {
+        // clear the RXIFG
+        EUSCI_B0->IFG &= ~0x0001;
+
+        // perform task here
+        read_byte_counter++;
+    }
+}
+
+
+uint8_t VL53L5CX_RdByte(
+    VL53L5CX_Platform *p_platform,
+
+    uint16_t     RegisterAddress,
+    uint8_t     *p_value)
+{
+
+//    VL53L5CX_wake();
+
+    // Wait until the I²C bus is not busy (UCBBUSY bit cleared)
+    while ((EUSCI_BLOCK->STATW & 0x0010) != 0);
+    printf("RB a");
+
+
+    // Hold the EUSCI_BLOCK module in reset mode
+    EUSCI_BLOCK->CTLW0 |=  0x0001;
+
+    // Set the byte counter threshold to 1 by writing to the UCTBCNTx field in the UCBxTBCNT register.
+    // This register can only be modified when the UCSWRST bit (Bit 0) in the UCBxCTLW0 register is set
+    EUSCI_BLOCK->TBCNT  =  2 + 1;
+
+    // Take the EUSCI_BLOCK module out of reset mode
+    EUSCI_BLOCK->CTLW0 &= ~0x0001;
+
+    // Set the slave address (7-bit, right-justified)
+    EUSCI_BLOCK->I2CSA = p_platform->address;
+
+    // --- Phase 1: Write Register Address (Master Transmitter) ---
+    EUSCI_BLOCK->CTLW0 = (EUSCI_BLOCK->CTLW0 & ~0x0004) | 0x0012; // UCTR=1, UCTXSTT=1
+
+    // Transmit high byte of RegisterAddress
+    EUSCI_BLOCK->TXBUF = (RegisterAddress >> 8) & 0xFF;
+    while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {}
+    printf("b");
+
+
+    // Transmit low byte of RegisterAddress
+    EUSCI_BLOCK->TXBUF = RegisterAddress & 0xFF;
+    while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {}
+    printf("c");
+
+
+    // --- Phase 2: Read Data (Master Receiver) ---
+    // Clear the UCTR bit (Bit 4) in the UCBxCTLW0 register to configure the EUSCI_BLOCK module
+    // in master receiver mode. Then, set the UCTXSTP bit (Bit 2) to generate the STOP condition
+    // Lastly, set the UCTXSTT bit (Bit 1) to generate the START condition
+    EUSCI_BLOCK->CTLW0  = (EUSCI_BLOCK->CTLW0 & ~0x0010) | 0x0002; // UCTR=0, UCTXSTP=1
+    EUSCI_BLOCK->CTLW0 |= 0x0004; // UCTXSTP=1
+
+    // Wait for data reception (UCRXIFG0) or error
+//    while ((EUSCI_BLOCK->IFG & 0x0001) == 0) {}
+    while (prev_read_byte_counter == read_btye_counter) {}
+    prev_read_byte_counter = read_btye_counter;
+
+    printf("d\n");
+
+    *p_value = (uint8_t)(EUSCI_BLOCK->RXBUF);
+
+
+    // checks for TXNACK bit
+//    while ((EUSCI_BLOCK->IFG & 0x0020) == 0) {}
+
+
+    EUSCI_BLOCK->IFG &= ~0x0001;
+
+
+//    VL53L5CX_sleep();
+    return 0;
+}
+
+
+uint8_t VL53L5CX_WrByte(
+		VL53L5CX_Platform *p_platform,
+
+		uint16_t    RegisterAddress,
+		uint8_t     value)
+{
+    uint8_t status = 255;
+
+//    VL53L5CX_wake();
+
+    // --- Phase 1: Write Device Address (Master Transmitter) ---
+
+    // Wait until the I²C bus is not busy (b4 UCBBUSY bit cleared)
+    while ((EUSCI_BLOCK->STATW & 0x0010) != 0) {}
+    printf("WB a");
+
+
+    // Set the slave address (7-bit, right-justified in UCBxI2CSA)
+    EUSCI_BLOCK->I2CSA     = (p_platform->address) & 0x7F;
+
+
+    // --- Phase 2: Write Register Address (Master Transmitter) ---
+
+    // Configure as master transmitter (UCTR=1), generate START (UCTXSTT=1)
+    EUSCI_BLOCK->CTLW0     = (EUSCI_BLOCK->CTLW0 & ~0x0004) | 0x0012; // UCTR + UCTXSTT
+
+
+    // Check UCTXIFG0 or errors, then transmit high byte of RegisterAddress
+    while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {}
+    EUSCI_BLOCK->TXBUF     = (RegisterAddress >> 8) & 0xFF;
+    printf("b");
+
+
+    // Check UCTXIFG0 or errors, then transmit low byte of RegisterAddress
+    while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {}
+    EUSCI_BLOCK->TXBUF     =  RegisterAddress & 0xFF;
+    printf("c");
+
+
+    // --- Phase 3: Write Data (Master Transmitter) ---
+
+    // Wait for data reception (UCRXIFG0) or error
+    while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {}
+    EUSCI_BLOCK->TXBUF     = value;
+
+
+    while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {
+
+        // checks for arbitration flag and not-ACK flag
+        if (EUSCI_BLOCK->IFG & 0x0030) {
+            status = EUSCI_BLOCK->IFG;
+            EUSCI_B0_I2C_Init();
+            return status;
+
+        }
+    }
+    printf("d\n");
+
+
+
+    EUSCI_BLOCK->CTLW0    |= 0x0004; // UCTXSTP=1
+
+
+
+    // Ensure that the transmit interrupt flag is not set
+    EUSCI_BLOCK->IFG &= ~0x0002;
+
+
+    // return good status
+//    VL53L5CX_sleep();
+
+    // Configure the pins by setting P1.(7-6) high so I2C is busy
+//    P1->OUT  |=  0xC0;
+    return 0;
+
+}
+
+
+uint8_t VL53L5CX_WrMulti(
+		VL53L5CX_Platform *p_platform,
+
+		uint16_t     RegisterAddress,
+		uint8_t     *p_values,
+		uint32_t     size)
+{
+    uint8_t counter;
+
+    // --- Phase 1: Write Device Address (Master Transmitter) ---
+
+    // Wait until the I²C bus is not busy (b4 UCBBUSY bit cleared)
+    while ((EUSCI_BLOCK->STATW & 0x0010) != 0);
+
+
+    // Set the slave address (7-bit, right-justified in UCBxI2CSA)
+    EUSCI_BLOCK->I2CSA     = (p_platform->address) & 0x7F;
+
+
+
+    // --- Phase 2: Write Register Address (Master Transmitter) ---
+
+    // Configure as master transmitter (UCTR=1), generate START (UCTXSTT=1)
+    EUSCI_BLOCK->CTLW0     = (EUSCI_BLOCK->CTLW0 & ~0x0004) | 0x0012; // UCTR + UCTXSTT
+
+
+    // Check UCTXIFG0 or errors, then transmit high byte of RegisterAddress
+    while ((EUSCI_BLOCK->IFG & 0x0002) == 0);
+    EUSCI_BLOCK->TXBUF     = (RegisterAddress >> 8) & 0xFF;
+
+
+    // Check UCTXIFG0 or errors, then transmit low byte of RegisterAddress
+    while ((EUSCI_BLOCK->IFG & 0x0002) == 0);
+    EUSCI_BLOCK->TXBUF     =  RegisterAddress & 0xFF;
+
+
+    // --- Phase 3: Write Data (Master Transmitter) ---
+    for (counter = 0; counter < size; counter++) {
+
+        // Wait for data reception (UCRXIFG0) or error
+        while ((EUSCI_BLOCK->IFG & 0x0002) == 0);
+        EUSCI_BLOCK->TXBUF     = *(p_values + counter);
+    }
+
+
+    while ((EUSCI_BLOCK->IFG & 0x0002) == 0);
+
+
+    EUSCI_BLOCK->CTLW0 |= 0x0004; // UCTXSTP=1
+
+
+
+    // Ensure that the transmit interrupt flag is not set
+    EUSCI_BLOCK->IFG &= ~0x0002;
+
+
+    // return good status
+    return 0;
+}
+
+
+uint8_t VL53L5CX_RdMulti(
+		VL53L5CX_Platform *p_platform,
+
+		uint16_t     RegisterAddress,
+		uint8_t     *p_values,
+		uint32_t     size)
+{
+	uint8_t status = 255,
+	        address;
+	
+	/* Need to be implemented by customer. This function returns 0 if OK */
+	
+
+	return status;
+}
+
+
+uint8_t VL53L5CX_Reset_Sensor(
+		VL53L5CX_Platform *p_platform)
+{
+	uint8_t status = 0;
+	
+	/* (Optional) Need to be implemented by customer. This function returns 0 if OK */
+	
+	/* Set pin LPN to LOW */
+    VL53L5CX_sleep();
+	/* Set pin AVDD to LOW */
+	/* Set pin VDDIO  to LOW */
+	VL53L5CX_WaitMs(p_platform, 100);
+
+
+    EUSCI_B0_I2C_Init();
+
+
+	/* Set pin LPN of to HIGH */
+	VL53L5CX_wake();
+	/* Set pin AVDD of to HIGH */
+	/* Set pin VDDIO of  to HIGH */
+	VL53L5CX_WaitMs(p_platform, 100);
+
+	return status;
+}
+
+void VL53L5CX_SwapBuffer(
+		uint8_t         *buffer,
+		uint16_t 	 	 size)
+{
+	uint32_t i, tmp;
+	
+	/* Example of possible implementation using <string.h> */
+	for (i = 0; i < size; i = i + 4) {
+
+		tmp =   (buffer[i]     << 24)
+              | (buffer[i+1]   << 16)
+              | (buffer[i+2]   <<  8)
+              | (buffer[i+3]        );
+		
+		memcpy(&(buffer[i]), &tmp, 4);
+	}
+}	
+
+uint8_t VL53L5CX_WaitMs(
+		VL53L5CX_Platform *p_platform,
+
+		uint32_t    TimeMs)
+{
+
+	uint8_t status = 255;
+
+	/* Need to be implemented by customer. This function returns 0 if OK */
+	
+	SysTick_Wait_ms(TimeMs);
+	status = 0;
+
+	return status;
+}
+
+

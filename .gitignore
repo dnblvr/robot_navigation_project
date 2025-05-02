@@ -58,3 +58,10 @@ dkms.conf
 .jxbrowser.userdata
 Icon*
 /.vscode
+
+
+.ccsproject
+.cproject
+.project
+.launches/
+.settings/

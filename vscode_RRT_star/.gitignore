@@ -1,0 +1,6 @@
+
+# Mac-specific files
+/Icon*
+.DS_Store
+
+.vscode

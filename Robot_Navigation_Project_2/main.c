@@ -24,28 +24,6 @@
 
 
 
-//// Initialize a global variable for SysTick to keep track of elapsed time in milliseconds
-//uint32_t SysTick_ms_elapsed = 0;
-//
-///**
-// * @brief
-// *
-// * @param None
-// *
-// * @return None
-// */
-//void SysTick_Handler(void)
-//{
-//    SysTick_ms_elapsed++;
-//
-//    if (SysTick_ms_elapsed >= 500)
-//    {
-//        P8->OUT ^= 0x01;
-//        SysTick_ms_elapsed = 0;
-//    }
-//}
-
-
 #define SMCLK_FREQ 48000000 // Example: SMCLK frequency (48 MHz)
 #define TARGET_DELAY 1000   // Example: Delay of 1 second
 #define TICK_PER_MS (SMCLK_FREQ / 1000) // Clock ticks per millisecond
@@ -53,6 +31,7 @@
 volatile unsigned int counter = 0; // Global counter
 
 void delay_ms(unsigned int ms) {
+
     // Use a software timer to delay for ms milliseconds
     counter = 0;
     while (counter < ms * TICK_PER_MS) {
@@ -88,58 +67,6 @@ int main(void)
 
 
     int buffer_idx = 0;
-//
-//    // Initialize the collision_detected flag
-//    collision_detected = 0;
-//
-//
-//    // Initialize the 48 MHz Clock
-//    Clock_Init48MHz();
-//
-//
-//    // Initialize the built-in red LED and the RGB LEDs
-//    LED1_Init();
-//    LED2_Init();
-//
-//
-//    // Initialize the user buttons
-//    Buttons_Init();
-//
-//
-//    // Initialize the front and back LEDs on the chassis board
-//    Chassis_Board_LEDs_Init();
-//
-//
-//    // Initialize EUSCI_A0_UART
-//    EUSCI_A0_UART_Init_Printf();
-//
-//
-//    // Initialize the bumper switches which will be used to generate external I/O-triggered interrupts
-//    Bumper_Switches_Init(&Bumper_Switches_Handler);
-//
-//
-//    // Initialize the SysTick timer to generate periodic interrupts every 1 ms
-//    SysTick_Interrupt_Init(SYSTICK_INT_NUM_CLK_CYCLES, SYSTICK_INT_PRIORITY);
-//
-//
-//    // Initialize Timer A1 periodic interrupts every 0.5 ms
-//    Timer_A1_Interrupt_Init(&Timer_A1_Periodic_Task, TIMER_A1_INT_CCR0_VALUE);
-//
-//
-//    // Initialize Timer A2 in Capture mode
-//    Timer_A2_Capture_Init(&Detect_Edge);
-//
-//
-//    // Initialize the tachometers
-//    Tachometer_Init();
-//
-//
-//    // Initialize the DC motors
-//    Motor_Init();
-//
-//
-//    // Enable the interrupts used by the SysTick and Timer_A timers
-//    EnableInterrupts();
 
 
     // Initialize the 48 MHz Clock
@@ -165,10 +92,6 @@ int main(void)
 
     // Initialize EUSCI_A0_UART
     EUSCI_A3_UART_Init();
-
-
-    // Initialize Timer A1 periodic interrupts every 0.5 ms
-//    Timer_A1_Interrupt_Init(&Timer_A1_Periodic_Task, TIMER_A1_INT_CCR0_VALUE);
 
 
     // Enable the interrupts used by the SysTick and Timer_A timers
@@ -397,26 +320,6 @@ int main(void)
 //    status = vl53l5cx_set_i2c_address(&Dev, 0x20);
 
 
-//    uint8_t contents_0x7fff, contents_0x56;
-//
-//
-//    status |= VL53L5CX_WrByte(&(Dev.platform), 0x7fff, 0x02);
-//    printf("in first WrByte()\n");
-//
-//    status |= VL53L5CX_RdByte(&(Dev.platform), 0x7fff, &contents_0x7fff);
-//    printf("contents_0x7fff\t= 0x%02X\n", contents_0x7fff);
-//
-//    status |= VL53L5CX_WrByte(&(Dev.platform), 0x56, 0x02);
-//    printf("in second WrByte()\n");
-//
-//
-//    status |= VL53L5CX_RdByte(&(Dev.platform), 0x56, &contents_0x56);
-//    printf("contents_0x56\t= 0x%02X\n", contents_0x56);
-//
-//
-//    return 0;
-
-
     /*********************************/
     /*   Power on sensor and init    */
     /*********************************/
@@ -434,7 +337,8 @@ int main(void)
         printf("detected\n");
     }
 
-    return 0;
+    return 0; // stops here for testing purposes
+    
 
     /* (Mandatory) Init VL53L5CX sensor */
     status = vl53l5cx_init(&Dev);

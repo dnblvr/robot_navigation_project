@@ -56,23 +56,6 @@ The materials involved include:
   * [Application of Maximum Likelihood Estimation in GraphSLAM \| by Shiva Chandrachary \| Medium](https://shivachandrachary.medium.com/application-of-maximum-likelihood-estimation-in-graphslam-db4897f0083b "Application of Maximum Likelihood Estimation in GraphSLAM | by Shiva Chandrachary | Medium")
   * [An application of Numerical Solution to Maximum Likelihood Estimation in GraphSLAM \| by Shiva Chandrachary \| Medium](https://shivachandrachary.medium.com/an-application-of-numerical-solutions-to-maximum-likelihood-estimation-in-graphslam-31a7284721e3 "An application of Numerical Solution to Maximum Likelihood Estimation in GraphSLAM | by Shiva Chandrachary | Medium")
 
-* Problems with MSP432
-  * [MSP432 User\'s Guide \- MSP432\_DriverLib\_Users\_Guide\-MSP432P4xx\-4\_20\_00\_03\.pdf](https://fweb.wallawalla.edu/~frohro/ClassHandouts/Electronics/MSP-EXP432P401R/MSP432_DriverLib_Users_Guide-MSP432P4xx-4_20_00_03.pdf "MSP432 User\'s Guide - MSP432_DriverLib_Users_Guide-MSP432P4xx-4_20_00_03.pdf")
-  * [I2C problem with second data burst\.](https://microcontroller248.rssing.com/chan-64321514/article843.html?nocache=0 "I2C problem with second data burst.")
-    * [microcontroller \- I2C busy flag strange behaviour \- Electrical Engineering Stack Exchange](https://electronics.stackexchange.com/questions/267972/i2c-busy-flag-strange-behaviour/281046#281046 "microcontroller - I2C busy flag strange behaviour - Electrical Engineering Stack Exchange")
-  * [code composer studio I2C in debug mode different result to realtime output \- Google Search](https://www.google.com/search?client=firefox-b-1-d&q=code+composer+studio+I2C+in+debug+mode+different+result+to+realtime+output "code composer studio I2C in debug mode different result to realtime output - Google Search")
-
-* Research for Alternative Plan using RPLIDAR C1
-  * [Amazon\.com\: youyeetoo RPLIDAR C1 Fusion Lidar DTOF Laser Scanner \- 360\-Degree Full\-Range 12\-Meter Laser Scanner for Robot Projects Involving Positioning\, Mapping\, Navigation\, and Obstacle Avoidance \: Tools \& Home Improvement](https://www.amazon.com/gp/product/B0CNXLJJ61/ref=ewc_pr_img_1?smid=AIJ7WJJN4HG6E&psc=1 "Amazon.com: youyeetoo RPLIDAR C1 Fusion Lidar DTOF Laser Scanner - 360-Degree Full-Range 12-Meter Laser Scanner for Robot Projects Involving Positioning, Mapping, Navigation, and Obstacle Avoidance : Tools \& Home Improvement")
-  * [\(307\) Low Cost Lidar RPLIDAR C1 \- Unboxing \& Review \- YouTube](https://www.youtube.com/watch?v=4OZKeXjsVz0 "\(307\) Low Cost Lidar RPLIDAR C1 - Unboxing \& Review - YouTube")
-  * [RPLIDAR C1 with Raspberry PI 4 and ROS2 \| Details \| Hackaday\.io](https://hackaday.io/project/197642-rplidar-c1-with-raspberry-pi-4-and-ros2/details "RPLIDAR C1 with Raspberry PI 4 and ROS2 | Details | Hackaday.io")
-  * [RPLIDAR C1 Documentation \: r\/arduino](https://www.reddit.com/r/arduino/comments/1iu46gj/rplidar_c1_documentation/ "RPLIDAR C1 Documentation : r/arduino")
-    * [LR001\_SLAMTEC\_rplidar\_protocol\_v2\.1\_en\.pdf](http://bucket.download.slamtec.com/ccb3c2fc1e66bb00bd4370e208b670217c8b55fa/LR001_SLAMTEC_rplidar_protocol_v2.1_en.pdf "LR001_SLAMTEC_rplidar_protocol_v2.1_en.pdf")
-    * [DanielKalicki\/RPLidar\_Arduino\: Basic RPLidar SDK for Arduino\.](https://github.com/DanielKalicki/RPLidar_Arduino "DanielKalicki/RPLidar_Arduino: Basic RPLidar SDK for Arduino.")
-    * [rplidar\_sdk\/app\/custom\_baudrate\/main\.cpp at master · Slamtec\/rplidar\_sdk](https://github.com/Slamtec/rplidar_sdk/blob/master/app/custom_baudrate/main.cpp "rplidar_sdk/app/custom_baudrate/main.cpp at master · Slamtec/rplidar_sdk")
-  * [Editing robot\_navigation\_project\/README\.md at main · dnblvr\/robot\_navigation\_project](https://github.com/dnblvr/robot_navigation_project/edit/main/README.md "Editing robot_navigation_project/README.md at main · dnblvr/robot_navigation_project")
-
-
 ## Checklist
 
 In general, for all tasks, they should follow the same guidelines:
@@ -83,28 +66,19 @@ In general, for all tasks, they should follow the same guidelines:
 
 ### Main Tasks
 
-* [ ] RRT*
-  * [x] simulation on C and Python [^1]
-  * [ ] MSP432 implementation (wk 13) [^1]
-    * [ ] configure the correct I/O required [^2]
+#### Both Gian and Lucy:
+* [ ] RRT* simulation on C (Visual Studio Code)
+* [ ] multizone LiDAR configuration (wk 9-11)
+  * [ ] configure with Timer_Ax interrupt hardware
+  * [ ] configure I2C with interrupt!
+  * [ ] implement state machine to know when to read
 
-* [ ] multizone LiDAR configuration (wk 10-12)
-  * [ ] configure I2C with interrupt! [^1]
-  * [ ] configure with Timer_Ax interrupt hardware [^1]
-  * [ ] implement state machine to know when to read [^2]
+* [ ] combine all our code together (wk 12-13)
+     
+#### Gian:
+* [ ] Odometry  (wk 9-10)
+* [ ] GraphSLAM (wk 9-11)
+  * [ ] I will look into what the inputs and outputs of this thing will require
 
-* [ ] Odometry  (wk 10-11)
-  * [x] extended Kalman Filter [^2]
-  * [ ] simulation in C/Python [^1]
-
-* [ ] GraphSLAM (wk 10-12) [^1]
-  * [ ] research [^2]
-    * [ ] landmark selection [^1]
-    * [ ] I will look into what the I/O of this thing will require [^2]
-
-
-
-* [ ] combine all our code together (wk 14-17)
-
-[^1]: assigned to both Gian and Lucy
-[^2]: assigned to Gian
+* [ ] RRT* implementation on MSP 432 (wk 12)
+  * [ ] configure the correct I/O required

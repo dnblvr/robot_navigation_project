@@ -58,3 +58,5 @@ dkms.conf
 .jxbrowser.userdata
 Icon*
 /.vscode
+
+.DS_Store

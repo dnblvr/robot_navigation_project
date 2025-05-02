@@ -60,8 +60,11 @@ Icon*
 /.vscode
 
 
+
 .ccsproject
 .cproject
 .project
 .launches/
 .settings/
+Icon*
+/.vscode

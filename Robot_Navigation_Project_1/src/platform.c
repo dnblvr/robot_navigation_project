@@ -15,6 +15,25 @@
 #include "../inc/platform.h"
 
 
+// this is to prevent the RXIFG from being polled directly but these variables are not recognized
+
+ uint32_t read_byte_counter      = 0;
+ uint32_t prev_read_byte_counter = 0;
+
+
+
+void EUSCIB0_IRQHandler(void) {
+
+    if (EUSCI_B0->IFG &   0x0001) {
+        // clear the RXIFG
+        EUSCI_B0->IFG &= ~0x0001;
+
+        // perform task here
+        read_byte_counter++;
+    }
+}
+
+// this is to prevent the RXIFG from being polled directly but these variables are not recognized
 
 
 void EUSCI_B0_I2C_Init()
@@ -129,21 +148,6 @@ void EUSCI_B0_RX_Stop(void) {
     // clear it in hte nested vector interrupt table
     NVIC->ICER[0] &= ~0x00100000;
 }
-
-/**
- * @brief   Some description. sup
- */
-
-//void EUSCIB0_IRQHandler(void) {
-//
-//    if (EUSCI_B0->IFG &   0x0001) {
-//        // clear the RXIFG
-//        EUSCI_B0->IFG &= ~0x0001;
-//
-//        // perform task here
-//        read_byte_counter++;
-//    }
-//}
 
 
 uint8_t VL53L5CX_RdByte(

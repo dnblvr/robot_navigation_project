@@ -22,7 +22,6 @@
 
 
 
-#ifndef EN_I2C_RD_WR
 
 void EUSCI_B0_I2C_Init()
 {
@@ -131,6 +130,7 @@ void EUSCI_B0_I2C_Init()
 
 
 
+#ifndef EN_I2C_RD_WR
 
 
 void EUSCI_B0_I2C_Send_A_Byte(uint8_t slave_address, uint8_t data)

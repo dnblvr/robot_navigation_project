@@ -48,7 +48,7 @@
 
 
 
-#include "inc/EUSCI_B0_I2C.h"
+//#include "inc/EUSCI_B0_I2C.h"
 //#include "inc/EUSCI_B1_I2C.h"
 //#include "inc/globals.h"
 #include "inc/platform.h"
@@ -56,25 +56,6 @@
 #include "inc/ToF_GPIO.h"
 
 
-// this is to prevent the RXIFG from being polled directly but these variables are not recognized
-
-uint32_t read_byte_counter      = 0;
-uint32_t prev_read_byte_counter = 0;
-
-
-
-void EUSCIB0_IRQHandler(void) {
-
-    if (EUSCI_B0->IFG &   0x0001) {
-        // clear the RXIFG
-        EUSCI_B0->IFG &= ~0x0001;
-
-        // perform task here
-        read_byte_counter++;
-    }
-}
-
-// this is to prevent the RXIFG from being polled directly but these variables are not recognized
 
 
 

@@ -32,10 +32,10 @@ The paper suggests dynamically adjusting RADIUS as γ*(log(n)/n)^(1/d) (where d 
 
 */
 
-#define MAX_NEARBY  50
-#define MAX_ITER    50000
+#define MAX_NEARBY  30
+#define MAX_ITER    500
 #define STEP_SIZE   3
-#define RADIUS      10.0
+#define RADIUS      8.0
 #define GOAL_RADIUS 3.0
 
 
@@ -135,33 +135,33 @@ int is_collision_free(
   int       num_obstacles)
 {
 
-for (int i = 0; i < num_obstacles; i++) {
-
-  if (point_in_obstacle(from->x, from->y, &obstacles[i]) ||
-      point_in_obstacle(to->x, to->y, &obstacles[i]))
-    return 0;
-
-}
-
-double  dx      = to->x - from->x,
-        dy      = to->y - from->y,
-        length  = sqrt(dx*dx + dy*dy);
-
-int     steps   = (int)(length / 1.0);
-
-for (int step = 1; step <= steps; step++) {
-
-  double  t = (double)step/steps,
-          x = from->x + dx*t,
-          y = from->y + dy*t;
-
   for (int i = 0; i < num_obstacles; i++) {
 
-    if (point_in_obstacle(x, y, &obstacles[i]))
+    if (point_in_obstacle(from->x, from->y, &obstacles[i]) ||
+        point_in_obstacle(to->x, to->y, &obstacles[i]))
       return 0;
+
   }
-}
-return 1;
+
+  double  dx      = to->x - from->x,
+          dy      = to->y - from->y,
+          length  = sqrt(dx*dx + dy*dy);
+
+  int     steps   = (int)(length / 1.0);
+
+  for (int step = 1; step <= steps; step++) {
+
+    double  t = (double)step/steps,
+            x = from->x + dx*t,
+            y = from->y + dy*t;
+
+    for (int i = 0; i < num_obstacles; i++) {
+
+      if (point_in_obstacle(x, y, &obstacles[i]))
+        return 0;
+    }
+  }
+  return 1;
 }
 
 
@@ -178,12 +178,12 @@ Node* nearest_node(
   // cycles through the 
   for (int i = 0; i < tree->num_nodes; i++) {
 
-    Node* node = &tree->nodes[i];
+    Node* node  = &tree->nodes[i];
     double dist = pow(node->x - x, 2) + pow(node->y - y, 2);
 
     if (dist < min_dist) {
-      min_dist = dist;
-      nearest = node;
+      min_dist  = dist;
+      nearest   = node;
     }
   }
 
@@ -317,6 +317,7 @@ void save_tree_and_obstacles(
       edge_count++;
     }
   }
+  
   fprintf(fp, "],\n");
 
   // Save goal

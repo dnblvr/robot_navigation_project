@@ -59,6 +59,15 @@
 
 
 
+/**
+ * @brief   This variable stores every update to the RXIFG of the EUSCI_B0.
+ *          This is part of a workaround to avoid polling the RXIFG flag.
+ */
+uint32_t read_btye_counter      = 0;
+uint32_t prev_read_byte_counter = 0;
+
+
+
 uint32_t Timer_A1_ms_elapsed    = 0;
 
 
@@ -105,8 +114,6 @@ int main(void)
 
 
      EUSCI_B0_I2C_Init();
- //     EUSCI_B1_I2C_Init();
-
 
 
      // configures the I2C_RST and LPn
@@ -125,10 +132,6 @@ int main(void)
      // Initialize the built-in red LED and the RGB LEDs
      LED1_Init();
      LED2_Init();
-
-
-     // Initialize the user buttons
- //    Buttons_Init();
 
 
      // Initialize the front and back LEDs on the chassis board

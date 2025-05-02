@@ -17,31 +17,21 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdint.h>
+
 #include "./inc/SysTick_Interrupt.h"
 
 #define  EUSCI_BLOCK EUSCI_B0
 
-//#include "./inc/EUSCI_B0_I2C.h"
-//#include "./inc/EUSCI_B1_I2C.h"
-//#include "inc/ToF_GPIO.h"
+#include "./inc/ToF_GPIO.h"
 //#include "./inc/globals.h"
 
-
-#include <stdint.h>
 
 
 
 /**
- * @brief   This variable stores every update to the RXIFG of the EUSCI_B0.
- *          This is part of a workaround to avoid polling the RXIFG flag.
+ * @brief   Some description. sup
  */
-extern uint32_t read_btye_counter      = 0;
-extern uint32_t prev_read_byte_counter = 0;
-
-
-
-
-
 void EUSCI_B0_I2C_Init();
 
 
@@ -203,7 +193,6 @@ uint8_t VL53L5CX_WaitMs(
 		uint32_t TimeMs);
 
 
-// helper functionws
 
 
 #endif	// _PLATFORM_H_

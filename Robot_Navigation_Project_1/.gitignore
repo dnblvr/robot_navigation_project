@@ -1,1 +1,8 @@
 /Debug/
+
+# project-specific folders
+.ccsproject/*
+.cproject/*
+.launches/*
+.project
+.settings/*

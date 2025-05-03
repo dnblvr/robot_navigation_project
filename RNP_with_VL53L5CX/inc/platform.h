@@ -28,11 +28,14 @@
 
 
 
+//#define Read_Byte_Counter       ((uint32_t)      read_byte_counter)
+//#define Prev_Read_Byte_Counter  ((uint32_t) prev_read_byte_counter)
 
-/**
- * @brief   Some description. sup
- */
-void EUSCI_B0_I2C_Init();
+
+
+extern uint32_t      read_byte_counter;
+extern uint32_t prev_read_byte_counter;
+
 
 
 /**

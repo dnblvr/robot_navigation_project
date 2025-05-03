@@ -14,11 +14,16 @@
 
 #include "../inc/platform.h"
 
+#include <stdint.h>
+
 
 // this is to prevent the RXIFG from being polled directly but these variables are not recognized
 
-extern uint32_t read_byte_counter      ;
-extern uint32_t prev_read_byte_counter ;
+//Read_Byte_Counter      = 0;
+//Prev_Read_Byte_Counter = 0;
+
+uint32_t read_byte_counter      = 0;
+uint32_t prev_read_byte_counter = 0;
 
 
 
@@ -29,7 +34,8 @@ void EUSCIB0_IRQHandler(void) {
         EUSCI_B0->IFG &= ~0x0001;
 
         // perform task here
-        read_byte_counter++;
+        Read_Byte_Counter++;
+
     }
 }
 
@@ -201,8 +207,8 @@ uint8_t VL53L5CX_RdByte(
 
     // Wait for data reception (UCRXIFG0) or error
 //    while ((EUSCI_BLOCK->IFG & 0x0001) == 0) {}
-    while (prev_read_byte_counter == read_btye_counter);
-    prev_read_byte_counter = read_btye_counter;
+    while (Prev_Read_Byte_Counter == Read_Byte_Counter);
+    Prev_Read_Byte_Counter = Read_Byte_Counter;
 
     printf("d\n");
 

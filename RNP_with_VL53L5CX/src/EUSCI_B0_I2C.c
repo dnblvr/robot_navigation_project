@@ -126,6 +126,11 @@ void EUSCI_B0_I2C_Init()
 
     // set the 20th bit to enable IRQ number 20, or the EUSCIB0_IRQHander
     NVIC->ISER[0] |= 0x00100000;
+
+
+
+    VL53L5CX_no_reset();
+
 }
 
 

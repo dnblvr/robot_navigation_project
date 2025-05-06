@@ -151,7 +151,9 @@ void EUSCI_B1_I2C_Send_A_Byte(uint8_t slave_address, uint8_t data)
     // Ensure that the transmit interrupt flag is not set by clearing the
     // UCTXIFG0 bit (Bit 1) in the UCBxIFG register
     EUSCI_B1->IFG &= ~0x0002; // unnecessary, since it's done after writing to TXBUF
+
 }
+
 
 void EUSCI_B1_I2C_Send_Multiple_Bytes(uint8_t slave_address, uint8_t *data_buffer, uint32_t packet_length)
 {

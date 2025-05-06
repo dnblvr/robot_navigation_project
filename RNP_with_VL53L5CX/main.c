@@ -59,15 +59,6 @@
 
 
 
-/**
- * @brief   This variable stores every update to the RXIFG of the EUSCI_B0.
- *          This is part of a workaround to avoid polling the RXIFG flag.
- */
-uint32_t read_btye_counter      = 0;
-uint32_t prev_read_byte_counter = 0;
-
-
-
 uint32_t Timer_A1_ms_elapsed    = 0;
 
 

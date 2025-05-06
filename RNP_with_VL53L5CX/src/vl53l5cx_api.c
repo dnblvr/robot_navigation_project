@@ -231,7 +231,7 @@ uint8_t vl53l5cx_is_alive(
 	uint8_t device_id,
 	        revision_id;
 
-	printf("\nin vl53l5cx_is_alive()\n");
+	printf("\n\nin vl53l5cx_is_alive()\n");
 
 
     printf("in 1st WrByte()\n");

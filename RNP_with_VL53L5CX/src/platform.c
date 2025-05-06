@@ -34,7 +34,7 @@ void EUSCIB0_IRQHandler(void) {
         EUSCI_B0->IFG &= ~0x0001;
 
         // perform task here
-        Read_Byte_Counter++;
+        read_byte_counter++;
 
     }
 }
@@ -42,109 +42,6 @@ void EUSCIB0_IRQHandler(void) {
 // this is to prevent the RXIFG from being polled directly but these variables are not recognized
 
 
-void EUSCI_B0_I2C_Init()
-{
-
-    // Hold the EUSCI_B0 module in reset mode by setting the
-    // UCSWRST bit (Bit 0) in the UCBxCTLW0 register
-    EUSCI_B0->CTLW0 |= 0x0001;
-
-    // ----------------------------------------------------------------------------------------------------------
-
-
-    // Configure the master and slave device addresses to be 7 bits by clearing the
-    // UCA10 and UCSLA10 bits (Bits 15 to 14) in the UCBxCTLW0 register
-    EUSCI_B0->CTLW0 &= ~0xC000;
-
-
-    // Configure the EUSCI_B0 module to operate as a single master by clearing the
-    // UCMM bit (Bit 13) in the UCBxCTLW0 register
-    EUSCI_B0->CTLW0 &= ~0x2000;
-
-
-    // Configure the EUSCI_B0 module to operate in master mode by
-    // setting the UCMST bit (Bit 11) in the UCBxCTLW0 register
-    EUSCI_B0->CTLW0 |= 0x0800;
-
-
-    // Configure the EUSCI_B0 module to use I2C mode by writing a value of
-    // 11b (0x3) in the UCMODEx field (Bits 10 to 9) in the UCBxCTLW0 register
-    EUSCI_B0->CTLW0 |= 0x0600;
-
-
-    // Enable synchronous mode for the EUSCI_B0 module by setting
-    // the UCSYNC bit (Bit 8) in the UCBxCTLW0 register
-    EUSCI_B0->CTLW0 |= 0x0100;
-
-
-    // Select SMCLK as the clock source for the EUSCI_B0 module by writing a value of
-    // 11b (0x3) in the UCSSELx field (Bits 7 to 6) in the UCBxCTLW0 register
-    EUSCI_B0->CTLW0 |= 0x00C0;
-
-
-    // Configure the EUSCI_B0 module to not transmit the ACK condition in slave mode
-    // with enabled address mask by clearing the UCTXACK bit (Bit 5) in the UCBxCTLW0 register
-    EUSCI_B0->CTLW0 &= ~0x0020;
-
-
-    // Configure the EUSCI_B0 module to operate in I2C master receiver mode by clearing the
-    // UCTR bit (Bit 4) in the UCBxCTLW0 register
-    EUSCI_B0->CTLW0 &= ~0x0010;
-
-
-    // Clear the UCTXNACK bit (Bit 3) in the UCBxCTLW0 register since it is used only in slave receiver mode
-    EUSCI_B0->CTLW0 &= ~0x0008;
-
-
-    // Configure the EUSCI_B0 module not to generate the STOP condition in master mode by clearing
-    // the UCTXSTP bit (Bit 2) in the UCBxCTLW0 register. Note that in master receiver mode,
-    // the STOP condition is preceded by a NACK
-    EUSCI_B0->CTLW0 &= ~0x0004;
-
-
-    // Configure the EUSCI_B0 module to not generate the START condition in master mode by clearing
-    // the UCTXSTT bit (Bit 1) in the UCBxCTLW0 register. Note that in master receiver mode,
-    // the START condition is preceded by a NACK
-    EUSCI_B0->CTLW0 &= ~0x0002;
-
-
-    // Clear all of the bits in the UCBxCTLW1 register (Bits 8 to 0) since the
-    // advanced I2C features will not be used
-    EUSCI_B0->CTLW1 &= ~0x01FF;
-
-
-    // Set the I2C clock prescaler value to 30 to divide the SMCLK clock frequency
-    // from 12 MHz to 400 kHz
-    // N = (Clock Frequency) / (SCL Frequency) = (12,000,000 / 400,000) = 30
-//    EUSCI_B0->BRW = 30;
-    EUSCI_B0->BRW = 120;
-
-
-    // Configure the P1.6 (SDA) and P1.7 (SCL)  pins to use the primary module function (I2C)
-    // by setting Bits 7 to 6 in the SEL0 register and clearing Bits 7 to 6 in the SEL1 register
-    P1->SEL0 |=  0xC0;
-    P1->SEL1 &= ~0xC0;
-
-
-    // ----------------------------------------------------------------------------------------------------------
-
-    // Take the EUSCI_B0 module out of reset mode by clearing the
-    // UCSWRST bit (Bit 0) in the UCBxCTLW0 register
-    EUSCI_B0->CTLW0 &= ~0x0001;
-
-
-    // Ensure that all of the I2C interrupts are disabled by clearing
-    // Bits 14 to 0 in the UCBxIE register
-//    EUSCI_B0->IE &= ~0x7FFF;
-
-    // Ensure that all of the I2C interrupts but the RXIFG are disabled by clearing
-    // Bits 14 to 0 in the UCBxIE register
-    EUSCI_B0->IE |= 0x0001;
-
-
-    // set the 20th bit to enable IRQ number 20, or the EUSCIB0_IRQHander
-    NVIC->ISER[0] |= 0x00100000;
-}
 
 
 void EUSCI_B0_RX_Stop(void) {
@@ -171,14 +68,14 @@ uint8_t VL53L5CX_RdByte(
 
 
     // Hold the EUSCI_BLOCK module in reset mode
-    EUSCI_BLOCK->CTLW0 |=  0x0001;
-
-    // Set the byte counter threshold to 1 by writing to the UCTBCNTx field in the UCBxTBCNT register.
-    // This register can only be modified when the UCSWRST bit (Bit 0) in the UCBxCTLW0 register is set
-    EUSCI_BLOCK->TBCNT  =  2 + 1;
-
-    // Take the EUSCI_BLOCK module out of reset mode
-    EUSCI_BLOCK->CTLW0 &= ~0x0001;
+//    EUSCI_BLOCK->CTLW0 |=  0x0001;
+//
+//    // Set the byte counter threshold to 1 by writing to the UCTBCNTx field in the UCBxTBCNT register.
+//    // This register can only be modified when the UCSWRST bit (Bit 0) in the UCBxCTLW0 register is set
+//    EUSCI_BLOCK->TBCNT  =  2 + 1;
+//
+//    // Take the EUSCI_BLOCK module out of reset mode
+//    EUSCI_BLOCK->CTLW0 &= ~0x0001;
 
     // Set the slave address (7-bit, right-justified)
     EUSCI_BLOCK->I2CSA = p_platform->address;
@@ -207,8 +104,8 @@ uint8_t VL53L5CX_RdByte(
 
     // Wait for data reception (UCRXIFG0) or error
 //    while ((EUSCI_BLOCK->IFG & 0x0001) == 0) {}
-    while (Prev_Read_Byte_Counter == Read_Byte_Counter);
-    Prev_Read_Byte_Counter = Read_Byte_Counter;
+    while (prev_read_byte_counter == read_byte_counter);
+    prev_read_byte_counter = read_byte_counter;
 
     printf("d\n");
 

@@ -16,11 +16,9 @@
 
 #include <stdint.h>
 
+#define I2C_RT_DEBUG 1
 
-// this is to prevent the RXIFG from being polled directly but these variables are not recognized
 
-//Read_Byte_Counter      = 0;
-//Prev_Read_Byte_Counter = 0;
 
 uint32_t read_byte_counter      = 0;
 uint32_t prev_read_byte_counter = 0;
@@ -38,8 +36,6 @@ void EUSCIB0_IRQHandler(void) {
 
     }
 }
-
-// this is to prevent the RXIFG from being polled directly but these variables are not recognized
 
 
 
@@ -64,8 +60,10 @@ uint8_t VL53L5CX_RdByte(
 
     // Wait until the I²C bus is not busy (UCBBUSY bit cleared)
     while ((EUSCI_BLOCK->STATW & 0x0010) != 0);
-    printf("RB a");
 
+#ifdef I2C_RT_DEBUG
+    printf("RB a");
+#endif
 
     // Hold the EUSCI_BLOCK module in reset mode
 //    EUSCI_BLOCK->CTLW0 |=  0x0001;
@@ -86,13 +84,19 @@ uint8_t VL53L5CX_RdByte(
     // Transmit high byte of RegisterAddress
     EUSCI_BLOCK->TXBUF = (RegisterAddress >> 8) & 0xFF;
     while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {}
+
+#ifdef I2C_RT_DEBUG
     printf("b");
+#endif
 
 
     // Transmit low byte of RegisterAddress
     EUSCI_BLOCK->TXBUF = RegisterAddress & 0xFF;
     while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {}
+
+#ifdef I2C_RT_DEBUG
     printf("c");
+#endif
 
 
     // --- Phase 2: Read Data (Master Receiver) ---
@@ -107,7 +111,9 @@ uint8_t VL53L5CX_RdByte(
     while (prev_read_byte_counter == read_byte_counter);
     prev_read_byte_counter = read_byte_counter;
 
+#ifdef I2C_RT_DEBUG
     printf("d\n");
+#endif
 
     *p_value = (uint8_t)(EUSCI_BLOCK->RXBUF);
 
@@ -138,7 +144,10 @@ uint8_t VL53L5CX_WrByte(
 
     // Wait until the I²C bus is not busy (b4 UCBBUSY bit cleared)
     while ((EUSCI_BLOCK->STATW & 0x0010) != 0) {}
+
+#ifdef I2C_RT_DEBUG
     printf("WB a");
+#endif
 
 
     // Set the slave address (7-bit, right-justified in UCBxI2CSA)
@@ -154,13 +163,19 @@ uint8_t VL53L5CX_WrByte(
     // Check UCTXIFG0 or errors, then transmit high byte of RegisterAddress
     while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {}
     EUSCI_BLOCK->TXBUF     = (RegisterAddress >> 8) & 0xFF;
+
+#ifdef I2C_RT_DEBUG
     printf("b");
+#endif
 
 
     // Check UCTXIFG0 or errors, then transmit low byte of RegisterAddress
     while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {}
     EUSCI_BLOCK->TXBUF     =  RegisterAddress & 0xFF;
+
+#ifdef I2C_RT_DEBUG
     printf("c");
+#endif
 
 
     // --- Phase 3: Write Data (Master Transmitter) ---
@@ -180,7 +195,11 @@ uint8_t VL53L5CX_WrByte(
 
         }
     }
+
+
+#ifdef I2C_RT_DEBUG
     printf("d\n");
+#endif
 
 
 

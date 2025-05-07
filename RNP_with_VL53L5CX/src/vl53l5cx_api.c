@@ -238,7 +238,7 @@ uint8_t vl53l5cx_is_alive(
 	status |= VL53L5CX_WrByte(&(p_dev->platform), 0x7fff, 0x00);
 
 
-	printf("in 1st RdByte(); ");
+//	printf("in 1st RdByte(); ");
 	status |= VL53L5CX_RdByte(&(p_dev->platform), 0, &device_id);
     printf(" device_id = 0x%02X\n", device_id);
 

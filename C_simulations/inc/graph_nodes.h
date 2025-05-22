@@ -41,7 +41,7 @@ typedef struct GraphNode {
     PoseState       pose;               // Robot pose (x_i)
     OdometryEdge    odometry;           // Odometry edge (u_i)
     Observation    *observations;       // Array of observations (z_i)
-    uint8_t         num_observations;   // Number of observations
+    uint8_t         num_observations;   // Number of observations 
 
     struct GraphNode  *next;            // Pointer to the next graph node (linked list structure)
 

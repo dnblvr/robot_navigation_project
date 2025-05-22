@@ -21,7 +21,7 @@ void add_observation(
     node->num_observations++;
 }
 
-// Function to check if a landmark is close to an already-observed one
+// Function to check if a landmark has already been observed
 uint8_t is_landmark_close(
     LandmarkMeasurement *existing_landmark,
     LandmarkMeasurement *new_landmark,
@@ -83,7 +83,10 @@ void update_graphnode_with_observations(
 
 
 // Function to predict motion and add a new GraphNode
-GraphNode *predict_motion(GraphNode *current_node, OdometryEdge control_input) {
+GraphNode* predict_motion(
+    GraphNode   *current_node,
+    OdometryEdge control_input) {
+    
     // Allocate memory for the new node
     GraphNode *new_node = malloc(sizeof(GraphNode));
     if (new_node == NULL) {
@@ -92,21 +95,26 @@ GraphNode *predict_motion(GraphNode *current_node, OdometryEdge control_input) {
     }
 
     // Predict the new pose based on the current pose and control input
-    new_node->pose.x = current_node->pose.x + control_input.dx * cosf(current_node->pose.theta) - control_input.dy * sinf(current_node->pose.theta);
-    new_node->pose.y = current_node->pose.y + control_input.dx * sinf(current_node->pose.theta) + control_input.dy * cosf(current_node->pose.theta);
+    new_node->pose.x = current_node->pose.x + control_input.dx*cosf(current_node->pose.theta)
+                                            - control_input.dy*sinf(current_node->pose.theta);
+
+    new_node->pose.y = current_node->pose.y + control_input.dx*sinf(current_node->pose.theta)
+                                            + control_input.dy*cosf(current_node->pose.theta);
+
     new_node->pose.theta = current_node->pose.theta + control_input.dtheta;
 
     // Initialize the new node
-    new_node->odometry = control_input;
-    new_node->observations = NULL;
-    new_node->num_observations = 0;
-    new_node->next = NULL;
+    new_node->odometry          = control_input;
+    new_node->observations      = NULL;
+    new_node->num_observations  = 0;
+    new_node->next              = NULL;
 
     // Link the new node to the current node
     current_node->next = new_node;
 
     return new_node;
 }
+
 
 // Function to compute the cost function for the graph
 float cost_function(GraphNode *graph_head) {
@@ -138,12 +146,14 @@ float cost_function(GraphNode *graph_head) {
             Observation *obs        = &current->observations[i];
             float predicted_range   = sqrtf(    (obs->landmark->x - current->pose.x)*(obs->landmark->x - current->pose.x)
                                              +  (obs->landmark->y - current->pose.y)*(obs->landmark->y - current->pose.y));
-            float predicted_bearing = atan2f(obs->landmark->y - current->pose.y, obs->landmark->x - current->pose.x) - current->pose.theta;
+            float predicted_bearing =   atan2f(obs->landmark->y - current->pose.y, obs->landmark->x - current->pose.x)
+                                      - current->pose.theta;
 
-            float error_range = obs->range - predicted_range;
-            float error_bearing = obs->bearing - predicted_bearing;
+            float error_range   = obs->range    - predicted_range;
+            float error_bearing = obs->bearing  - predicted_bearing;
 
-            total_cost += error_range * error_range + error_bearing * error_bearing;
+            total_cost   +=   error_range*error_range
+                            + error_bearing*error_bearing;
         }
 
         current = next;

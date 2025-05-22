@@ -75,4 +75,17 @@ int find_intersection(ParametricLine* line1,
                       float* x, float* y);
 
 
+/**
+ * @brief example function 1
+ * 
+ */
+void example_ransac(void);
+
+
+/**
+ * @brief example function 2
+ *  
+ */
+void example_ransac_2(void);
+
 #endif /* __RANSAC_H__ */

@@ -59,12 +59,4 @@ dkms.conf
 Icon*
 /.vscode
 
-
-
-.ccsproject
-.cproject
-.project
-.launches/
-.settings/
-Icon*
-/.vscode
+.DS_Store

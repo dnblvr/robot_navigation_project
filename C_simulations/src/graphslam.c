@@ -33,9 +33,9 @@ void update_state_vector(
 
 // 5. Write the updated state vector back to the linked list
 void write_state_to_graph(
-    GraphNode *head,
-    float  *state_vector,
-    int     num_poses);
+    GraphNode  *head,
+    float      *state_vector,
+    int         num_poses);
 
 // 6. Main Gauss-Newton loop
 void gauss_newton_slam(GraphNode *head, int max_iterations, float tol) {

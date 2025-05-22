@@ -21,8 +21,8 @@ int main(void) {
 	example_coord_transform_2();
 
 
-	// example_ransac();
-	// example_ransac_2();
+	example_ransac();
+	example_ransac_2();
 
   	return 0;
 }

@@ -14,8 +14,6 @@
 #include <time.h>
 
 
-
-
 typedef struct {
     float x_min, x_max, y_min, y_max;
 } Obstacle_GS;

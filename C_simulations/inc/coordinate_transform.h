@@ -4,6 +4,7 @@
 
 #include "graph_nodes.h"
 #include "matrices.h"
+
 #include <stdint.h>
 #include <math.h>
 
@@ -34,10 +35,12 @@ void make_transformation_matrix(float theta, float T[2], float matrix[3][3]);
  * 
  * @param pos   
  * @param radii 
- * @param phis 
+ * @param phis  
  * @param theta 
  */
 void spherical_to_cartesian_average(float *pos, float *radii, float *phis, float theta);
+
+
 
 
 /**

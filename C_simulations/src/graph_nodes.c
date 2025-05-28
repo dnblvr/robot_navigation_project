@@ -4,7 +4,6 @@
 #include <stdio.h>
 
 
-// Function to add a new observation to the current GraphNode
 void add_observation(
     GraphNode  *node,
     Observation new_observation) {
@@ -21,39 +20,60 @@ void add_observation(
     node->num_observations++;
 }
 
-// Function to check if a landmark has already been observed
-uint8_t is_landmark_close(
-    LandmarkMeasurement *existing_landmark,
-    LandmarkMeasurement *new_landmark,
-
-    float radius) {
-    
+/**
+ * @brief Check if two landmarks are within a Mahalanobis distance threshold.
+ */
+uint8_t within_mahalanobis_distance(
+        LandmarkMeasurement *existing_landmark,
+        LandmarkMeasurement *new_landmark,
         
-    // Check if either landmark is NULL
+        float   covariance[2][2],
+        float   threshold)
+{
+    float   dx, dy, diff[2], det, inv_cov[2][2],
+            temp0, temp1, mahalanobis_sq;
+
     if (existing_landmark == NULL || new_landmark == NULL) {
-        return 0;  // Not close if either landmark is NULL
+        return 0;
     }
 
-    // Calculate the Euclidean distance between the two landmarks
-    float   dx = existing_landmark->x - new_landmark->x,    
-            dy = existing_landmark->y - new_landmark->y;
+    // Compute difference vector
+    dx = existing_landmark->x - new_landmark->x;
+    dy = existing_landmark->y - new_landmark->y;
 
-    float   distance = sqrtf(dx*dx + dy*dy);
+    diff[0] = dx;   diff[1] = dy;
 
-    // Check if the distance is within the radius of influence
-    return (distance <= radius);
+    // Invert 2x2 covariance matrix
+    det = covariance[0][0]*covariance[1][1] - covariance[0][1]*covariance[1][0];
+    if (fabsf(det) < 1e-12f) return 0; // Avoid division by zero
+
+    // Compute inverse covariance matrix
+    inv_cov[0][0] =  covariance[1][1] / det;
+    inv_cov[0][1] = -covariance[0][1] / det;
+    inv_cov[1][0] = -covariance[1][0] / det;
+    inv_cov[1][1] =  covariance[0][0] / det;
+
+    // Compute Mahalanobis distance squared
+    temp0   = inv_cov[0][0]*diff[0] + inv_cov[0][1]*diff[1];
+    temp1   = inv_cov[1][0]*diff[0] + inv_cov[1][1]*diff[1];
+    mahalanobis_sq  = diff[0]*temp0 + diff[1]*temp1;
+
+    // Compare to threshold squared
+    return (mahalanobis_sq <= threshold*threshold) ? 1 : 0;
 }
 
 
-// Function to update the GraphNode with new observations
 void update_graphnode_with_observations(
-    GraphNode   *node,
-    Observation *new_observations,
+        GraphNode   *node,
+        Observation *new_observations,
 
-    uint8_t num_new_observations,
-    float   radius_of_influence) {
+        uint8_t num_new_observations,
+        float   threshold)
+{
 
     uint8_t i, j;
+
+    float covariance[2][2] = { {1.0f, 0.0f}, {0.0f, 1.0f} };
     
     // Check if the node or new observations are NULL
     for (i = 0; i < num_new_observations; i++) {
@@ -63,10 +83,11 @@ void update_graphnode_with_observations(
         // Check if the new landmark is close to any already-observed landmark
         for (j = 0; j < node->num_observations; j++) {
 
-            uint8_t expression = is_landmark_close(
+            uint8_t expression = within_mahalanobis_distance(
                 node->observations[j].landmark,
                 new_observation->landmark,
-                radius_of_influence);
+                covariance,
+                threshold);
             
             if (expression) {
                 is_close = 1;
@@ -113,51 +134,4 @@ GraphNode* predict_motion(
     current_node->next = new_node;
 
     return new_node;
-}
-
-
-// Function to compute the cost function for the graph
-float cost_function(GraphNode *graph_head) {
-    float total_cost = 0.0f;
-
-
-    // Traverse the graph
-    GraphNode *current = graph_head;
-    while (current != NULL && current->next != NULL) {
-
-        // Compute the odometry error
-        GraphNode *next = current->next;
-        float predicted_x = current->pose.x + current->odometry.dx*cosf(current->pose.theta)
-                                            - current->odometry.dy*sinf(current->pose.theta);
-
-        float predicted_y = current->pose.y + current->odometry.dx*sinf(current->pose.theta)
-                                            + current->odometry.dy*cosf(current->pose.theta);
-                                            
-        float predicted_theta = current->pose.theta + current->odometry.dtheta;
-
-        float error_x       = next->pose.x - predicted_x;
-        float error_y       = next->pose.y - predicted_y;
-        float error_theta   = next->pose.theta - predicted_theta;
-
-        total_cost += error_x*error_x + error_y*error_y + error_theta*error_theta;
-
-        // Compute the landmark observation error
-        for (uint8_t i = 0; i < current->num_observations; i++) {
-            Observation *obs        = &current->observations[i];
-            float predicted_range   = sqrtf(    (obs->landmark->x - current->pose.x)*(obs->landmark->x - current->pose.x)
-                                             +  (obs->landmark->y - current->pose.y)*(obs->landmark->y - current->pose.y));
-            float predicted_bearing =   atan2f(obs->landmark->y - current->pose.y, obs->landmark->x - current->pose.x)
-                                      - current->pose.theta;
-
-            float error_range   = obs->range    - predicted_range;
-            float error_bearing = obs->bearing  - predicted_bearing;
-
-            total_cost   +=   error_range*error_range
-                            + error_bearing*error_bearing;
-        }
-
-        current = next;
-    }
-
-    return total_cost;
 }

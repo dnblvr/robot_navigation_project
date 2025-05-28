@@ -30,7 +30,8 @@ void make_transformation_matrix(float theta, float T[2], float matrix[3][3]) {
 
 void make_transformation_matrix_pose(
     PoseState  *pose,
-    float       matrix[3][3]) {
+    float       matrix[3][3])
+{
     /**
      * @brief in the format:
      *      [ cos(theta) -sin(theta) tx ]
@@ -38,7 +39,7 @@ void make_transformation_matrix_pose(
      *      [      0           0      1 ]
      */
 
-     uint8_t i, j;
+    uint8_t i, j;
 
     // Initialize to identity
     for (i = 0; i < 3; i++) {

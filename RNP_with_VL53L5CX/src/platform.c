@@ -65,7 +65,7 @@ uint8_t VL53L5CX_RdByte(
     printf("RB a");
 #endif
 
-    // Hold the EUSCI_BLOCK module in reset mode
+//    // Hold the EUSCI_BLOCK module in reset mode
 //    EUSCI_BLOCK->CTLW0 |=  0x0001;
 //
 //    // Set the byte counter threshold to 1 by writing to the UCTBCNTx field in the UCBxTBCNT register.
@@ -180,21 +180,21 @@ uint8_t VL53L5CX_WrByte(
 
     // --- Phase 3: Write Data (Master Transmitter) ---
 
-    // Wait for data reception (UCRXIFG0) or error
+    // Wait for data reception (UCTXIFG0) or error
     while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {}
     EUSCI_BLOCK->TXBUF     = value;
 
-
-    while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {
-
-        // checks for arbitration flag and not-ACK flag
-        if (EUSCI_BLOCK->IFG & 0x0030) {
-            status = EUSCI_BLOCK->IFG;
-            EUSCI_B0_I2C_Init();
-            return status;
-
-        }
-    }
+    while ((EUSCI_BLOCK->IFG & 0x0002) == 0);
+//    while ((EUSCI_BLOCK->IFG & 0x0002) == 0) {
+//
+//        // checks for arbitration flag and not-ACK flag
+//        if (EUSCI_BLOCK->IFG & 0x0030) {
+//            status = EUSCI_BLOCK->IFG;
+//            EUSCI_B0_I2C_Init();
+//            return status;
+//
+//        }
+//    }
 
 
 #ifdef I2C_RT_DEBUG
@@ -208,7 +208,7 @@ uint8_t VL53L5CX_WrByte(
 
 
     // Ensure that the transmit interrupt flag is not set
-    EUSCI_BLOCK->IFG &= ~0x0002;
+//    EUSCI_BLOCK->IFG &= ~0x0002;
 
 
     // return good status

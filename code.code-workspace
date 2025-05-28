@@ -1,0 +1,18 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"name": "RPLidar_Arduino",
+			"path": "../../RPLidar_Arduino"
+		}
+	],
+	"settings": {
+		"files.associations": {
+			"*.py": "python",
+			"__node_handle": "c",
+			"rrt_star.h": "c"
+		}
+	}
+}

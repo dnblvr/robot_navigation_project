@@ -16,7 +16,7 @@
 #include "msp.h"
 
 // The toggle rate for SysTick_Interrupt in ms
-#define SYSTICK_INT_TOGGLE_RATE_MS 500
+#define SYSTICK_INT_TOGGLE_RATE_MS 1000
 
 // The number of clock cycles between SysTick interrupts
 // The frequency of the clock used is 48 MHz, so each

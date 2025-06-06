@@ -41,6 +41,14 @@ void make_transformation_matrix(float theta, float T[2], float matrix[3][3]);
 void spherical_to_cartesian_average(float *pos, float *radii, float *phis, float theta);
 
 
+/**
+ * @brief       Convert cylindrical coordinates to Cartesian coordinates
+ * 
+ * @param pos    Output array of size 2 [x, y]
+ * @param radius Radius in cylindrical coordinates
+ * @param phis   Angle in cylindrical coordinates (in radians)
+ */
+inline void cylindrical_to_cartesian(float *pos, float radius, float phis);
 
 
 /**

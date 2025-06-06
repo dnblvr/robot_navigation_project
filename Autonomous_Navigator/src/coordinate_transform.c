@@ -77,6 +77,13 @@ void spherical_to_cartesian_average(float *pos, float *radii, float *phis, float
     }
 }
 
+inline void cylindrical_to_cartesian(float *pos, float radius, float phis) {
+
+    // Assuming single point conversion
+    pos[0] = radius * cosf(phis); // x = r * cos(phi)
+    pos[1] = radius * sinf(phis); // y = r * sin(phi)
+}
+
 
 
 
@@ -150,7 +157,7 @@ void example_coord_transform_2(void) {
 	float T_vec[2] = {11.5f, 11.f};  // Translation vector
 	float theta = 42 * M_PI / 180; // Rotation angle in radians
 	float T_matrix[3][3] = {0};    // Transformation
-	float T_inv_matrix[3][3] = {0};    // Transformation
+//	float T_inv_matrix[3][3] = {0};    // Transformation
 	
 
 	float output_matrix[3][15] = {0};  // Output matrix for transformed points

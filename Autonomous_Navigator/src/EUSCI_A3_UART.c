@@ -123,7 +123,7 @@ uint8_t EUSCI_A3_UART_InChar()
 
 void EUSCI_A3_UART_OutChar(uint8_t data)
 {
-    printf("in OutChar\n");
+//    printf("in OutChar\n");
 
     // Check the Transmit Interrupt flag (UCTXIFG, Bit 1)
     // in the IFG register and wait if the flag is not set

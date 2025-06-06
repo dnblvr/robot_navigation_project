@@ -175,15 +175,6 @@ void BLE_UART_OutString(char *pt)
     }
 }
 
-//void BLE_UART_OutFloat(float pt)
-//{
-//    char i;
-//    for (i = 4; i >= 0; i--) {
-//        char temp = (char)(pt >> i);
-//
-//        BLE_UART_OutChar(temp);
-//    }
-//}
 
 void BLE_UART_OutFixed(int32_t pt)
 {

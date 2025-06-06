@@ -82,6 +82,8 @@ uint8_t EUSCI_A3_UART_InChar();
  */
 void EUSCI_A3_UART_OutChar(uint8_t data);
 
+#ifdef TX_RX_CHECKS
+
 /**
  * @brief The Transmit_UART_Data function transmits data over UART based on the status of the user buttons.
  *
@@ -129,5 +131,7 @@ void EUSCI_A3_UART_Ramp_Data(uint8_t TX_Buffer[], uint8_t RX_Buffer[]);
  * @return None
  */
 void EUSCI_A3_UART_Validate_Data(uint8_t TX_Buffer[], uint8_t RX_Buffer[]);
+
+#endif /* TX_RX_CHECKS */
 
 #endif /* INC_EUSCI_A3_UART_H_ */

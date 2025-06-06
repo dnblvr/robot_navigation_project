@@ -30,4 +30,15 @@
  */
 void Print_Binary(uint8_t value_to_convert);
 
+
+/**
+ * @brief Print a binary sequence given an array.
+ *
+ * @param data      Pointer to the data buffer.
+ * @param length    Length of the data buffer.
+ */
+void print_binary_sequence(
+        const uint8_t  *data,
+               size_t   length);
+
 #endif /* INC_PRINT_BINARY_H_ */

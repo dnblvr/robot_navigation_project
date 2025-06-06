@@ -36,3 +36,18 @@ void Print_Binary(uint8_t value_to_convert)
 
     printf("\n");
 }
+
+
+
+void print_binary_sequence(
+        const uint8_t  *data,
+               size_t   length)
+{
+    size_t i;
+    for (i = 0; i < length; ++i) {
+        printf("%02X ", data[i]);
+    }
+
+    printf("\n\n");
+}
+

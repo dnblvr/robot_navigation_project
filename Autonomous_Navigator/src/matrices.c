@@ -6,7 +6,10 @@
 // --- Matrix Operations ---
 
 
-void print_matrix(uint8_t rows, uint8_t cols, float matrix[rows][cols]) {
+void print_matrix(
+        uint8_t rows, uint8_t cols,
+        float   matrix[rows][cols])
+{
     // counter variables
     uint8_t i, j;
 
@@ -23,9 +26,10 @@ void print_matrix(uint8_t rows, uint8_t cols, float matrix[rows][cols]) {
 
 // Matrix inverse (3x3 only)
 uint8_t matrix_mult_3x3(
-    float a[3][3], float b[3][3],
+        float        a[3][3],
+        float        b[3][3],
 
-    float result[3][3])
+        float   result[3][3])
 {
     uint8_t i;
     float sum = 0.0f;
@@ -52,7 +56,10 @@ uint8_t matrix_mult_3x3(
 }
 
 // Matrix inverse (3x3 only)
-uint8_t matrix_inverse_3x3(float m[3][3], float inv[3][3]) {
+uint8_t matrix_inverse_3x3(
+        float     m[3][3],
+        float   inv[3][3])
+{
 
     // counter variables
     uint8_t i, j;
@@ -78,7 +85,12 @@ uint8_t matrix_inverse_3x3(float m[3][3], float inv[3][3]) {
 
 
 // Matrix transpose (result must be pre-allocated)
-uint8_t matrix_transpose(uint8_t rows, uint8_t cols, float source[rows][cols], float destination[cols][rows]) {
+uint8_t matrix_transpose(
+        uint8_t rows, uint8_t cols,
+
+        float        source[rows][cols],
+        float   destination[cols][rows])
+{
 
     // counter variables
     uint8_t i, j;

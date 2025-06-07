@@ -9,6 +9,11 @@
 #include <math.h>
 
 
+#define M_PI_F 3.1415927f
+
+#define DEG_TO_RAD M_PI_F/180.f
+
+
 
 /**
  * @brief           Transform a 2D point using a transformation matrix
@@ -17,39 +22,59 @@
  * @param T         Translation vector (2D)
  * @returns matrix  Transformation matrix (3x3)
  */
-void make_transformation_matrix(float theta, float T[2], float matrix[3][3]);
+void make_transformation_matrix(
+        float    theta,
+        float        T[2],
+        float   matrix[3][3]);
 
 
 /**
- * @brief           Transform a 2D point using a transformation matrix
+ * @brief           Create a transformation matrix from a pose
  * 
- * @param theta     Rotation angle in radians
- * @param T         Translation vector (2D)
- * @returns matrix  Transformation matrix (3x3)
+ * @param pose      Pointer to the pose state
+ * @param matrix    Output transformation matrix (3x3)
  */
- void make_transformation_matrix_pose(PoseState *pose, float matrix[3][3]);
+ void make_transformation_matrix_pose(
+        PoseState  *pose,
+        float       matrix[3][3]);
 
 
 /**
  * @brief       Convert spherical coordinates to Cartesian coordinates
  * 
- * @param pos   
- * @param radii 
- * @param phis  
- * @param theta 
+ * @param pos   Output array of size 2 [x, y]
+ * @param radii Radius in spherical coordinates
+ * @param phis  Angle in spherical coordinates (in radians)
+ * @param theta Angle in spherical coordinates (in radians)
  */
-void spherical_to_cartesian_average(float *pos, float *radii, float *phis, float theta);
+void spherical_to_cartesian_average(
+        float  *pos,
+        float  *radii,
+        float  *phis,
+        float   theta);
 
 
 /**
- * @brief       Convert cylindrical coordinates to Cartesian coordinates
+ * @brief       Convert polar coordinates to Cartesian coordinates
  * 
  * @param pos    Output array of size 2 [x, y]
- * @param radius Radius in cylindrical coordinates
- * @param phis   Angle in cylindrical coordinates (in radians)
+ * @param radius Radius in polar coordinates
+ * @param phis   Angle in polar coordinates (in radians)
  */
-inline void cylindrical_to_cartesian(float *pos, float radius, float phis);
+// inline void polar_to_cartesian(float *pos, float radius, float phis);
 
+
+/**
+ * @brief Convert polar coordinates to Cartesian coordinates
+ * 
+ * @param distance_angle Array of size 2 where:
+ *                          distance_angle[0] = radius (distance)
+ *                          distance_angle[1] = phis (angle in radians)
+ * @param pos            Output array of size 3 [x, y, 1]
+ */
+inline void polar_to_cartesian(
+        float   distance_angle[2],
+        float   pos[3]);
 
 /**
  * @brief 

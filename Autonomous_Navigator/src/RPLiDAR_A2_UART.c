@@ -174,22 +174,6 @@ uint8_t EUSCI_A2_UART_InChar()
 
 }
 
-uint32_t EUSCI_A2_UART_In32UInt()
-{
-
-    // Check the Receive Interrupt flag (UCRXIFG, Bit 0)
-    // in the IFG register and wait if the flag is not set
-    // If the UCRXIFG is set, then the Receive Buffer (UCAxRXBUF) has
-    // received a complete character
-    while((EUSCI_A2->IFG & 0x01) == 0);
-
-
-    // Return the data from the Receive Buffer (UCAxRXBUF)
-    // Reading the UCAxRXBUF will reset the UCRXIFG flag
-    return (uint32_t)(EUSCI_A2->RXBUF);
-
-}
-
 
 void EUSCI_A2_UART_OutChar(uint8_t data)
 {
@@ -215,13 +199,15 @@ void EUSCI_A2_UART_OutChar(uint8_t data)
 // -------------------------------------------------------------------------------------
 
 
-inline uint8_t pattern(uint8_t *pointer) {
+inline uint8_t pattern(
+        uint8_t *pointer)
+{
     return      ( ((*pointer & 0x3) == 0x2) || ((*pointer & 0x3) == 0x1) )
             &&  ( (*(pointer + 1) & 0x1) == 0x1 );
 }
 
 
-void to_angle_distance(
+uint8_t to_angle_distance(
         uint8_t    *base_ptr,
         float       distance_angle[2])
 {
@@ -235,12 +221,19 @@ void to_angle_distance(
 
     uint16_t distance, angle;
 
-    angle       = (*(base_ptr + 2) << 7) | (*(base_ptr + 1) >> 1);
-    distance    = (*(base_ptr + 4) << 8) | (*(base_ptr + 3)     );
+    angle       = ( *(base_ptr + 2) << 7 )|( *(base_ptr + 1) >> 1 );
+    distance    = ( *(base_ptr + 4) << 8 )|( *(base_ptr + 3)      );
 
-    distance_angle[0] = (float)distance/4.f;
-    distance_angle[1] = (float)angle/64.f;
+    if (distance < 0x01) {
+        return 0;
+    }
 
+    // If the above condition does not hold, then calculate the float
+    // values
+    distance_angle[0]   = (float)(distance / 4.f);
+    distance_angle[1]   = (float)(DEG_TO_RAD * angle / 64.f);
+
+    return 1;
 }
 
 
@@ -391,19 +384,21 @@ void Single_Request_Multiple_Response(
 }
 
 
+void Gather_LiDAR_Data(
+        RPLiDAR_Config       *cfg,
 
-/**
- * @brief       Get data from the RPLiDAR C1
- *
- * @param scan_confirmation Confirmation flag for the scan
- * @return None
- */
-void Gather_LiDAR_Data(uint8_t scan_confirmation, uint8_t RX_Data[BUFFER_LENGTH]) {
+        uint8_t scan_confirmation,
+        uint8_t           RX_Data[BUFFER_LENGTH],
 
-    uint16_t i, start, end, pattern_length = 5;
-    uint16_t skip = 5;
+        float                 out[FLOAT_BUFFER][3])
+{
 
-    float distance_angle[2] = {0.0f, 0.0f};
+    uint16_t i, j, start, end, data_len = 5;
+    uint16_t skip = 4;
+
+    float distance_angle[2] = {0};
+
+    EUSCI_A2_UART_Restart();
 
     // Gathering data from the RPLiDAR C1. At this point, it
     // should stop recording data as soon as the data stops
@@ -411,17 +406,18 @@ void Gather_LiDAR_Data(uint8_t scan_confirmation, uint8_t RX_Data[BUFFER_LENGTH]
     for (i = 0; i < BUFFER_LENGTH; i++) {
 
         RX_Data[i]  = EUSCI_A2_UART_InChar();
-
     }
 
+    EUSCI_A2_UART_Stop();
+
     // find the pattern in the data using pattern() function
-    for (i = 0; i < (pattern_length + 1); i++) {
+    for (i = 0; i < (data_len + 1); i++) {
 
         // if the increment is found
-        if (   pattern(RX_Data + i)
-            && pattern(RX_Data + i +  5)
-            && pattern(RX_Data + i + 10)
-            && pattern(RX_Data + i + 15))
+        if (   pattern(RX_Data + data_len*0 + i)
+            && pattern(RX_Data + data_len*1 + i)
+            && pattern(RX_Data + data_len*2 + i)
+            && pattern(RX_Data + data_len*3 + i))
         {
             start = i;
 
@@ -432,8 +428,9 @@ void Gather_LiDAR_Data(uint8_t scan_confirmation, uint8_t RX_Data[BUFFER_LENGTH]
             break;
         }
 
-        // if the increment passes the critical range
-        if (i == 6) {
+        // If the increment passes the critical range
+        //  from "0" to "data_len - 1"
+        if (i == data_len) {
 
 #ifdef RPLIDAR_DEBUG
             printf("pattern not found\n");
@@ -442,7 +439,7 @@ void Gather_LiDAR_Data(uint8_t scan_confirmation, uint8_t RX_Data[BUFFER_LENGTH]
         }
     }
 
-    end = start + BUFFER_LENGTH - pattern_length*skip;
+    end = start + BUFFER_LENGTH - data_len*skip; // cfg->
 
 #ifdef RPLIDAR_DEBUG
 
@@ -459,13 +456,37 @@ void Gather_LiDAR_Data(uint8_t scan_confirmation, uint8_t RX_Data[BUFFER_LENGTH]
 
 #endif
 
-    for (i = start; i < end; i += pattern_length*skip) {
+    // Then, fill up the FLOAT_BUFFER
 
-        // convert the data to angle and distance
-        to_angle_distance(&RX_Data[i], distance_angle);
+    j = 0;
+    for (i = start; i < end; i += data_len*skip) {
 
-        // print the angle and distance
-        printf("%i: %3.2f deg. @ %5.2f mm\n", i, distance_angle[1], distance_angle[0]);
+        uint8_t is_nonzero;
+
+        if (j >= FLOAT_BUFFER)
+            break;
+
+        // convert the data to distance and angle
+        is_nonzero = to_angle_distance( &RX_Data[i], distance_angle );
+
+        // if zero radius, then disregard the data
+        if (!is_nonzero)
+            continue;
+
+        // convert the polar coordinates to Cartesian coordinates
+        polar_to_cartesian( distance_angle, out[j] );
+
+
+#ifdef RPLIDAR_DEBUG
+        // print the distance and angle
+        fprintf(stdout, "%i\t%3.2f rad. @ %5.2f mm\n", j, distance_angle[1], distance_angle[0]);
+
+#endif
+
+        // print the position
+        fprintf(stdout, "%i\t%10.2f %10.2f\n", j, out[j][0], out[j][1]);
+
+        ++j;
 
     }
 }

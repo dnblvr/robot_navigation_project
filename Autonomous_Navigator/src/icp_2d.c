@@ -106,7 +106,7 @@ void icp_2d(
         }
 
         // 4. Compute rotation (using SVD for 2x2)
-        float det = Sxx * Syy - Sxy * Syx;
+        // float det = Sxx * Syy - Sxy * Syx;
         float theta = atan2f(Sxy - Syx, Sxx + Syy);
         float cos_theta = cosf(theta);
         float sin_theta = sinf(theta);

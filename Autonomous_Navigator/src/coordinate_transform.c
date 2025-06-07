@@ -64,7 +64,11 @@ void make_transformation_matrix_pose(
 
 
 
-void spherical_to_cartesian_average(float *pos, float *radii, float *phis, float theta) {
+void spherical_to_cartesian_average(
+        float  *pos,
+        float  *radii,
+        float  *phis,
+        float   theta) {
 
     uint8_t i, j;
 
@@ -77,11 +81,27 @@ void spherical_to_cartesian_average(float *pos, float *radii, float *phis, float
     }
 }
 
-inline void cylindrical_to_cartesian(float *pos, float radius, float phis) {
 
+// inline void polar_to_cartesian(
+//         float   radius,
+//         float   phis,
+//         float  *pos)
+// {
+
+//     // Assuming single point conversion
+//     pos[0] = radius * cosf(phis);   // x = r * cos(phi)
+//     pos[1] = radius * sinf(phis);   // y = r * sin(phi)
+//     pos[2] = 1;                     //
+// }
+
+inline void polar_to_cartesian(
+        float   distance_angle[2],
+        float   pos[3])
+{
     // Assuming single point conversion
-    pos[0] = radius * cosf(phis); // x = r * cos(phi)
-    pos[1] = radius * sinf(phis); // y = r * sin(phi)
+    pos[0] = distance_angle[0]*cosf(distance_angle[1]); // x = r*cos(phi)
+    pos[1] = distance_angle[0]*sinf(distance_angle[1]); // y = r*sin(phi)
+    pos[2] = 1.f;                                       // z = 1
 }
 
 

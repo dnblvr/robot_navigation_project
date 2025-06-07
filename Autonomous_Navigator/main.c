@@ -7,8 +7,6 @@
 #ifdef MAIN_1 // -----------------------------------------------------------------------
 
 
-#define FUNCTION_OUTSIDE_MAIN 1
-
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,6 +19,8 @@
 #include "inc/GPIO.h"
 #include "inc/SysTick_Interrupt.h"
 #include "inc/RPLiDAR_A2_UART.h"
+
+#include "inc/matrices.h"
 
 
 
@@ -81,6 +81,8 @@ const uint8_t  GET_INFO[2] = {0x50, 20},
 
 uint8_t RPLiDAR_RX_Data[BUFFER_LENGTH] = {0};
 
+float output[FLOAT_BUFFER][3] = {0};
+
 
 
 
@@ -127,16 +129,18 @@ int main(void)
 
     Clock_Delay1ms(1000);
 
+    RPLiDAR_Config cfg = {.skip = 4};
+
     printf("test start ---------------\n");
 
 
 
 
-    printf("SRNR: STOP\n");
+//    printf("SRNR: STOP\n");
     Single_Request_No_Response(STOP);
     Clock_Delay1ms(1);
 
-    printf("SRNR: RESET\n");
+//    printf("SRNR: RESET\n");
     Single_Request_No_Response(RESET);
     Clock_Delay1ms(1);
 
@@ -145,7 +149,7 @@ int main(void)
     // Single_Request_Single_Response(GET_INFO, RPLiDAR_RX_Data);
     // Clock_Delay1ms(1);
 
-    printf("SRSR: GET_HEALTH\n");
+//    printf("SRSR: GET_HEALTH\n");
     Single_Request_Single_Response(GET_HEALTH, RPLiDAR_RX_Data);
     Clock_Delay1ms(1);
 
@@ -160,7 +164,7 @@ int main(void)
 
 
 
-    printf("SRMR: SCAN\n");
+//    printf("SRMR: SCAN\n");
     Single_Request_Multiple_Response(SCAN, RPLiDAR_RX_Data);
     Clock_Delay1ms(200);
 
@@ -168,7 +172,7 @@ int main(void)
     // Single_Request_Multiple_Response(EXPRESS_SCAN, RPLiDAR_RX_Data);
     // Clock_Delay1ms(1);
     
-    uint32_t counter = 5;
+    uint32_t counter = 6;
 
     while (counter) {
         // process for using SCAN command:
@@ -191,7 +195,14 @@ int main(void)
         // EXPRESS_SCAN request to make the LIDAR work under its best performance
 
 
-        Gather_LiDAR_Data(1);
+        Gather_LiDAR_Data(&cfg, 1, RPLiDAR_RX_Data, output);
+
+//        uint8_t matrix_multiply(
+//                uint8_t a_rows, uint8_t a_cols, float a[a_rows][a_cols],
+//                uint8_t b_rows, uint8_t b_cols, float b[b_rows][b_cols],
+//                float result[a_rows][b_cols]);
+
+
 
 
         counter--;

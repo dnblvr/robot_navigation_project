@@ -25,6 +25,7 @@
 #include "GPIO.h"
 
 #include "Print_Binary.h"
+#include "coordinate_transform.h"
 
 
 //#define RPLIDAR_DEBUG 1
@@ -38,6 +39,12 @@
  * @brief Buffer length for UART communication.
  */
 #define BUFFER_LENGTH 256*9
+
+#define FLOAT_BUFFER 100
+
+typedef struct {
+    uint32_t skip;
+} RPLiDAR_Config;
 
 
 /**
@@ -102,17 +109,6 @@ void EUSCI_A2_UART_Restart();
  */
 uint8_t EUSCI_A2_UART_InChar();
 
-/**
- * @brief Receives a 32-bit unsigned integer over UART using the EUSCI_A2 module.
- *
- * This function receives a 1-byte format in a 32-bit unsigned integer over UART using the EUSCI_A2 module.
- * It waits until a character is available in the UART receive buffer and then reads
- * the received data. The function assumes that the data is sent in little-endian format.
- *
- * @return The received 32-bit unsigned integer from UART.
- */
-uint32_t EUSCI_A2_UART_In32UInt();
-
 
 /**
  * @brief Transmits a single character over UART using the EUSCI_A2 module.
@@ -156,7 +152,8 @@ void EUSCI_A2_UART_OutChar(uint8_t data);
  *
  * @return uint8_t 1 if the pattern matches, 0 otherwise.
  */
-inline uint8_t pattern(uint8_t *pointer);
+inline uint8_t pattern(
+        uint8_t    *pointer);
 
 
 /**
@@ -165,7 +162,7 @@ inline uint8_t pattern(uint8_t *pointer);
  * @param base_ptr       Pointer to the raw data buffer.
  * @param distance_angle Array to store the converted distance and angle values.
  */
-void to_angle_distance(
+uint8_t to_angle_distance(
         uint8_t    *base_ptr,
         float       distance_angle[2]);
 
@@ -209,8 +206,12 @@ void Single_Request_Multiple_Response(
  * @return None
  */
 void Gather_LiDAR_Data(
+        RPLiDAR_Config       *cfg,
+
         uint8_t scan_confirmation,
-        uint8_t RX_Data[BUFFER_LENGTH]);
+        uint8_t           RX_Data[BUFFER_LENGTH],
+
+        float                 out[FLOAT_BUFFER][3]);
 
 
 // -------------------------------------------------------------------------------------

@@ -27,7 +27,7 @@
 #include "Print_Binary.h"
 
 
-#define RPLIDAR_DEBUG 1
+//#define RPLIDAR_DEBUG 1
 // #define TX_RX_CHECKS 1
 // #define ERROR_CHECKING 1
 // #define TIMER_A
@@ -37,16 +37,7 @@
 /**
  * @brief Buffer length for UART communication.
  */
-#define BUFFER_LENGTH 256*8
-
-
-/**
- * @brief Converts the raw data from the RPLiDAR to angle and distance values.
- *
- * @param base_ptr       Pointer to the raw data buffer.
- * @param distance_angle Array to store the converted distance and angle values.
- */
-void to_angle_distance(uint8_t *base_ptr, float distance_angle[2]);
+#define BUFFER_LENGTH 256*9
 
 
 /**
@@ -169,6 +160,17 @@ inline uint8_t pattern(uint8_t *pointer);
 
 
 /**
+ * @brief Converts the raw data from the RPLiDAR to angle and distance values.
+ *
+ * @param base_ptr       Pointer to the raw data buffer.
+ * @param distance_angle Array to store the converted distance and angle values.
+ */
+void to_angle_distance(
+        uint8_t    *base_ptr,
+        float       distance_angle[2]);
+
+
+/**
  * @brief Sends a command to the RPLiDAR and waits for a single response.
  *
  * @param command The command to send.
@@ -198,6 +200,17 @@ void Single_Request_Multiple_Response(
         const uint8_t        command[2],
               uint8_t RX_DATA_BUFFER[BUFFER_LENGTH]);
 
+
+
+/**
+ * @brief       Get data from the RPLiDAR C1
+ *
+ * @param scan_confirmation Confirmation flag for the scan
+ * @return None
+ */
+void Gather_LiDAR_Data(
+        uint8_t scan_confirmation,
+        uint8_t RX_Data[BUFFER_LENGTH]);
 
 
 // -------------------------------------------------------------------------------------

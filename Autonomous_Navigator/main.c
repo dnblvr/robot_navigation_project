@@ -7,6 +7,8 @@
 #ifdef MAIN_1 // -----------------------------------------------------------------------
 
 
+#define FUNCTION_OUTSIDE_MAIN 1
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -80,83 +82,6 @@ const uint8_t  GET_INFO[2] = {0x50, 20},
 uint8_t RPLiDAR_RX_Data[BUFFER_LENGTH] = {0};
 
 
-/**
- * @brief       Get data from the RPLiDAR C1
- * 
- * @param scan_confirmation Confirmation flag for the scan
- * @return None
- */
-void get_data(uint8_t scan_confirmation) {
-
-    uint16_t i, start, end, pattern_length = 5;
-    uint16_t skip = 5;
-
-    float distance_angle[2] = {0.0f, 0.0f};
-
-    // Gathering data from the RPLiDAR C1. At this point, it
-    // should stop recording data as soon as the data stops
-    // recording.
-    for (i = 0; i < BUFFER_LENGTH; i++) {
-
-        RPLiDAR_RX_Data[i]  = EUSCI_A2_UART_InChar();
-
-    }
-
-    // find the pattern in the data using pattern() function
-    for (i = 0; i < (pattern_length + 1); i++) {
-
-        // if the increment is found
-        if (   pattern(RPLiDAR_RX_Data + i)
-            && pattern(RPLiDAR_RX_Data + i +  5)
-            && pattern(RPLiDAR_RX_Data + i + 10)
-            && pattern(RPLiDAR_RX_Data + i + 15))
-        {
-            start = i;
-
-#ifdef RPLIDAR_DEBUG
-            printf("i = %d\n", start);
-#endif
-
-            break;
-        }
-
-        // if the increment passes the critical range
-        if (i == 6) {
-
-#ifdef RPLIDAR_DEBUG
-            printf("pattern not found\n");
-#endif
-            return;
-        }
-    }
-
-    end = start + BUFFER_LENGTH - pattern_length*skip;
-
-#ifdef RPLIDAR_DEBUG
-
-    // print data
-    for (i = start; i < end; i++) {
-
-        if (i % 20 == 0) {
-            printf("\n");
-        }
-
-        printf("%02X\n", RPLiDAR_RX_Data[i]);
-
-    }
-
-#endif
-
-    for (i = start; i < end; i += pattern_length*skip) {
-
-        // convert the data to angle and distance
-        to_angle_distance(&RPLiDAR_RX_Data[i], distance_angle);
-
-        // print the angle and distance
-        printf("%i: %3.2f deg. @ %5.2f mm\n", i, distance_angle[1], distance_angle[0]);
-
-    }
-}
 
 
 
@@ -266,7 +191,7 @@ int main(void)
         // EXPRESS_SCAN request to make the LIDAR work under its best performance
 
 
-        get_data(1);
+        Gather_LiDAR_Data(1);
 
 
         counter--;

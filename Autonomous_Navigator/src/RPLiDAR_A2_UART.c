@@ -221,7 +221,10 @@ inline uint8_t pattern(uint8_t *pointer) {
 }
 
 
-void to_angle_distance(uint8_t *base_ptr, float distance_angle[2]) {
+void to_angle_distance(
+        uint8_t    *base_ptr,
+        float       distance_angle[2])
+{
 
 #ifdef ERROR_CHECKING
     uint8_t start       = (*base_ptr)      & 0x01,
@@ -310,6 +313,7 @@ uint8_t Single_Request_Single_Response(
 
         return 1;
 
+
     // if the response descriptor IDs the incorrect sequence
     } else {
 
@@ -342,6 +346,11 @@ void Single_Request_Multiple_Response(
     start_flag_1 = EUSCI_A2_UART_InChar();
     start_flag_1 = EUSCI_A2_UART_InChar();
     start_flag_2 = EUSCI_A2_UART_InChar();
+
+
+#ifdef RPLIDAR_DEBUG
+    printf("0x%02X & 0x%02X\n", start_flag_1, start_flag_2);
+#endif
 
 
     if ( (start_flag_1 == 0xA5) && (start_flag_2 == 0x5A) ) {
@@ -378,6 +387,86 @@ void Single_Request_Multiple_Response(
         // wait for some time before resetting the RPLiDAR
         Clock_Delay1ms(5000);
         return;
+    }
+}
+
+
+
+/**
+ * @brief       Get data from the RPLiDAR C1
+ *
+ * @param scan_confirmation Confirmation flag for the scan
+ * @return None
+ */
+void Gather_LiDAR_Data(uint8_t scan_confirmation, uint8_t RX_Data[BUFFER_LENGTH]) {
+
+    uint16_t i, start, end, pattern_length = 5;
+    uint16_t skip = 5;
+
+    float distance_angle[2] = {0.0f, 0.0f};
+
+    // Gathering data from the RPLiDAR C1. At this point, it
+    // should stop recording data as soon as the data stops
+    // recording.
+    for (i = 0; i < BUFFER_LENGTH; i++) {
+
+        RX_Data[i]  = EUSCI_A2_UART_InChar();
+
+    }
+
+    // find the pattern in the data using pattern() function
+    for (i = 0; i < (pattern_length + 1); i++) {
+
+        // if the increment is found
+        if (   pattern(RX_Data + i)
+            && pattern(RX_Data + i +  5)
+            && pattern(RX_Data + i + 10)
+            && pattern(RX_Data + i + 15))
+        {
+            start = i;
+
+#ifdef RPLIDAR_DEBUG
+            printf("i = %d\n", start);
+#endif
+
+            break;
+        }
+
+        // if the increment passes the critical range
+        if (i == 6) {
+
+#ifdef RPLIDAR_DEBUG
+            printf("pattern not found\n");
+#endif
+            return;
+        }
+    }
+
+    end = start + BUFFER_LENGTH - pattern_length*skip;
+
+#ifdef RPLIDAR_DEBUG
+
+    // print data
+    for (i = start; i < end; i++) {
+
+        if (i % 20 == 0) {
+            printf("\n");
+        }
+
+        printf("%02X\n", RX_Data[i]);
+
+    }
+
+#endif
+
+    for (i = start; i < end; i += pattern_length*skip) {
+
+        // convert the data to angle and distance
+        to_angle_distance(&RX_Data[i], distance_angle);
+
+        // print the angle and distance
+        printf("%i: %3.2f deg. @ %5.2f mm\n", i, distance_angle[1], distance_angle[0]);
+
     }
 }
 

@@ -2,11 +2,6 @@
 #include "./inc/graphslam.h"
 
 
-#include <math.h>
-#include <stdlib.h>
-#include <stdio.h>
-
-
 // Define these as needed for your problem size
 #define MAX_POSES      30
 #define MAX_LANDMARKS  50
@@ -254,18 +249,18 @@ void compute_jacobian_landmark(
         float   J[2][2])
 {
     // Compute the difference in world frame
-    float dx = landmark[0] - x_i_pose->x;
-    float dy = landmark[1] - x_i_pose->y;
+    float dx    = landmark[0] - x_i_pose->x;
+    float dy    = landmark[1] - x_i_pose->y;
 
     // Transform difference into robot frame using direct trigonometry
-    float ci = cosf(-x_i_pose->theta);
-    float si = sinf(-x_i_pose->theta);
+    float ci    = cosf(-x_i_pose->theta);
+    float si    = sinf(-x_i_pose->theta);
 
-    float lx = ci*dx - si*dy;
-    float ly = si*dx + ci*dy;
+    float lx    = ci*dx - si*dy;
+    float ly    = si*dx + ci*dy;
 
-    float range_sq = lx*lx + ly*ly;
-    float range = sqrtf(range_sq);
+    float range_sq  = lx*lx + ly*ly;
+    float range     = sqrtf(range_sq);
 
     // Partial derivatives of lx and ly w.r.t. landmark x, y
     // d(lx)/d(lx) = 1, d(lx)/d(ly) = 0
@@ -348,6 +343,7 @@ void linearize_constraints(
 {
     GraphNode *current = head;
     int pose_index = 0;
+
     // counter indices
     int i, r, s, m, n;
     int lidx;
@@ -437,7 +433,7 @@ void linearize_constraints(
             float A[3][3], B[3][3];
             compute_jacobian_pose_pose(pose_i, pose_j, A, B);
 
-            float info[3][3] = {{1.0f,0.0f,0.0f},{0.0f,1.0f,0.0f},{0.0f,0.0f,1.0f}};
+            // float info[3][3] = {{1.0f,0.0f,0.0f},{0.0f,1.0f,0.0f},{0.0f,0.0f,1.0f}};
 
             int idx_i = 3*pose_index;
             int idx_j = 3*(pose_index+1);
@@ -534,7 +530,7 @@ void write_state_to_graph(
         int num_landmarks)
 {
     // counter variables
-    int i, l;
+    int l;
 
     // Poses
     GraphNode *current = head;

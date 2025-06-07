@@ -7,6 +7,9 @@
 #ifndef __GRAPH_NODE_DESERIALIZE_H__
 #define __GRAPH_NODE_DESERIALIZE_H__
 
+#include <string.h>
+#include <stdlib.h>
+
 #include "graph_nodes.h"
 
 /**

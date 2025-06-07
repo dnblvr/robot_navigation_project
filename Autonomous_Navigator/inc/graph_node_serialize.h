@@ -1,6 +1,10 @@
 
 #ifndef __GRAPH_NODE_SERIALIZE_H__
 #define __GRAPH_NODE_SERIALIZE_H__
+
+
+#include <string.h>
+
 #include "graph_nodes.h"
 
 

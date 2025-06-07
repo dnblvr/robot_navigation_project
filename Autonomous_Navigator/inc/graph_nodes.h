@@ -109,5 +109,4 @@ GraphNode* predict_motion(
 
 
 
-
 #endif // __GRAPH_NODES_H__

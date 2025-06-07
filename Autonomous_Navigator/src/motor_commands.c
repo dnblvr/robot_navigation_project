@@ -16,11 +16,11 @@ void Motor_Turn(int16_t duty_cycle) {
 
 	if (duty_cycle < 0) {
 		
-		// Motor_Left(abs_duty_cycle, abs_duty_cycle);
+		 Motor_Left(abs_duty_cycle, abs_duty_cycle);
 
 	} else {
 
-		// Motor_Right(abs_duty_cycle, abs_duty_cycle);
+		 Motor_Right(abs_duty_cycle, abs_duty_cycle);
 	}
 }
 

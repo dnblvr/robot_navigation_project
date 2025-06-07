@@ -26,9 +26,9 @@
  * @param matrix_3x3 Output transformation matrix (3x3)
  */
 void transform_to_vector(
-        float matrix_3x3[3][3],
-        
-        float vector[3]);
+    float matrix_3x3[3][3],
+
+    float vector[3]);
 
 
 /**
@@ -38,9 +38,9 @@ void transform_to_vector(
  * @param matrix_3x3 Output transformation matrix (3x3)
  */
 void transform_to_pose(
-        float matrix_3x3[3][3],
-        
-        PoseState *pose);
+    float matrix_3x3[3][3],
+
+    PoseState *pose);
 
 /**
  * @brief this function evaluates the error between two poses based on an observed relative pose
@@ -81,10 +81,10 @@ void compute_jacobian_pose_pose(
  * @param error 
  */
 void evaluate_error_pose_landmark(
-        PoseState *x_i_pose, 
-        float   landmark[2],
-        float   z_il[2],    
-        float   error[2]);
+    PoseState *x_i_pose,
+    float   landmark[2],
+    float   z_il[2],
+    float   error[2]);
 
 
 /**
@@ -96,10 +96,10 @@ void evaluate_error_pose_landmark(
  * @param J         Output Jacobian matrix (2x3)
  */
 void compute_jacobian_pose_landmark(
-        PoseState *x_i_pose, 
-        float   landmark[2],
-        float   z_il[2],    
-        float   J[2][3]);
+    PoseState *x_i_pose,
+    float   landmark[2],
+    float   z_il[2],
+    float   J[2][3]);
 
 /**
  * @brief Compute the Jacobian of the error with respect to the landmark position.
@@ -110,31 +110,32 @@ void compute_jacobian_pose_landmark(
  * @param J         Output Jacobian matrix (2x2)
  */
 void compute_jacobian_landmark(
-        PoseState *x_i_pose, 
-        float   landmark[2],
-        float   z_il[2],    
-        float   J[2][2]);
+    PoseState *x_i_pose,
+    float   landmark[2],
+    float   z_il[2],
+    float   J[2][2]);
 
 
 // --- High-level Gauss-Newton SLAM functions ---
 
 
 void build_state_vector(
-        GraphNode *head,
-        LandmarkMeasurement **landmarks,
-        float *state_vector,
-        int num_poses,
-        int num_landmarks);
+    GraphNode *head,
+    LandmarkMeasurement **landmarks,
+
+    float  *state_vector,
+    int     num_poses,
+    int     num_landmarks);
 
 
 void linearize_constraints(
-        GraphNode *head,
-        LandmarkMeasurement **landmarks,
-        float  *state_vector,
-        float  *b,
-        float   H[STATE_SIZE][STATE_SIZE],
-        int     num_poses,
-        int     num_landmarks);
+    GraphNode *head,
+    LandmarkMeasurement **landmarks,
+    float  *state_vector,
+    float  *b,
+    float   H[STATE_SIZE][STATE_SIZE],
+    int     num_poses,
+    int     num_landmarks);
 
 
 /**
@@ -148,33 +149,34 @@ void linearize_constraints(
  * @param state_size 
  */
 void solve_linear_system(
-        float   H[STATE_SIZE][STATE_SIZE],
-        float  *b,
-        float  *x,
-        int     state_size);
+    float   H[STATE_SIZE][STATE_SIZE],
+    float  *b,
+    float  *x,
+    int     state_size);
 
 
 void update_state_vector(
-        float  *state_vector,
-        float  *dx,
-        int     state_size);
+    float  *state_vector,
+    float  *dx,
+    int     state_size);
 
 
 void write_state_to_graph(
-        GraphNode *head,
-        LandmarkMeasurement **landmarks,
-        float *state_vector,
-        int num_poses,
-        int num_landmarks);
+    GraphNode *head,
+    LandmarkMeasurement **landmarks,
+
+    float  *state_vector,
+    int     num_poses,
+    int     num_landmarks);
 
 
 void gauss_newton_slam(
-        GraphNode  *head,
-        LandmarkMeasurement **landmarks, // array of pointers to all landmarks
-        int         num_poses,
-        int         num_landmarks,
-        int         max_iterations,
-        float       tol);
+    GraphNode  *head,
+    LandmarkMeasurement **landmarks, // array of pointers to all landmarks
+    int  	num_poses,
+    int  	num_landmarks,
+    int 	max_iterations,
+    float	tol);
 
 
 void example_graph_nodes(void);

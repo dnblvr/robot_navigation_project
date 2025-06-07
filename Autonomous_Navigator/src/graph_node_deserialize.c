@@ -1,8 +1,7 @@
 
 #include "./inc/graph_node_deserialize.h"
 
-#include <string.h>
-#include <stdlib.h>
+
 
 // Helper: Parse Q15.16 hex string to float
 static float q15_16_hex_to_float(const char *hex) {
@@ -43,6 +42,7 @@ GraphNode* receive_graphnodes_from_file(const char *filename) {
     GraphNode *head = NULL, *tail = NULL;
 
     while (fgets(line, sizeof(line), f)) {
+        
         char *token = strtok(line, ";");
         while (token) {
 
@@ -67,8 +67,12 @@ GraphNode* receive_graphnodes_from_file(const char *filename) {
                 node->num_observations  = (uint8_t)strtol(fields[6], NULL, 16);
                 node->observations      = calloc(node->num_observations, sizeof(Observation));
 
-                if (!head) head = node;
-                if (tail) tail->next = node;
+                if (!head) {
+                    head = node;
+                }
+                if (tail) {
+                    tail->next = node;
+                }
                 tail = node;
             
             } else if (     (strncmp(token, "OB,", 3) == 0)
@@ -94,6 +98,7 @@ GraphNode* receive_graphnodes_from_file(const char *filename) {
             token = strtok(NULL, ";");
         }
     }
+
     fclose(f);
     return head;
 }

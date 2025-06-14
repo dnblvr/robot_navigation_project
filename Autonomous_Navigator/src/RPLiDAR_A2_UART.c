@@ -399,7 +399,7 @@ void Gather_LiDAR_Data(
 
     float distance_angle[2] = {0};
 
-//    EUSCI_A2_UART_Restart();
+    EUSCI_A2_UART_Restart();
 
     // Gathering data from the RPLiDAR C1. At this point, it
     // should stop recording data as soon as the data stops
@@ -409,8 +409,8 @@ void Gather_LiDAR_Data(
         RX_Data[i]  = EUSCI_A2_UART_InChar();
     }
 
-//    EUSCI_A2_UART_Stop();
-    l
+    EUSCI_A2_UART_Stop();
+
 
     // find the pattern in the data using pattern() function
     for (i = 0; i < (data_len + 1); i++) {

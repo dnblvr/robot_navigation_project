@@ -28,10 +28,6 @@
 
 
 
-
-
-
-
 // Initialize a global variable for SysTick to keep track of elapsed time in milliseconds
 uint32_t SysTick_ms_elapsed         = 0;
 uint32_t SysTick_seconds_elapsed    = 0;

@@ -9,13 +9,11 @@ typedef struct {
 
 // Helper: Find the index of the closest point in target for a given source point
 int find_closest_point(Point2D src, Point2D* target, int target_size) {
+    int i;
+    float min_dist = FLT_MAX;
+    int min_idx = 0;
 
-    // counter variables
-    int     i;
-
-    float   min_dist    = FLT_MAX;
-    int     min_idx     = 0;
-    
+    // iterates through target points to find the closest one (brute-force search)
     for (i = 0; i < target_size; i++) {
         float dx = src.x - target[i].x;
         float dy = src.y - target[i].y;
@@ -30,9 +28,7 @@ int find_closest_point(Point2D src, Point2D* target, int target_size) {
 
 // Helper: Compute centroid of a point set
 void compute_centroid(Point2D* pts, int n, Point2D* centroid) {
-    // counter variables
-    int     i;
-
+    int i;
     centroid->x = 0.0f;
     centroid->y = 0.0f;
     for (i = 0; i < n; i++) {
@@ -43,34 +39,24 @@ void compute_centroid(Point2D* pts, int n, Point2D* centroid) {
     centroid->y /= n;
 }
 
-// Helper: SVD for 2x2 matrix (for rotation)
-void svd_2x2(float a, float b, float c, float d, float* cs, float* sn) {
-    // Compute SVD of [a b; c d] for 2D rotation
-    float theta = atan2f(b - c, a + d);
-    *cs = cosf(theta / 2.0f);
-    *sn = sinf(theta / 2.0f);
-}
-
 // Main ICP function
 void icp_2d(
     Point2D* source, int source_size,
     Point2D* target, int target_size,
-
     int     max_iterations,
     float   tolerance,
     float  *out_R,   // 2x2 rotation matrix (row-major)
     float  *out_t)   // 2x1 translation vector
-{   
-    
-    // counter variables
-    int     iter, i;
-
+{
+    int iter, i;
 
     // Initialize transformation
-    float R[2][2]   = { {1, 0}, {0, 1} };
-    float t[2]      = {0, 0};
+    float R[2][2] = { {1, 0}, {0, 1} };
+    float t[2] = {0, 0};
 
     Point2D* src_trans = (Point2D*)malloc(source_size * sizeof(Point2D));
+    if (!src_trans) return; // Check allocation
+
     for (i = 0; i < source_size; i++) {
         src_trans[i] = source[i];
     }
@@ -79,6 +65,10 @@ void icp_2d(
     for (iter = 0; iter < max_iterations; iter++) {
         // 1. Find correspondences
         int *correspondences = (int*)malloc(source_size * sizeof(int));
+        if (!correspondences) {
+            free(src_trans);
+            return;
+        }
         for (i = 0; i < source_size; i++) {
             correspondences[i] = find_closest_point(src_trans[i], target, target_size);
         }
@@ -87,6 +77,11 @@ void icp_2d(
         Point2D centroid_src = {0,0}, centroid_tgt = {0,0};
         compute_centroid(src_trans, source_size, &centroid_src);
         Point2D* tgt_corr = (Point2D*)malloc(source_size * sizeof(Point2D));
+        if (!tgt_corr) {
+            free(correspondences);
+            free(src_trans);
+            return;
+        }
         for (i = 0; i < source_size; i++) {
             tgt_corr[i] = target[correspondences[i]];
         }
@@ -106,7 +101,6 @@ void icp_2d(
         }
 
         // 4. Compute rotation (using SVD for 2x2)
-        // float det = Sxx * Syy - Sxy * Syx;
         float theta = atan2f(Sxy - Syx, Sxx + Syy);
         float cos_theta = cosf(theta);
         float sin_theta = sinf(theta);
@@ -138,6 +132,9 @@ void icp_2d(
         }
         mean_error /= source_size;
 
+        free(correspondences);
+        free(tgt_corr);
+
         if (fabsf(prev_error - mean_error) < tolerance) {
             // Converged
             break;
@@ -158,9 +155,6 @@ void icp_2d(
         R[0][0] = R_new[0][0]; R[0][1] = R_new[0][1];
         R[1][0] = R_new[1][0]; R[1][1] = R_new[1][1];
         t[0] = t_new[0]; t[1] = t_new[1];
-
-        free(correspondences);
-        free(tgt_corr);
     }
 
     // Output

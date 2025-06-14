@@ -101,7 +101,6 @@ inline void polar_to_cartesian(
     // Assuming single point conversion
     pos[0] = distance_angle[0]*cosf(distance_angle[1]); // x = r*cos(phi)
     pos[1] = distance_angle[0]*sinf(distance_angle[1]); // y = r*sin(phi)
-    pos[2] = 1.f;                                       // z = 1
 }
 
 

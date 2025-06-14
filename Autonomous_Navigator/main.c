@@ -11,16 +11,23 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <math.h>
 
 #include "msp.h"
+#include <inc/BLE_A3_UART.h>
 #include "inc/Clock.h"
 #include "inc/CortexM.h"
 #include "inc/EUSCI_A0_UART.h"
 #include "inc/GPIO.h"
-#include "inc/SysTick_Interrupt.h"
 #include "inc/RPLiDAR_A2_UART.h"
+#include "inc/SysTick_Interrupt.h"
+#include "inc/Motor.h"
 
 #include "inc/matrices.h"
+#include "inc/icp_2d.h"
+
+
+
 
 
 
@@ -48,11 +55,28 @@ uint16_t Edge_Counter               = 0;
  */
 void SysTick_Handler(void)
 {
+    printf("SysTick Handler went off");
+
     SysTick_ms_elapsed++;
     if (SysTick_ms_elapsed >= 500) {
 
         SysTick_ms_elapsed = 0;
     }
+}
+
+
+/**
+ * @brief user-defined function executed by the Timer A2 in interrupt capture mode as an edge-detector.
+ *      It counts the number of interrupt pulses that the encoder has generated.
+ *
+ * @param uint16_t time
+ *
+ * @return None
+ */
+void Detect_Edge(uint16_t time)
+{
+    Edge_Counter = Edge_Counter + 1;
+    LED2_Output(RGB_LED_BLUE);
 }
 
 
@@ -83,8 +107,163 @@ uint8_t RPLiDAR_RX_Data[BUFFER_LENGTH] = {0};
 
 float output[FLOAT_BUFFER][3] = {0};
 
+uint8_t is_operational = 0;
 
 
+
+//void initialize_RPLiDAR_C1(void) {
+//
+//    printf("SRNR: STOP\n");
+//    Single_Request_No_Response(STOP);
+//    Clock_Delay1ms(1);
+//
+//    printf("SRNR: RESET\n");
+//    Single_Request_No_Response(RESET);
+//    Clock_Delay1ms(1);
+//
+//
+//    printf("SRSR: GET_HEALTH\n");
+//    Single_Request_Single_Response(GET_HEALTH, RPLiDAR_RX_Data);
+//    Clock_Delay1ms(1);
+//
+//    /**
+//     * @todo: scrap this part
+//     *
+//     */
+////    uint8_t button_status = Get_Buttons_Status();
+//
+//    // Wait until Button 2 is pressed; i.e. button_status is nonzero
+////    while ((button_status & 0x10) == 0) {
+////        button_status = Get_Buttons_Status();
+////        Clock_Delay1ms(200);
+////    }
+//
+//    // printf("button pressed\n");
+//    // Clock_Delay1ms(1000);
+//
+//
+//    printf("SRMR: SCAN\n");
+//    Single_Request_Multiple_Response(SCAN, RPLiDAR_RX_Data);
+//    Clock_Delay1ms(200);
+//}
+
+
+
+
+// 1, 2, 3, 4
+// 5: UP
+// 6: DOWN
+// 7: LEFT
+// 8: RIGHT
+
+uint16_t fwd_spd    = 5000, // forward duty cycle
+         bkwd_spd   = 3000, // reverse duty cycle
+         rot_spd    = 3000; // rotation speed
+
+
+
+RPLiDAR_Config cfg = {.skip = 4};
+
+
+void Process_BLE_UART_Data(char BLE_UART_Buffer[])
+{
+    if (Check_BLE_UART_Data(BLE_UART_Buffer, "RGB LED GREEN")) {
+
+        Motor_Stop();
+        LED2_Output(RGB_LED_GREEN);
+
+
+    } else if ( Check_BLE_UART_Data(BLE_UART_Buffer, "RGB LED OFF") ) {
+
+        Motor_Stop();
+        LED2_Output(RGB_LED_OFF);
+
+
+    } else if ( Check_BLE_UART_Data(BLE_UART_Buffer, "SEND Q15.16 DATA") ) {
+
+        uint8_t i;
+
+        int32_t data[3] = { 21340,  //  0.3256225586
+                           -279035, // -4.2577362061
+                           -8923};  // -0.1361541748
+
+        for (i = 0; i < 3; i++) {
+            BLE_UART_OutFixed( data[i] );
+            BLE_UART_OutChar('\n');     // 0x0A
+        }
+
+
+    // 1: RE/START RPLiDAR C1
+    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B11")) {
+
+        // Initialize the RPLiDAR C1
+//        initialize_RPLiDAR_C1();
+
+        Motor_Stop();
+        LED2_Output(RGB_LED_WHITE);
+
+        is_operational = 1;
+
+        BLE_UART_OutString("INIT\n");
+
+    // 2: RECORD DATA
+    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B21")) {
+
+        if (is_operational) {
+
+            Motor_Stop();
+            LED2_Output(RGB_LED_RED);
+
+            Gather_LiDAR_Data(&cfg, 1, RPLiDAR_RX_Data, output);
+
+            BLE_UART_OutString("DATA REC\n");
+
+
+
+//            uint8_t matrix_multiply(
+//                    uint8_t a_rows, uint8_t a_cols, float a[a_rows][a_cols],
+//                    uint8_t b_rows, uint8_t b_cols, float b[b_rows][b_cols],
+//                    float result[a_rows][b_cols]);
+
+        }
+
+
+    // 5: UP
+    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B51")) {
+
+        Motor_Forward(fwd_spd, fwd_spd);
+        LED2_Output(RGB_LED_GREEN);
+
+
+    // 6: DOWN
+    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B61")) {
+
+        Motor_Backward(bkwd_spd, bkwd_spd);
+        LED2_Output(RGB_LED_PINK);
+
+
+    // 7: LEFT
+    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B71")) {
+
+        Motor_Left(rot_spd, rot_spd);
+        LED2_Output(RGB_LED_YELLOW);
+
+
+    // 8: RIGHT
+    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B81")) {
+
+        Motor_Right(rot_spd, rot_spd);
+        LED2_Output(RGB_LED_BLUE);
+
+
+    } else {
+
+        Motor_Stop();
+        LED2_Output(RGB_LED_OFF);
+
+        // printf("BLE UART Command Not Found\n");
+    }
+}
 
 
 int main(void)
@@ -94,6 +273,7 @@ int main(void)
     WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;
 
 
+    // Ensure that interrupts are disabled during initialization
     DisableInterrupts();
 
 
@@ -118,23 +298,47 @@ int main(void)
     EUSCI_A0_UART_Init_Printf();
 
 
-    // Initialize EUSCI_A2_UART
+    // Initialize UART communications
     EUSCI_A2_UART_Init();
+
+
+    // motor and tachometer-based initializations ---------------------
+
+    // @todo: Initialize Timer A2 in Capture mode
+//    Timer_A2_Capture_Init(&Detect_Edge);
+
+
+    // Initialize the tachometers
+//    Tachometer_Init();
+
+
+    // Initialize the DC motors
+    Motor_Init();
 
 
     // Enable the interrupts used by the SysTick and Timer_A timers
     EnableInterrupts();
 
 
+    // bluetooth module initialization ---------------------------------
 
+    // Initialize a buffer that will be used to receive command string from the BLE module
+    char BLE_UART_Buffer[BLE_UART_BUFFER_SIZE] = {0};
+
+    // Provide a short delay after initialization and reset the BLE module
+    Clock_Delay1ms(1000);
+    BLE_UART_Reset();
+
+    // Send a message to the BLE module to check if the connection is stable
+    BLE_UART_OutString("BLE UART Active\r\n");
     Clock_Delay1ms(1000);
 
-    RPLiDAR_Config cfg = {.skip = 4};
-
-    printf("test start ---------------\n");
+    
 
 
 
+
+    // RPLiDAR C1 Initialization -------------------------------------------
 
 //    printf("SRNR: STOP\n");
     Single_Request_No_Response(STOP);
@@ -145,74 +349,90 @@ int main(void)
     Clock_Delay1ms(1);
 
 
-    // printf("SRSR: GET_INFO\n");
-    // Single_Request_Single_Response(GET_INFO, RPLiDAR_RX_Data);
-    // Clock_Delay1ms(1);
-
 //    printf("SRSR: GET_HEALTH\n");
     Single_Request_Single_Response(GET_HEALTH, RPLiDAR_RX_Data);
     Clock_Delay1ms(1);
 
-    // printf("SRSR: GET_SAMPLERATE\n");
-    // Single_Request_Single_Response(GET_SAMPLERATE, RPLiDAR_RX_Data);
-    // Clock_Delay1ms(1);
+    /**
+     * @todo: scrap this part
+     *
+     */
+//    uint8_t button_status = Get_Buttons_Status();
 
-//    printf("SRSR: GET_LIDAR_CONF\n");
-//    Single_Request_Single_Response(GET_LIDAR_CONF, RPLiDAR_RX_Data);
-//    Clock_Delay1ms(1);
+    // Wait until Button 2 is pressed; i.e. button_status is nonzero
+//    while ((button_status & 0x10) == 0) {
+//        button_status = Get_Buttons_Status();
+//        Clock_Delay1ms(200);
+//    }
+
+    // printf("button pressed\n");
+    // Clock_Delay1ms(1000);
 
 
-
-
-//    printf("SRMR: SCAN\n");
+    printf("SRMR: SCAN\n");
     Single_Request_Multiple_Response(SCAN, RPLiDAR_RX_Data);
     Clock_Delay1ms(200);
-
-    // printf("SRMR: EXPRESS_SCAN\n");
-    // Single_Request_Multiple_Response(EXPRESS_SCAN, RPLiDAR_RX_Data);
-    // Clock_Delay1ms(1);
     
-    uint32_t counter = 6;
 
-    while (counter) {
-        // process for using SCAN command:
-        // 1. turn on  the UART TX/RX interrupt enable
-        // 2. record our out-characters onto an array until it fills up?
-        // 3. turn off the UART TX/RX interrupt enable
-        // 4. process the data and
-
-//        Clock_Delay1ms(1000);
-
-//        EUSCI_A2_UART_Restart();
+    printf("test scan -------\n");
 
 
 
-        // to use express scan command:
-        // according to the document, the sources recommend:
-        // 1. using the GET_LIDAR_CONF command (specifically with
-        // configuration entry 0x7C) to obtain the "Typical Scan Mode"
-        // ID and then using this ID in the working_mode field of the
-        // EXPRESS_SCAN request to make the LIDAR work under its best performance
+    // @todo: test information record
+//    uint32_t counter = 6;
+//
+//    while (counter) {
+//
+//
+//
+//        // process for using SCAN command:
+//        // 1. turn on  the UART TX/RX interrupt enable
+//        // 2. record our out-characters onto an array until it fills up?
+//        // 3. turn off the UART TX/RX interrupt enable
+//        // 4. process the data
+//
+//        Gather_LiDAR_Data(&cfg, 1, RPLiDAR_RX_Data, output);
+//
+////        uint8_t matrix_multiply(
+////                uint8_t a_rows, uint8_t a_cols, float a[a_rows][a_cols],
+////                uint8_t b_rows, uint8_t b_cols, float b[b_rows][b_cols],
+////                float result[a_rows][b_cols]);
+//
+//
+//
+//
+//
+//        counter--;
+//
+//
+//        printf("---------------\n");
+//    }
+//
+//
+//    printf("end ---------------\n");
+
+    /**
+     * @todo: put this in systick!
+     */
 
 
-        Gather_LiDAR_Data(&cfg, 1, RPLiDAR_RX_Data, output);
+    while (1)
+    {
 
-//        uint8_t matrix_multiply(
-//                uint8_t a_rows, uint8_t a_cols, float a[a_rows][a_cols],
-//                uint8_t b_rows, uint8_t b_cols, float b[b_rows][b_cols],
-//                float result[a_rows][b_cols]);
+        int i;  // internal counter variable
+        int string_size = BLE_UART_InString(BLE_UART_Buffer, BLE_UART_BUFFER_SIZE);
 
+        printf("BLE UART Data: ");
 
+        for (i = 0; i < string_size; i++) {
+            printf("%c", BLE_UART_Buffer[i]);
 
+        }
 
-        counter--;
+        printf("\n");
 
-
-        printf("---------------\n");
+        Process_BLE_UART_Data(BLE_UART_Buffer);
     }
-
-
-    printf("end ---------------\n");
 
     return 0;
 

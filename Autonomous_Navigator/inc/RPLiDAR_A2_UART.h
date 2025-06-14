@@ -1,6 +1,6 @@
 /**
- * @file EUSCI_A2_UART.h
- * @brief Header file for the EUSCI_A2_UART driver.
+ * @file RPLIDAR_A2_UART.h
+ * @brief Header file for the RPLIDAR_A2_UART driver.
  *
  * This file contains the function definitions for the EUSCI_A2_UART driver.
  *
@@ -14,8 +14,8 @@
  *
  */
 
-#ifndef INC_EUSCI_A2_UART_H_
-#define INC_EUSCI_A2_UART_H_
+#ifndef INC_RPLIDAR_A2_UART_H_
+#define INC_RPLIDAR_A2_UART_H_
 
 #include <stdint.h>
 #include <string.h>
@@ -38,7 +38,7 @@
 /**
  * @brief Buffer length for UART communication.
  */
-#define BUFFER_LENGTH 256*9
+#define BUFFER_LENGTH 256*1
 
 #define FLOAT_BUFFER 100
 
@@ -89,9 +89,9 @@ void EUSCI_A2_UART_Restart();
 
 
 // -------------------------------------------------------------------------------------
-
+// 
 //  DATA SEND AND TRANSMIT
-
+// 
 // -------------------------------------------------------------------------------------
 
 /**

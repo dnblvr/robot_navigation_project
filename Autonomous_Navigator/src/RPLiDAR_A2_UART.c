@@ -1,6 +1,6 @@
 /**
- * @file EUSCI_A2_UART.c
- * @brief Source code for the EUSCI_A2_UART driver.
+ * @file RPLIDAR_A2_UART.c
+ * @brief Source code for the RPLIDAR_A2_UART driver.
  *
  * This file contains the function definitions for the EUSCI_A2_UART driver.
  *
@@ -74,7 +74,9 @@ void EUSCI_A2_UART_Init()
 
     // Configure the EUSCI_A2 module to use SMCLK as the clock source by
     // writing a value of 10b to the UCSSELx field (Bits 7 to 6) in the CTLW0 register
-    EUSCI_A2->CTLW0    |=  0x00C0;
+//    EUSCI_A2->CTLW0    |=  0x00C0;
+    EUSCI_A2->CTLW0    &= ~0x00C0;
+    EUSCI_A2->CTLW0    |=  0x0080;
 
 
 
@@ -268,23 +270,23 @@ uint8_t Single_Request_Single_Response(
     EUSCI_A2_UART_OutChar( command[0] );
 
     // read the response descriptor from the RPLiDAR C1
-    start_flag_1 = EUSCI_A2_UART_InChar();
-    start_flag_2 = EUSCI_A2_UART_InChar();
+    start_flag_1    = EUSCI_A2_UART_InChar();
+    start_flag_2    = EUSCI_A2_UART_InChar();
 
 
 #ifdef RPLIDAR_DEBUG
-    printf("0x%02X & 0x%02X\n", start_flag_1, start_flag_2);
+    printf("0x%02X; 0x%02X\n", start_flag_1, start_flag_2);
 #endif
 
     // if the response descriptor IDs the correct sequence
     if ( (start_flag_1 == 0xA5) && (start_flag_2 == 0x5A) ) {
 
         // for-loop is too slow to use on the RPLiDAR C1
-        RX_DATA_BUFFER[0] = EUSCI_A2_UART_InChar();
-        RX_DATA_BUFFER[1] = EUSCI_A2_UART_InChar();
-        RX_DATA_BUFFER[2] = EUSCI_A2_UART_InChar();
-        RX_DATA_BUFFER[3] = EUSCI_A2_UART_InChar();
-        RX_DATA_BUFFER[4] = EUSCI_A2_UART_InChar();
+        RX_DATA_BUFFER[0]   = EUSCI_A2_UART_InChar();
+        RX_DATA_BUFFER[1]   = EUSCI_A2_UART_InChar();
+        RX_DATA_BUFFER[2]   = EUSCI_A2_UART_InChar();
+        RX_DATA_BUFFER[3]   = EUSCI_A2_UART_InChar();
+        RX_DATA_BUFFER[4]   = EUSCI_A2_UART_InChar();
 
         result  =   (uint32_t)(RX_DATA_BUFFER[3] << 22)
                   | (uint32_t)(RX_DATA_BUFFER[2] << 14)
@@ -394,11 +396,10 @@ void Gather_LiDAR_Data(
 {
 
     uint16_t i, j, start, end, data_len = 5;
-    uint16_t skip = 4;
 
     float distance_angle[2] = {0};
 
-    EUSCI_A2_UART_Restart();
+//    EUSCI_A2_UART_Restart();
 
     // Gathering data from the RPLiDAR C1. At this point, it
     // should stop recording data as soon as the data stops
@@ -408,7 +409,8 @@ void Gather_LiDAR_Data(
         RX_Data[i]  = EUSCI_A2_UART_InChar();
     }
 
-    EUSCI_A2_UART_Stop();
+//    EUSCI_A2_UART_Stop();
+    l
 
     // find the pattern in the data using pattern() function
     for (i = 0; i < (data_len + 1); i++) {
@@ -439,7 +441,7 @@ void Gather_LiDAR_Data(
         }
     }
 
-    end = start + BUFFER_LENGTH - data_len*skip; // cfg->
+    end = start + BUFFER_LENGTH - data_len*cfg->skip; // cfg->
 
 #ifdef RPLIDAR_DEBUG
 
@@ -459,7 +461,7 @@ void Gather_LiDAR_Data(
     // Then, fill up the FLOAT_BUFFER
 
     j = 0;
-    for (i = start; i < end; i += data_len*skip) {
+    for (i = start; i < end; i += data_len*cfg->skip) {
 
         uint8_t is_nonzero;
 
@@ -479,12 +481,14 @@ void Gather_LiDAR_Data(
 
 #ifdef RPLIDAR_DEBUG
         // print the distance and angle
-        fprintf(stdout, "%i\t%3.2f rad. @ %5.2f mm\n", j, distance_angle[1], distance_angle[0]);
+        fprintf(stdout, "%i\t%3.2f rad. @ %5.2f mm\n",
+                j, distance_angle[1], distance_angle[0]);
 
 #endif
 
         // print the position
-        fprintf(stdout, "%i\t%10.2f %10.2f\n", j, out[j][0], out[j][1]);
+        fprintf(stdout, "%i\t%10.2f %10.2f\n",
+                j, out[j][0], out[j][1]);
 
         ++j;
 

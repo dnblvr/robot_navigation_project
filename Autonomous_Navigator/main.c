@@ -318,6 +318,8 @@ int main(void)
 
     // bluetooth module initialization ---------------------------------
 
+    BLE_UART_Init();
+
     // Initialize a buffer that will be used to receive command string from the BLE module
     char BLE_UART_Buffer[BLE_UART_BUFFER_SIZE] = {0};
 

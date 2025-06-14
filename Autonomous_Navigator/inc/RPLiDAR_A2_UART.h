@@ -38,7 +38,7 @@
 /**
  * @brief Buffer length for UART communication.
  */
-#define BUFFER_LENGTH 256*1
+#define BUFFER_LENGTH 256*9
 
 #define FLOAT_BUFFER 100
 

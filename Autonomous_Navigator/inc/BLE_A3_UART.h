@@ -4,7 +4,8 @@
  *
  * This file contains the function definitions for the BLE_UART driver.
  *
- * It interfaces with the Adafruit Bluefruit LE UART Friend Bluetooth Low Energy (BLE) module, which uses the UART communication protocol.
+ * It interfaces with the Adafruit Bluefruit LE UART Friend Bluetooth Low
+ *      Energy (BLE) module, which uses the UART communication protocol.
  *  - Product Link: https://www.adafruit.com/product/2479
  *
  * The following connections must be made:
@@ -69,58 +70,60 @@
 
 
 /**
- * @brief initializes the BLE UART module.
- *
+ * @brief   initializes the BLE UART module.
  */
 void BLE_UART_Init();
 
 /**
- * @brief receives a character from the BLE UART module.
+ * @brief   receives a character from the BLE UART module.
  *
  * @return uint8_t
  */
 uint8_t BLE_UART_InChar();
 
 /**
- * @brief sends a character to the BLE UART module.
+ * @brief   sends a character to the BLE UART module.
  *
  * @param data character to be sent
  */
 void BLE_UART_OutChar(uint8_t data);
 
 /**
- * @brief receives a string from the BLE UART module.
+ * @brief   receives a string from the BLE UART module.
  *
- * @param buffer_pointer    pointer to the character array where the received string will be stored
+ * @param buffer_pointer    pointer to the character array where the received
+ *                              string will be stored.
  * @param buffer_size       expected size of the character array
  * @return int
  */
 int BLE_UART_InString(char *buffer_pointer, uint16_t buffer_size);
 
-
 /**
- * @brief sends a string to the BLE UART module.
+ * @brief   sends a string to the BLE UART module.
  *
- * @param pt pointer to the character array to be sent
+ * @param pt    pointer to the character array to be sent
  */
 void BLE_UART_OutString(char *pt);
 
-
-
+/**
+ * @brief   sends a fixed-point number to the BLE UART module.
+ *
+ * @param pt    fixed-point number to be sent
+ */
 void BLE_UART_OutFixed(int32_t pt);
 
-
 /**
- * @brief
+ * @brief   checks if a specific string is present in the received data buffer.
  *
- * @param BLE_UART_Data_Buffer
- * @param data_string
+ * @param BLE_UART_Data_Buffer  buffer/reference containing the received data
+ * @param data_string           pointer to the string to be checked
  * @return uint8_t
  */
 uint8_t Check_BLE_UART_Data(char BLE_UART_Data_Buffer[], char *data_string);
 
-
-
+/**
+ * @brief Resets the BLE UART module.
+ */
 void BLE_UART_Reset();
 
 #endif /* INC_BLE_A3_UART_H_ */

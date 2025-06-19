@@ -38,9 +38,9 @@
 /**
  * @brief Buffer length for UART communication.
  */
-#define BUFFER_LENGTH 256*9
+#define BUFFER_LENGTH 256*6
 
-#define FLOAT_BUFFER 100
+#define FLOAT_BUFFER 75
 
 typedef struct {
     uint32_t skip;

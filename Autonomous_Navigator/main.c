@@ -4,7 +4,7 @@
 //#define MAIN_3 1
 
 
-#ifdef MAIN_1 // -----------------------------------------------------------------------
+#ifdef MAIN_1 // -------------------------------------------------------------
 
 
 #include <stdint.h>
@@ -28,7 +28,8 @@
 
 
 
-// Initialize a global variable for SysTick to keep track of elapsed time in milliseconds
+// Initialize a global variable for SysTick to keep track of elapsed time in 
+// milliseconds.
 uint32_t SysTick_ms_elapsed         = 0;
 uint32_t SysTick_seconds_elapsed    = 0;
 
@@ -41,9 +42,10 @@ uint16_t Edge_Counter               = 0;
 /**
  * @brief Interrupt service routine for the SysTick timer.
  *
- * The interrupt service routine for the SysTick timer increments the SysTick_ms_elapsed
- * global variable to keep track of the elapsed milliseconds. If collision_detected is 0, then
- * it checks if 1000 milliseconds passed. 
+ * The interrupt service routine for the SysTick timer increments the
+ *      SysTick_ms_elapsed global variable to keep track of the elapsed
+ *      milliseconds. If collision_detected is 0, then it checks if 500
+ *      milliseconds passed.
  *
  * @param None
  *
@@ -62,8 +64,9 @@ void SysTick_Handler(void)
 
 
 /**
- * @brief user-defined function executed by the Timer A2 in interrupt capture mode as an edge-detector.
- *      It counts the number of interrupt pulses that the encoder has generated.
+ * @brief user-defined function executed by the Timer A2 in interrupt capture
+ *      mode as an edge-detector. It counts the number of interrupt pulses that
+ *      the encoder has generated.
  *
  * @param uint16_t time
  *
@@ -79,9 +82,10 @@ void Detect_Edge(uint16_t time)
 
 /**
  * @brief Command definitions for the RPLiDAR C1
- * @details These commands are used to control the RPLiDAR C1 and retrieve information.
- *          for the single-request, no-response commands, the format is in:
- *          {command, byte-length, time}
+ * @details These commands are used to control the RPLiDAR C1 and retrieve
+ *          information.
+ *          For the single-request, no-response commands, the format is in:
+ *              {command, byte-length, time}
  */
 
 // Single-Request, No-Response
@@ -99,82 +103,87 @@ const uint8_t  GET_INFO[2] = {0x50, 20},
            EXPRESS_SCAN[2] = {0x82,  5};
 
 
-uint8_t RPLiDAR_RX_Data[BUFFER_LENGTH] = {0};
+RPLiDAR_Config cfg = {.skip = 4};
 
-float output[FLOAT_BUFFER][3] = {0};
-
+/**
+ * @brief variables which indicate if the RPLiDAR C1 is operational.
+ */
 uint8_t is_operational = 0;
 
+/**
+ * @brief RPLiDAR C1 RX data buffer.
+ */
+uint8_t RPLiDAR_RX_Data[BUFFER_LENGTH] = {0};
+
+/**
+ * @brief RPLiDAR C1 output data buffer.
+ */
+float output[FLOAT_BUFFER][3] = {0};
 
 
-//void initialize_RPLiDAR_C1(void) {
-//
-//    printf("SRNR: STOP\n");
-//    Single_Request_No_Response(STOP);
-//    Clock_Delay1ms(1);
-//
-//    printf("SRNR: RESET\n");
-//    Single_Request_No_Response(RESET);
-//    Clock_Delay1ms(1);
-//
-//
-//    printf("SRSR: GET_HEALTH\n");
-//    Single_Request_Single_Response(GET_HEALTH, RPLiDAR_RX_Data);
-//    Clock_Delay1ms(1);
-//
-//    /**
-//     * @todo: scrap this part
-//     *
-//     */
-////    uint8_t button_status = Get_Buttons_Status();
-//
-//    // Wait until Button 2 is pressed; i.e. button_status is nonzero
-////    while ((button_status & 0x10) == 0) {
-////        button_status = Get_Buttons_Status();
-////        Clock_Delay1ms(200);
-////    }
-//
-//    // printf("button pressed\n");
-//    // Clock_Delay1ms(1000);
-//
-//
-//    printf("SRMR: SCAN\n");
-//    Single_Request_Multiple_Response(SCAN, RPLiDAR_RX_Data);
-//    Clock_Delay1ms(200);
-//}
+/**
+ * @brief Initialize the RPLiDAR C1.
+ *
+ * This function initializes the RPLiDAR C1 by sending the appropriate commands
+ *      to the device and configuring the UART A2 interface.
+ *
+ * @return None
+ */
+void initialize_RPLiDAR_C1(void) {
+
+    // @todo: process for using SCAN command:
+    //  1. turn on the UART TX/RX interrupt enable
+    //  2. record our out-characters onto an array until it fills up?
+    //  3. turn off the UART TX/RX interrupt enable
+    //  4. process the data
+
+    // Initialize UART communications
+    EUSCI_A2_UART_Init();
+
+    // printf("SRNR: STOP\n");
+    Single_Request_No_Response(STOP);
+    Clock_Delay1ms(1);
+
+    // printf("SRNR: RESET\n");
+    Single_Request_No_Response(RESET);
+    Clock_Delay1ms(1);
 
 
+    // printf("SRSR: GET_HEALTH\n");
+    Single_Request_Single_Response(GET_HEALTH, RPLiDAR_RX_Data);
+    Clock_Delay1ms(1);
 
 
-// 1, 2, 3, 4
-// 5: UP
-// 6: DOWN
-// 7: LEFT
-// 8: RIGHT
+    // printf("SRMR: SCAN\n");
+    Single_Request_Multiple_Response(SCAN, RPLiDAR_RX_Data);
+    Clock_Delay1ms(200);
+    
+}
 
-uint16_t fwd_spd    = 5000, // forward duty cycle
-         bkwd_spd   = 3000, // reverse duty cycle
-         rot_spd    = 3000; // rotation speed
-
-
-
-RPLiDAR_Config cfg = {.skip = 4};
+/**
+ * @brief Motor speed settings
+ */
+uint16_t forward_speed  = 5000, // forward duty cycle
+         backward_speed = 3000, // reverse duty cycle
+         rotation_speed = 3000; // rotation duty cycle
 
 
 void Process_BLE_UART_Data(char BLE_UART_Buffer[])
 {
-    if (Check_BLE_UART_Data(BLE_UART_Buffer, "RGB LED GREEN")) {
 
-        Motor_Stop();
+    // turn on GREEN LED when typed onto a UART terminal
+    if (Check_BLE_UART_Data(BLE_UART_Buffer, "RGB LED GREEN")) {
+        
         LED2_Output(RGB_LED_GREEN);
 
 
+    // turn off RGB LED when typed onto a UART terminal
     } else if ( Check_BLE_UART_Data(BLE_UART_Buffer, "RGB LED OFF") ) {
-
-        Motor_Stop();
+        
         LED2_Output(RGB_LED_OFF);
 
-
+    
+    // send Q15.16 Data when typed onto a UART terminal
     } else if ( Check_BLE_UART_Data(BLE_UART_Buffer, "SEND Q15.16 DATA") ) {
 
         uint8_t i;
@@ -186,69 +195,68 @@ void Process_BLE_UART_Data(char BLE_UART_Buffer[])
         for (i = 0; i < 3; i++) {
             BLE_UART_OutFixed( data[i] );
             BLE_UART_OutChar('\n');     // 0x0A
+
         }
 
 
-    // 1: RE/START RPLiDAR C1
-    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B11")) {
+    // 1: RE/START RPLiDAR C1 when de-pressed
+    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B10")) {
+
+        LED2_Output(RGB_LED_WHITE);
 
         // Initialize the RPLiDAR C1
-//        initialize_RPLiDAR_C1();
-
-        Motor_Stop();
-        LED2_Output(RGB_LED_WHITE);
+        initialize_RPLiDAR_C1();
 
         is_operational = 1;
 
+        LED2_Output(RGB_LED_OFF);
+
         BLE_UART_OutString("INIT\n");
 
-    // 2: RECORD DATA
-    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B21")) {
+
+    // 2: RECORD DATA when de-pressed
+    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B20")) {
 
         if (is_operational) {
-
-            Motor_Stop();
+            
             LED2_Output(RGB_LED_RED);
 
             Gather_LiDAR_Data(&cfg, 1, RPLiDAR_RX_Data, output);
 
             BLE_UART_OutString("DATA REC\n");
 
-
-
-//            uint8_t matrix_multiply(
-//                    uint8_t a_rows, uint8_t a_cols, float a[a_rows][a_cols],
-//                    uint8_t b_rows, uint8_t b_cols, float b[b_rows][b_cols],
-//                    float result[a_rows][b_cols]);
-
+            // uint8_t matrix_multiply(
+            //         uint8_t a_rows, uint8_t a_cols, float a[a_rows][a_cols],
+            //         uint8_t b_rows, uint8_t b_cols, float b[b_rows][b_cols],
+            //         float result[a_rows][b_cols]);
         }
 
 
-    // 5: UP
+    // 5: UP is activated when pressed
     } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B51")) {
 
-        Motor_Forward(fwd_spd, fwd_spd);
+        Motor_Forward(forward_speed, forward_speed);
         LED2_Output(RGB_LED_GREEN);
 
 
-    // 6: DOWN
+    // 6: DOWN is activated when pressed
     } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B61")) {
 
-        Motor_Backward(bkwd_spd, bkwd_spd);
+        Motor_Backward(backward_speed, backward_speed);
         LED2_Output(RGB_LED_PINK);
 
 
-    // 7: LEFT
+    // 7: LEFT is activated when pressed
     } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B71")) {
 
-        Motor_Left(rot_spd, rot_spd);
+        Motor_Left(rotation_speed, rotation_speed);
         LED2_Output(RGB_LED_YELLOW);
 
 
-    // 8: RIGHT
+    // 8: RIGHT is activated when pressed
     } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B81")) {
 
-        Motor_Right(rot_spd, rot_spd);
+        Motor_Right(rotation_speed, rotation_speed);
         LED2_Output(RGB_LED_BLUE);
 
 
@@ -294,10 +302,6 @@ int main(void)
     EUSCI_A0_UART_Init_Printf();
 
 
-    // Initialize UART communications
-    EUSCI_A2_UART_Init();
-
-
     // motor and tachometer-based initializations ---------------------
 
     // @todo: Initialize Timer A2 in Capture mode
@@ -320,7 +324,8 @@ int main(void)
 
     BLE_UART_Init();
 
-    // Initialize a buffer that will be used to receive command string from the BLE module
+    // Initialize a buffer that will be used to receive command string from the 
+    // BLE module
     char BLE_UART_Buffer[BLE_UART_BUFFER_SIZE] = {0};
 
     // Provide a short delay after initialization and reset the BLE module
@@ -331,91 +336,15 @@ int main(void)
     BLE_UART_OutString("BLE UART Active\r\n");
     Clock_Delay1ms(1000);
 
-    
-
-
-
-
-    // RPLiDAR C1 Initialization -------------------------------------------
-
-//    printf("SRNR: STOP\n");
-    Single_Request_No_Response(STOP);
-    Clock_Delay1ms(1);
-
-//    printf("SRNR: RESET\n");
-    Single_Request_No_Response(RESET);
-    Clock_Delay1ms(1);
-
-
-//    printf("SRSR: GET_HEALTH\n");
-    Single_Request_Single_Response(GET_HEALTH, RPLiDAR_RX_Data);
-    Clock_Delay1ms(1);
-
-    /**
-     * @todo: scrap this part
-     *
-     */
-//    uint8_t button_status = Get_Buttons_Status();
-
-    // Wait until Button 2 is pressed; i.e. button_status is nonzero
-//    while ((button_status & 0x10) == 0) {
-//        button_status = Get_Buttons_Status();
-//        Clock_Delay1ms(200);
-//    }
-
-    // printf("button pressed\n");
-    // Clock_Delay1ms(1000);
-
-
-    printf("SRMR: SCAN\n");
-    Single_Request_Multiple_Response(SCAN, RPLiDAR_RX_Data);
-    Clock_Delay1ms(200);
-    
 
     printf("test scan -------\n");
 
-
-
-    // @todo: test information record
-//    uint32_t counter = 6;
-//
-//    while (counter) {
-//
-//
-//
-//        // process for using SCAN command:
-//        // 1. turn on  the UART TX/RX interrupt enable
-//        // 2. record our out-characters onto an array until it fills up?
-//        // 3. turn off the UART TX/RX interrupt enable
-//        // 4. process the data
-//
-//        Gather_LiDAR_Data(&cfg, 1, RPLiDAR_RX_Data, output);
-//
-////        uint8_t matrix_multiply(
-////                uint8_t a_rows, uint8_t a_cols, float a[a_rows][a_cols],
-////                uint8_t b_rows, uint8_t b_cols, float b[b_rows][b_cols],
-////                float result[a_rows][b_cols]);
-//
-//
-//
-//
-//
-//        counter--;
-//
-//
-//        printf("---------------\n");
-//    }
-//
-//
-//    printf("end ---------------\n");
 
     /**
      * @todo: put this in systick!
      */
 
-
-    while (1)
-    {
+    while (1) {
 
         int i;  // internal counter variable
         int string_size = BLE_UART_InString(BLE_UART_Buffer, BLE_UART_BUFFER_SIZE);
@@ -443,7 +372,7 @@ int main(void)
 #endif // MAIN_1
 
 
-#ifdef MAIN_2 // -----------------------------------------------------------------------
+#ifdef MAIN_2 // -------------------------------------------------------------
 
 #include "inc/matrices.h"
 #include "inc/coordinate_transform.h"
@@ -600,7 +529,8 @@ void example_rectangle_room_with_inner_Obstacle(void) {
         num_poses++;
 
 
-        // Add observations to visible landmarks (simulate range/bearing with noise)
+        // Add observations to visible landmarks (simulate range/bearing with
+        // noise)
         current->num_observations   = 0;
         current->observations       = NULL;
         for (l = 0; l < num_landmarks; ++l) {
@@ -712,19 +642,23 @@ int main(void) {
  * @file main.c
  * @brief Main source code for the Tachometer program.
  *
- * This file contains the main entry point and function definitions for the Tachometer program.
+ * This file contains the main entry point and function definitions for the
+ *      Tachometer program.
  *
- * SysTick is used to check if a collision has been detected and toggles the LEDs on the chassis board.
+ * SysTick is used to check if a collision has been detected and toggles the
+ *      LEDs on the chassis board.
  *
- * Then, it uses edge-triggered interrupts from the bumper switches to detect a collision.
- * After a collision has been detected, the motors should stop from running.
+ * Then, it uses edge-triggered interrupts from the bumper switches to detect a
+ *      collision. After a collision has been detected, the motors should stop
+ *      from running.
  *
  * Timer_A is used in this lab:
  *  - Timer A0: Used to generate PWM signals to drive the DC motors
  *  - Timer A1: Used to generate periodic interrupts at a specified rate (2 kHz)
- *  - Timer A2: Used for input capture to generate interrupts on the rising edge of P8.0
- *  - Timer A3: Used for input capture to generate interrupts on the rising edge of P10.4 and P10.5
- *              and to calculate the period between captures
+ *  - Timer A2: Used for input capture to generate interrupts on the rising
+ *      edge of P8.0
+ *  - Timer A3: Used for input capture to generate interrupts on the rising
+ *      edge of P10.4 and P10.5 and to calculate the period between captures.
  *
  * @author Aaron Nanas
  */
@@ -745,11 +679,13 @@ int main(void) {
 //#define EDGE_DETECT 1
 #define MAIN_CONTROLLER 1
 
-// Initialize a global variable for SysTick to keep track of elapsed time in milliseconds
+// Initialize a global variable for SysTick to keep track of elapsed time in
+// milliseconds
 uint32_t SysTick_ms_elapsed = 0;
 
 // Global flag that gets set in Bumper_Switches_Handler.
-// This is used to detect if any collisions occurred when any one of the bumper switches are pressed.
+// This is used to detect if any collisions occurred when any one of the bumper
+// switches are pressed.
 uint8_t collision_detected = 0;
 
 // Initialize length of the tachometer buffers
@@ -764,7 +700,8 @@ uint8_t collision_detected = 0;
 // Global flag used to indicate if EDGE_DETECT is enabled
 uint8_t Edge_Detect_Enabled         = 0;
 
-// Global flag used to indicate if Timer_A1 has finished generating pulses for Timer_A2
+// Global flag used to indicate if Timer_A1 has finished generating pulses for
+// Timer_A2
 uint8_t Edge_Detect_Done            = 0;
 
 // Global variable used to keep track of the number of edges
@@ -776,10 +713,12 @@ uint16_t Desired_RPM_Left           = 70;
 // Desired RPM for the right wheel
 uint16_t Desired_RPM_Right          = 70;
 
-// Declare a global variable used to store the measured RPM by the left tachometer
+// Declare a global variable used to store the measured RPM by the left
+// tachometer
 uint16_t Actual_RPM_Left            = 0;
 
-// Declare a global variable used to store the measured RPM by the right tachometer
+// Declare a global variable used to store the measured RPM by the right
+// tachometer
 uint16_t Actual_RPM_Right           = 0;
 
 // Set initial duty cycle of the left wheel to 25%
@@ -811,11 +750,13 @@ enum Tachometer_Direction Right_Direction;
 /**
  * @brief Interrupt service routine for the SysTick timer.
  *
- * The interrupt service routine for the SysTick timer increments the SysTick_ms_elapsed
- * global variable to keep track of the elapsed milliseconds. If collision_detected is 0, then
- * it checks if 500 milliseconds passed. It toggles the front yellow LEDs and turns off the back red LEDs
- * on the chassis board. Otherwise, if collision_detected is set, it turns off the front yellow LEDs
- * and turns on the back red LEDs on the chassis board.
+ * The interrupt service routine for the SysTick timer increments the
+ *      SysTick_ms_elapsed global variable to keep track of the elapsed
+ *      milliseconds. If collision_detected is 0, then it checks if 500 
+ *      milliseconds passed. It toggles the front yellow LEDs and turns off the
+ *      back red LEDs on the chassis board. Otherwise, if collision_detected is
+ *      set, it turns off the front yellow LEDs and turns on the back red LEDs
+ *      on the chassis board.
  *
  * @param None
  *
@@ -847,11 +788,15 @@ void SysTick_Handler(void)
 /**
  * @brief Bumper switch interrupt handler function.
  *
- * This is the interrupt handler for the bumper switch interrupts. It is called when a falling edge event is detected on
- * any of the bumper switch pins. The function checks if a collision has already been detected; if not, it prints a collision
- * detection message along with the bumper switch state and sets the collision_detected flag to prevent further detections.
+ * This is the interrupt handler for the bumper switch interrupts. It is called
+ *      when a falling edge event is detected on any of the bumper switch pins.
+ *      The function checks if a collision has already been detected; if not,
+ *      it prints a collision detection message along with the bumper switch
+ *      state and sets the collision_detected flag to prevent further detec-
+ *      tions.
  *
- * @param bumper_switch_state An 8-bit unsigned integer representing the bumper switch states at the time of the interrupt.
+ * @param bumper_switch_state An 8-bit unsigned integer representing the bumper
+ *      switch states at the time of the interrupt.
  *
  * @return None
  */
@@ -865,13 +810,14 @@ void Bumper_Switches_Handler(uint8_t bumper_switch_state)
 }
 
 /**
- * @brief This function handles collision events by instructing the robot to perform a sequence of actions.
+ * @brief This function handles collision events by instructing the robot to
+ *      perform a sequence of actions.
  *
  * This function handles collision events by performing the following actions:
- * 1. Stops the motors to halt the robot's movement.
- * 2. Moves the motors backward to recover from the collision.
- * 3. Makes the robot turn right.
- * 4. Resets the collision detection flag.
+ *      1. Stops the motors to halt the robot's movement.
+ *      2. Moves the motors backward to recover from the collision.
+ *      3. Makes the robot turn right.
+ *      4. Resets the collision detection flag.
  *
  * @param None
  *
@@ -916,10 +862,11 @@ void Handle_Collision()
 /**
  * @brief Update desired RPM based on button presses.
  *
- * This function updates the desired RPM (revolutions per minute) for the robot's left and right motors
- * based on button presses. It checks the status of two buttons and increases the desired RPM by 10
- * if the corresponding button is pressed. If the desired RPM exceeds a maximum threshold, it wraps around
- * to the minimum RPM value.
+ * This function updates the desired RPM (revolutions per minute) for the
+ *      robot's left and right motors based on button presses. It checks the
+ *      status of two buttons and increases the desired RPM by 10 if the
+ *      corresponding button is pressed. If the desired RPM exceeds a maximum
+ *      threshold, it wraps around to the minimum RPM value.
  *
  * @return None
  */
@@ -951,9 +898,11 @@ void Update_Desired_RPM()
 }
 
 /**
- * @brief User-defined function executed by Timer A1 using a periodic interrupt. if the Edge detection is enabled
- *      and the edge counter counts less than 8 pulses then the output toggles. if we've detected enough
- *      edges through Edge_Counter, then the Edge_Detect_Done is set and the output of P8.0 is cleared.
+ * @brief User-defined function executed by Timer A1 using a periodic
+ *      interrupt. if the Edge detection is enabled and the edge counter counts
+ *      less than 8 pulses then the output toggles. if we've detected enough
+ *      edges through Edge_Counter, then the Edge_Detect_Done is set and the
+ *      output of P8.0 cleared.
  *
  * @param None
  *
@@ -976,7 +925,9 @@ void Timer_A1_Periodic_Task(void) {
 }
 
 /**
- * @brief user-defined function executed by the Timer A2 in interrupt capture mode as an edge-detector.
+ * @brief user-defined function executed by the Timer A2 in interrupt capture
+ *      mode as an edge-detector.
+ *
  *      It counts the number of interrupt pulses that the encoder has generated.
  *
  * @param uint16_t time
@@ -1018,7 +969,8 @@ int main(void)
     EUSCI_A0_UART_Init_Printf();
 
 
-    // Initialize the bumper switches which will be used to generate external I/O-triggered interrupts
+    // Initialize the bumper switches which will be used to generate external
+    // I/O-triggered interrupts
     Bumper_Switches_Init(&Bumper_Switches_Handler);
 
 
@@ -1054,8 +1006,8 @@ int main(void)
         Motor_Stop();
 
         // The bumper switches will be used to initiate the start of the motors
-        // If the bumper switches haven't been pressed, then the RPM can be updated
-        // by pressing the user buttons
+        // If the bumper switches haven't been pressed, then the RPM can be
+        // updated by pressing the user buttons
         while (collision_detected == 0)
         {
             LED1_Output(RED_LED_ON);
@@ -1065,7 +1017,8 @@ int main(void)
             Clock_Delay1ms(200);
         }
 
-        // Flash the LEDs to indicate exit from while-loop (i.e. bumper switches have been pressed)
+        // Flash the LEDs to indicate exit from while-loop (i.e. bumper
+        // switches have been pressed)
         for (i = 0; i < 5; i++)
         {
             LED1_Output(RED_LED_OFF);
@@ -1076,12 +1029,12 @@ int main(void)
             Clock_Delay1ms(200);
         }
 
-        // After exiting the while-loop, Bumper_Sensors_Handler sets collision_detected to 1
-        // Clear the collision_detected flag here
+        // After exiting the while-loop, Bumper_Sensors_Handler sets
+        // collision_detected to 1, clear the collision_detected flag here
         collision_detected = 0;
 
-        // Calculate the actual RPM and move the motors forward with updated duty cycle values
-        // if there is no collision event detected
+        // Calculate the actual RPM and move the motors forward with updated
+        // duty cycle values if there is no collision event detected
         while (collision_detected == 0)
         {
 
@@ -1097,8 +1050,9 @@ int main(void)
                 Actual_RPM_Left = 2000000 / (Average_of_Buffer(Tachometer_Buffer_Left, BUFFER_LENGTH));
                 Actual_RPM_Right = 2000000 / (Average_of_Buffer(Tachometer_Buffer_Right, BUFFER_LENGTH));
 
-                // If the actual RPM measured on the left wheel is greater than the desired RPM,
-                // then decrease the duty cycle on the left wheel
+                // If the actual RPM measured on the left wheel is greater than
+                // the desired RPM, then decrease the duty cycle on the left
+                // wheel
                 if ((Actual_RPM_Left > (Desired_RPM_Left + 3)) && (Duty_Cycle_Left > 100))
                 {
                     Duty_Cycle_Left = Duty_Cycle_Left - 100;
@@ -1111,8 +1065,9 @@ int main(void)
                     Duty_Cycle_Left = Duty_Cycle_Left + 100;
                 }
 
-                // If the actual RPM measured on the right wheel is greater than the desired RPM,
-                // then decrease the duty cycle on the right wheel
+                // If the actual RPM measured on the right wheel is greater
+                // than the desired RPM, then decrease the duty cycle on the
+                // right wheel
                 if ((Actual_RPM_Right > (Desired_RPM_Right + 3)) && (Duty_Cycle_Right > 100))
                 {
                     Duty_Cycle_Right = Duty_Cycle_Right - 100;
@@ -1128,11 +1083,13 @@ int main(void)
                 // Move the motors forward with the updated duty cycle
                 Motor_Forward(Duty_Cycle_Left, Duty_Cycle_Right);
 
-                // Compare the desired RPM and actual RPM values using the serial terminal
+                // Compare the desired RPM and actual RPM values using the
+                // serial terminal
                 printf("Desired_RPM_Left: %d | Desired_RPM_Right: %d\n", Desired_RPM_Left, Desired_RPM_Right);
                 printf("Actual_RPM_Left: %d | Actual_RPM_Right: %d\n", Actual_RPM_Left, Actual_RPM_Right);
                 printf("Left_Steps: %d | Right Steps: %d\n\n", Left_Steps, Right_Steps);
             }
+
             Clock_Delay1ms(100);
         }
 

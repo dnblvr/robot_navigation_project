@@ -1,0 +1,8 @@
+{
+    "platformio-ide.projectDir": ".",
+    "platformio-ide.autoRebuildAutocompleteIndex": true,
+    "files.associations": {
+        "*.ino": "cpp",
+        "*.h": "cpp"
+    }
+}

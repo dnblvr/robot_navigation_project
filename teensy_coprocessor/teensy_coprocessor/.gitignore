@@ -3,3 +3,8 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+
+# VSCode workspace settings
+notes - monitor 2.code-workspace
+teensy_coprocessor - monitor 1.code-workspace

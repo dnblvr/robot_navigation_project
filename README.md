@@ -63,22 +63,3 @@ In general, for all tasks, they should follow the same guidelines:
 * [ ] simulate it in normal C code in Visual Studio Code, MATLAB, or any other IDE, if possible
   * [ ] if simulating in MATLAB, use its C-code converter
 * [ ] optimize the functions once done, if applicable
-
-### Main Tasks
-
-#### Both Gian and Lucy:
-* [ ] RRT* simulation on C (Visual Studio Code)
-* [ ] multizone LiDAR configuration (wk 9-11)
-  * [ ] configure with Timer_Ax interrupt hardware
-  * [ ] configure I2C with interrupt!
-  * [ ] implement state machine to know when to read
-
-* [ ] combine all our code together (wk 12-13)
-     
-#### Gian:
-* [ ] Odometry  (wk 9-10)
-* [ ] GraphSLAM (wk 9-11)
-  * [ ] I will look into what the inputs and outputs of this thing will require
-
-* [ ] RRT* implementation on MSP 432 (wk 12)
-  * [ ] configure the correct I/O required

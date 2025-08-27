@@ -18,8 +18,7 @@
 #include "msp.h"
 
 // Periodic interrupt rate of 1 kHz for the I2C / Line Follower Lab
-#define TIMER_A0_INT_CCR0_VALUE 12000
-
+#define TIMER_A0_INT_CCR0_VALUE 60000
 
 void (*Timer_A0_Task)(void);
 

@@ -68,7 +68,6 @@
  */
 #define DEL  0x7F
 
-
 /**
  * @brief   initializes the BLE UART module.
  */
@@ -91,9 +90,9 @@ void BLE_UART_OutChar(uint8_t data);
 /**
  * @brief   receives a string from the BLE UART module.
  *
- * @param[out] buffer_pointer    pointer to the character array where the received
+ * @param buffer_pointer    pointer to the character array where the received
  *                              string will be stored.
- * @param[in] buffer_size       expected size of the character array
+ * @param buffer_size       expected size of the character array
  * @return int
  */
 int BLE_UART_InString(char *buffer_pointer, uint16_t buffer_size);

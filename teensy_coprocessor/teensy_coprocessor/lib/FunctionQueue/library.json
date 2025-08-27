@@ -1,0 +1,15 @@
+{
+  "name": "FunctionQueue",
+  "version": "1.0.0",
+  "description": "Circular buffer-based function pointer queue for Arduino/Teensy",
+  "keywords": ["queue", "circular buffer", "function pointer", "embedded", "teensy"],
+  "authors": [
+    {
+      "name": "Gian Fajardo",
+      "email": "gianfajardo.prim@gmail.com"
+    }
+  ],
+  "license": "MIT",
+  "frameworks": ["arduino"],
+  "platforms": ["teensy", "espressif32", "atmelavr"]
+}

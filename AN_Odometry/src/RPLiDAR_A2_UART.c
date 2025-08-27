@@ -19,23 +19,14 @@
 
 
 
-void EUSCI_A2_UART_Init( void (*function_pointer)(void) )
+void EUSCI_A2_UART_Init()
 {
-
-    // Assign the function pointer to the RX_recv_task variable. This function
-    // pointer will be called when the RX interrupt occurs
-    A2_RX_Task  = function_pointer;
-
 
     // Configure pins P3.2 (PM_UCA2RXD) and P3.3 (PM_UCA2TXD) to use the primary module function:
     //    - by  setting  Bits 3 and 2 in the SEL0 register for P3
     //    - and clearing Bits 3 and 2 in the SEL1 register for P3
     P3->SEL0 |=  0x0C;
     P3->SEL1 &= ~0x0C;
-
-
-    // ----------------------------------------------------------------------
-    // EUSCI
 
 
     // Hold the EUSCI_A2 module in the reset state by setting the
@@ -47,8 +38,7 @@ void EUSCI_A2_UART_Init( void (*function_pointer)(void) )
     EUSCI_A2->MCTLW    &= ~0xFF;
 
 
-    // Disable the parity bit by clearing the UCPEN bit (Bit 15) in the CTLW0
-    // register
+    // Disable the parity bit by clearing the UCPEN bit (Bit 15) in the CTLW0 register
     EUSCI_A2->CTLW0    &= ~0x8000;
 
 
@@ -97,29 +87,18 @@ void EUSCI_A2_UART_Init( void (*function_pointer)(void) )
     EUSCI_A2->BRW       =  26;  // 460,800
 
 
-    // -----------------------------------------------------------------------
-    // Interrupt-enable and interrupt priority configuration 
 
-    // config settings:
-    //      - use the 18th IRQ number (number 34) for EUSCI_A2
-    //      - use the IP[4] b23-21 for the 3-bit wide priority field (0-7)
-    //      - set the priority to 2 (0x40_0000 to IP[4])
-    //      - use the n = 1 entry of the ISER/ICER array and EN the interrupt using the 2nd bit (0x04)
-    
-
-    // Configure EUSCI_A2 with an Interrupt Priority of 2
-//    NVIC->IP[4]     =  0x400000;    // b23-21 = 0b010
-//    NVIC->ISER[1]  |=  0x04;        // Enable EUSCI_A2 interrupt
-
-
-    // Disable the following two interrupts by clearing the corresponding bits in the IE register. Then, enable the next two interrupts by setting adjacent bits in the IE register:
-
-    //  1. enable  Transmit Complete Interrupt (UCTXCPTIE, Bit 3)
-    //  2. enable  Start Bit Interrupt         (UCSTTIE,   Bit 2)
-    //  3. disable Transmit Interrupt (UCTXIE, Bit 1)
-    //  4. disable Receive Interrupt  (UCRXIE, Bit 0)
-
+    // Disable the following interrupts by clearing the
+    // corresponding bits in the IE register:
+    // - Transmit Complete Interrupt (UCTXCPTIE, Bit 3)
+    // - Start Bit Interrupt         (UCSTTIE,   Bit 2)
     EUSCI_A2->IE       &= ~0x0C;
+
+
+    // Enable the following interrupts by setting the
+    // corresponding bits in the IE register
+    // - Transmit Interrupt (UCTXIE, Bit 1)
+    // - Receive Interrupt  (UCRXIE, Bit 0)
     EUSCI_A2->IE       |=  0x03;
 
 
@@ -140,9 +119,6 @@ void EUSCI_A2_UART_Stop() {
     // while((EUSCI_A2->IFG & 0x02) == 0);
 
     // while((EUSCI_A2->IFG & 0x01) == 0);
-
-    // disable the following interrupts by clearing the interrupt clear
-    NVIC->ICER[1]  |=  0x04;    // Disable EUSCI_A2 interrupt
     
 
     // Disable the following interrupts by clearing the
@@ -176,23 +152,12 @@ void EUSCI_A2_UART_Restart() {
 
 }
 
-void EUSCIA0_IRQHandler(void)
-{
-    // checks for the EUSCI_A2 Receive flag
-    if ((EUSCI_A2->IFG & 0x01) == 1) {
 
-        // Execute the user-defined task
-        (*A2_RX_Task)();
-
-    }
-}
-
-
-// -----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------
 //
 //  DATA SEND AND TRANSMIT
 //
-// -----------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------
 
 
 uint8_t EUSCI_A2_UART_InChar()

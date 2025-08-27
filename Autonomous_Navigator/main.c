@@ -2,6 +2,7 @@
 #define MAIN_1 1
 //#define MAIN_2 1
 //#define MAIN_3 1
+//#define MAIN_4 1
 
 
 #ifdef MAIN_1 // -------------------------------------------------------------
@@ -14,17 +15,18 @@
 #include <math.h>
 
 #include "msp.h"
-#include <inc/BLE_A3_UART.h>
+#include "inc/BLE_A3_UART.h"
 #include "inc/Clock.h"
 #include "inc/CortexM.h"
 #include "inc/EUSCI_A0_UART.h"
 #include "inc/GPIO.h"
+//#include "inc/GPS_A1_UART.h"
 #include "inc/RPLiDAR_A2_UART.h"
 #include "inc/SysTick_Interrupt.h"
 #include "inc/Motor.h"
 
-#include "inc/matrices.h"
-#include "inc/icp_2d.h"
+//#include "inc/matrices.h"
+//#include "inc/icp_2d.h"
 
 
 
@@ -34,7 +36,7 @@ uint32_t SysTick_ms_elapsed         = 0;
 uint32_t SysTick_seconds_elapsed    = 0;
 
 // Global flag used to indicate if EDGE_DETECT is enabled
-uint8_t Edge_Detect_Enabled         = 0;
+uint8_t Edge_Detect_Enabled         = 0;  
 
 // Global variable used to keep track of the number of edges
 uint16_t Edge_Counter               = 0;
@@ -121,8 +123,22 @@ uint8_t RPLiDAR_RX_Data[BUFFER_LENGTH] = {0};
 float output[FLOAT_BUFFER][3] = {0};
 
 
+uint32_t RPLiDAR_calls = 0;
+
+
+
+//void A2_Record_Calls(void);
+
+void A2_Record_Calls(void)
+{
+    RPLiDAR_calls++;
+
+    printf("%d\n", RPLiDAR_calls);
+}
+
+
 /**
- * @brief Initialize the RPLiDAR C1.
+ * @brief 
  *
  * This function initializes the RPLiDAR C1 by sending the appropriate commands
  *      to the device and configuring the UART A2 interface.
@@ -138,7 +154,7 @@ void initialize_RPLiDAR_C1(void) {
     //  4. process the data
 
     // Initialize UART communications
-    EUSCI_A2_UART_Init();
+    EUSCI_A2_UART_Init( &A2_Record_Calls );
 
     // printf("SRNR: STOP\n");
     Single_Request_No_Response(STOP);
@@ -181,6 +197,14 @@ void Process_BLE_UART_Data(char BLE_UART_Buffer[])
     } else if ( Check_BLE_UART_Data(BLE_UART_Buffer, "RGB LED OFF") ) {
         
         LED2_Output(RGB_LED_OFF);
+
+
+
+    // turn off RGB LED when typed onto a UART terminal
+    } else if ( Check_BLE_UART_Data(BLE_UART_Buffer, "ECHO") ) {
+
+        LED2_Output(RGB_LED_OFF);
+        BLE_UART_OutString("ECHO");
 
     
     // send Q15.16 Data when typed onto a UART terminal
@@ -319,6 +343,8 @@ int main(void)
     // Enable the interrupts used by the SysTick and Timer_A timers
     EnableInterrupts();
 
+    LED2_Output(RGB_LED_GREEN);
+
 
     // bluetooth module initialization ---------------------------------
 
@@ -361,7 +387,8 @@ int main(void)
         Process_BLE_UART_Data(BLE_UART_Buffer);
     }
 
-    return 0;
+    // statement is unreachable
+//    return 0;
 
 }
 

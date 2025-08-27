@@ -47,9 +47,6 @@ typedef struct {
 } RPLiDAR_Config;
 
 
-
-void (*A2_RX_Task)(void);
-
 /**
  * @brief The EUSCI_A2_UART_Init function initializes the EUSCI_A2 module to use UART mode.
  *
@@ -72,7 +69,7 @@ void (*A2_RX_Task)(void);
  *
  * @return None
  */
-void EUSCI_A2_UART_Init( void (*function_pointer)(void) );
+void EUSCI_A2_UART_Init();
 
 /**
  * @brief Stops the EUSCI_A2 module.

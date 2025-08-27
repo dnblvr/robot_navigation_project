@@ -126,7 +126,7 @@ uint32_t EUSCI_A0_UART_InUDec()
         }
         character = EUSCI_A0_UART_InChar();
     }
-    return number;
+  return number;
 }
 
 void EUSCI_A0_UART_OutUDec(uint32_t n)

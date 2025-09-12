@@ -68,6 +68,7 @@ void Tachometer_Init();
 void Tachometer_Get(uint16_t *left_tach,
                     enum Tachometer_Direction *left_dir,
                     int32_t *left_steps,
+
                     uint16_t *right_tach,
                     enum Tachometer_Direction *right_dir,
                     int32_t *right_steps);

@@ -28,8 +28,31 @@
 
 #include "inc/BLE_A3_UART.h"
 
-void BLE_UART_Init()
+extern volatile int isr_counter;
+
+
+//static char BLE_UART_Buffer[BLE_UART_BUFFER_SIZE] = {0};
+volatile char *UART_BUFFER_ADDR;
+volatile char *uart_buffer_pointer;
+//
+//volatile int length;
+
+
+void BLE_UART_Init(
+        volatile char *buffer_pointer
+        )
 {
+    // quick test to confirm it is working
+    // isr_counter = 0;
+
+//    length = 0;
+
+    // establish the address of the pointer for later assignment
+//    UART_BUFFER_ADDR = buffer_pointer;
+//    uart_buffer_pointer = buffer_pointer;
+
+//    BLE_A3_Task_0 = task_0;
+
     // Configure pins P9.6 (PM_UCA3RXCD) and P9.7 (UCA3TXD) to use the primary
     // module function by setting Bits 7 and 6 in the SEL0 register for P9 and
     // clearing Bits 7 and 6 in the SEL1 register for P9
@@ -46,13 +69,13 @@ void BLE_UART_Init()
 
     // Hold the EUSCI_A3 module in the reset state by setting the UCSWRST bit
     // (Bit 0) in the CTLW0 register
-    EUSCI_A3->CTLW0    |=  0x01;
+    EUSCI_A3->CTLW0    |=  0x0001;
 
     // ------------------------------------------------------------------------
 
 
     // Clear all of the bits in the Modulation Control Word (MCTLW) register
-    EUSCI_A3->MCTLW    &= ~0xFF;
+    EUSCI_A3->MCTLW    &= ~0x00FF;
 
     // Disable the parity bit by clearing the UCPEN bit (Bit 15) in the CTLW0
     // register
@@ -108,22 +131,71 @@ void BLE_UART_Init()
     // the IE register:
     // - Transmit Complete Interrupt (UCTXCPTIE, Bit 3)
     // - Start Bit Interrupt         (UCSTTIE,   Bit 2)
-    EUSCI_A3->IE       &= ~0x0C;
+    EUSCI_A3->IE       &= ~0x000C;
 
 
     // Enable the following interrupts by setting the corresponding bits in the
     // IE register:
     // - Transmit Interrupt (UCTXIE, Bit 1)
     // - Receive Interrupt  (UCRXIE, Bit 0)
-    EUSCI_A3->IE       |=  0x03;
+//    EUSCI_A3->IE       |=  0x0001;
+    EUSCI_A3->IE       |=  0x0003;
 
 
     // ------------------------------------------------------------------------
 
     // Release the EUSCI_A3 module from the reset state by clearing the UCSWRST
     // BIT (Bit 0) in the CTLW0 register
-    EUSCI_A3->CTLW0    &= ~0x01;
+    EUSCI_A3->CTLW0    &= ~0x0001;
+
+
+    // ===== NEW FUNCTION =====                     <==
+    // ISER[0] = 1 << 19
+    // turn on interrupt number 19 using ISER[0]
+    NVIC->ISER[0] =  0x00080000;
+
+
+    // IP[4] = 0x02 << 29
+    // set priority to 2
+//    NVIC->IP[4]     = (NVIC->IP[4] & 0x00FFFFFF) | 0x40000000;
+    NVIC->IP[4]     = (NVIC->IP[4] & 0x00FFFFFF) | 0x20000000;
+
+    printf("done configuring.\n");
+
 }
+
+void __attribute__((used)) EUSCIA3_IRQHandler(void) {
+
+    isr_counter++;
+
+    // statement checks if the RXBUF register is full
+    // @note statement equiv. to `(EUSCI_A3->IFG & 0x01) == 1)`
+    if (EUSCI_A3->IFG & 0x0001) {
+
+
+        // Read the last received data from the UART Receive Buffer
+        // @note RXIFG clears when RXBUF is read
+        char character  = (char)EUSCI_A3->RXBUF;
+
+
+        // BUTTON-BASED COMMANDS ------------------------------------------
+
+        // Check if the received character is a button command from the EUSCI_A3.
+//        if (character == '!') {
+//
+//            uart_buffer_pointer     = UART_BUFFER_ADDR;
+//
+//        }
+//
+//        *(uart_buffer_pointer)  = character;
+//        uart_buffer_pointer++;
+
+    }
+
+//    printf("a\n");
+
+}
+
 
 uint8_t BLE_UART_InChar()
 {
@@ -163,17 +235,19 @@ int BLE_UART_InString(char *buffer_pointer, uint16_t buffer_size)
 
     // MODE 1: BUTTON-BASED COMMANDS ------------------------------------------
 
-    // Check if the received character is a button command. Otherwise, proceed
-    // with the rest of the string-based code.
+    // Check if the received character is a button command from the BLE UART Friend.
+    // Otherwise, proceed with the rest of the string-based code.
     if (character == '!') {
 
-        *buffer_pointer = character;
+        *buffer_pointer     = character;
         buffer_pointer++;
 
         while (length) {
+
             *buffer_pointer = BLE_UART_InChar();
             buffer_pointer++;
             length--;
+
         }
 
         return 4;
@@ -196,20 +270,19 @@ int BLE_UART_InString(char *buffer_pointer, uint16_t buffer_size)
     {
         // Remove the character from the buffer if the received character is
         // a backspace character
-        if (character == BS)
-        {
+        if (character == BS) {
+
             if (length)
             {
                 buffer_pointer--;
                 length--;
                 BLE_UART_OutChar(BS);
             }
-        }
 
         // Otherwise, if there are more characters to be read, store them in
         // the buffer
-        else if (length < buffer_size)
-        {
+        } else if (length < buffer_size) {
+
             *buffer_pointer = character;
             buffer_pointer++;
             length++;
@@ -249,7 +322,9 @@ void BLE_UART_OutString(char *pt)
 }
 
 
-uint8_t Check_BLE_UART_Data(char BLE_UART_Data_Buffer[], char *data_string)
+uint8_t Check_BLE_UART_Data(
+        char  BLE_UART_Data_Buffer[],
+        char *data_string)
 {
     if (strstr(BLE_UART_Data_Buffer, data_string) != NULL) {
 
@@ -263,15 +338,20 @@ uint8_t Check_BLE_UART_Data(char BLE_UART_Data_Buffer[], char *data_string)
 
 void BLE_UART_Reset()
 {
+
     // Switch to CMD mode by setting the MOD pin (P1.6) to 1
-    P1->OUT |= 0x40;
+    P1->OUT    |=  0x40;
     Clock_Delay1ms(1000);
+
 
     // Send the system reset command by sending the "ATZ" string to the BLE
     // UART module
+//    printf("writing ATZ\n");
     BLE_UART_OutString("ATZ\r\n");
     Clock_Delay1ms(3000);
 
+
     // Switch back to DATA mode by clearing the MOD pin (P1.6) to 0
-    P1->OUT &= ~0x40;
+    P1->OUT    &= ~0x40;
+
 }

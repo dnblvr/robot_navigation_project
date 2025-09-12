@@ -15,6 +15,7 @@
 #define INC_TIMER_A1_INTERRUPT_H_
 
 #include <stdint.h>
+#include <stdio.h>
 #include "msp.h"
 
 //// Periodic interrupt rate of 1 kHz for the Periodic Interrupts lab
@@ -24,10 +25,21 @@
 #define TIMER_A1_INT_CCR0_VALUE 60000
 
 
-// Declare pointer to the user-defined functions
+static uint32_t interrupt_counter = 0;
+
+#define MAX_INTERRUPT_COUNTER 10
+
+
+// Declare pointer to the user-defined functions and their respective skip-timer amounts
 void (*Timer_A1_Task_0)(void);
 void (*Timer_A1_Task_1)(void);
 //void (*Timer_A1_Task_2)(void);
+
+static uint16_t skip_amount_0 = 0;
+static uint16_t skip_amount_1 = 0;
+//static uint16_t skip_amount_2 = 0;
+
+// declare spacing between every two function calls
 
 /**
  * @brief Initialize Timer A1 for periodic interrupt generation.
@@ -45,9 +57,9 @@ void (*Timer_A1_Task_1)(void);
  * @return None
  */
 void Timer_A1_Interrupt_Init(
-        void(*task_0)(void),    int skip_0,
-        void(*task_1)(void),    int skip_1,
-//        void(*task_2)(void),    int skip_2,
+        void(*task_0)(void),    uint16_t skip_0,
+        void(*task_1)(void),    uint16_t skip_1,
+//        void(*task_2)(void),    uint16_t skip_2,
 
         uint16_t period);
 

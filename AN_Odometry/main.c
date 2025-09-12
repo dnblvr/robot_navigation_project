@@ -37,7 +37,7 @@
 #include "inc/Motor.h"
 //#include "inc/Timer_A0_Interrupt.h"
 #include "inc/Timer_A1_Interrupt.h"
-#include "inc/Timer_A2_Capture.h"
+//#include "inc/Timer_A2_Capture.h"
 #include "inc/Tachometer.h"
 
 //#define EDGE_DETECT 1
@@ -53,7 +53,7 @@ uint32_t SysTick_ms_elapsed = 0;
 uint8_t collision_detected = 0;
 
 // Initialize length of the tachometer buffers
-#define TACHOMETER_BUFFER_LEN                 10
+#define TACHOMETER_BUFFER_LEN         4
 
 // Set the maximum RPM for both wheels
 #define MAX_RPM                       120
@@ -111,43 +111,7 @@ enum Tachometer_Direction Left_Direction;
 // Direction of the right wheel's rotation
 enum Tachometer_Direction Right_Direction;
 
-/**
- * @brief Interrupt service routine for the SysTick timer.
- *
- * The interrupt service routine for the SysTick timer increments the
- *      SysTick_ms_elapsed global variable to keep track of the elapsed
- *      milliseconds. If collision_detected is 0, then it checks if 500
- *      milliseconds passed. It toggles the front yellow LEDs and turns off the
- *      back red LEDs on the chassis board. Otherwise, if collision_detected is
- *      set, it turns off the front yellow LEDs and turns on the back red LEDs
- *      on the chassis board.
- *
- * @param None
- *
- * @return None
- */
-void SysTick_Handler(void)
-{
-    if (Edge_Detect_Enabled == 0)
-    {
-        SysTick_ms_elapsed++;
-        if (collision_detected == 0)
-        {
-            if (SysTick_ms_elapsed >= 500)
-            {
-                P8->OUT    &=  ~0xC0;
-                P8->OUT    ^=   0x21;
-                SysTick_ms_elapsed = 0;
-            }
-        }
 
-        else
-        {
-            P8->OUT    |=   0xC0;
-            P8->OUT    &=  ~0x21;
-        }
-    }
-}
 
 /**
  * @brief Bumper switch interrupt handler function.
@@ -430,45 +394,46 @@ void Process_BLE_UART_Data(char BLE_UART_Buffer[])
     command = NULL;
 
     // turn on GREEN LED when typed onto a UART terminal
-    if (Check_BLE_UART_Data(BLE_UART_Buffer, "RGB LED GREEN")) {
-
-        command = &Motor_Stop_Wrapper;
-        Desired_RPM_Left    = 0;
-        Desired_RPM_Right   = 0;
-        LED2_Output(RGB_LED_GREEN);
+//    if (Check_BLE_UART_Data(BLE_UART_Buffer, "RGB LED GREEN")) {
+//
+//        command = &Motor_Stop_Wrapper;
+//        Desired_RPM_Left    = 0;
+//        Desired_RPM_Right   = 0;
+//        LED2_Output(RGB_LED_GREEN);
 
 
     // turn off RGB LED when typed onto a UART terminal
-    } else if ( Check_BLE_UART_Data(BLE_UART_Buffer, "RGB LED OFF") ) {
-
-        command = &Motor_Stop_Wrapper;
-        Desired_RPM_Left    = 0;
-        Desired_RPM_Right   = 0;
-        LED2_Output(RGB_LED_OFF);
+//    } else if ( Check_BLE_UART_Data(BLE_UART_Buffer, "RGB LED OFF") ) {
+//
+//        command = &Motor_Stop_Wrapper;
+//        Desired_RPM_Left    = 0;
+//        Desired_RPM_Right   = 0;
+//        LED2_Output(RGB_LED_OFF);
 
 
     // send Q15.16 Data when typed onto a UART terminal
-    } else if ( Check_BLE_UART_Data(BLE_UART_Buffer, "SEND Q15.16 DATA") ) {
-
-        uint8_t i;
-
-        int32_t data[3] = { 21340,  //  0.3256225586
-                           -279035, // -4.2577362061
-                           -8923};  // -0.1361541748
-
-        for (i = 0; i < 3; i++) {
-            BLE_UART_OutFixed( data[i] );
-            BLE_UART_OutChar('\n');     // 0x0A
-
-        }
-
-        command = &Motor_Stop_Wrapper;
-        Desired_RPM_Left    = 0;
-        Desired_RPM_Right   = 0;
+//    } else if ( Check_BLE_UART_Data(BLE_UART_Buffer, "SEND Q15.16 DATA") ) {
+//
+//        uint8_t i;
+//
+//        int32_t data[3] = { 21340,  //  0.3256225586
+//                           -279035, // -4.2577362061
+//                           -8923};  // -0.1361541748
+//
+//        for (i = 0; i < 3; i++) {
+//            BLE_UART_OutFixed( data[i] );
+//            BLE_UART_OutChar('\n');     // 0x0A
+//
+//        }
+//
+//        command = &Motor_Stop_Wrapper;
+//        Desired_RPM_Left    = 0;
+//        Desired_RPM_Right   = 0;
 
 
     // 1: RE/START RPLiDAR C1 when de-pressed
-    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B10")) {
+//    } else
+    if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B10")) {
 
         command = &Motor_Stop_Wrapper;
         Desired_RPM_Left    = 0;
@@ -573,11 +538,50 @@ void Process_BLE_UART_Data(char BLE_UART_Buffer[])
 
 
 
+void some_function() {
 
+}
+
+
+void BLE_Contact()
+{
+
+
+    // Initialize a buffer that will be used to receive command string from the
+    // BLE module
+    static char BLE_UART_Buffer[BLE_UART_BUFFER_SIZE] = {0};
+
+    int j;  // internal counter variable
+
+    // read the data from the bluetooth module
+    int string_size = BLE_UART_InString(BLE_UART_Buffer, BLE_UART_BUFFER_SIZE);
+
+    printf("BLE UART Data: ");
+
+    for (j = 0; j < string_size; j++) {
+        printf("%c", BLE_UART_Buffer[j]);
+
+    }
+
+    printf("\n");
+
+    Process_BLE_UART_Data(BLE_UART_Buffer);
+
+}
+
+
+
+
+#define MOTOR_CONTROL_SYSTEM 1
 
 void Get_Odometry()
 {
+
+    char buffer[20];
+
+#ifdef MOTOR_CONTROL_SYSTEM
     static uint32_t counter = 0;
+#endif  // MOTOR_CONTROL_SYSTEMS
 
     // Get the measurements made by the tachometers and update the buffers
     Tachometer_Get(
@@ -590,41 +594,41 @@ void Get_Odometry()
             &Right_Steps);
 
 
-//    /*
+#ifdef MOTOR_CONTROL_SYSTEM
     buffer_idx = buffer_idx + 1;
 
-    // the incremental control system is updated when the buffer is filled, take the average
+    counter++;
+
+    // the incremental control system is updated when the buffer is filled.
+    // from there, it takes the average
     if (buffer_idx >= TACHOMETER_BUFFER_LEN)
     {
-
-        counter++;
-        printf("%5d\n\n", counter);
-
 
         // reset the buffer index
         buffer_idx = 0;
 
         // (1/Tachometer Step/Cycles) * (12,000,000 Cycles / Second) * (60 Second / Minute) * (1/360 Rotation/Step)
 
-        Actual_RPM_Left     = 2000000 / (Average_of_Buffer(Tachometer_Buffer_Left,  TACHOMETER_BUFFER_LEN));
-        Actual_RPM_Right    = 2000000 / (Average_of_Buffer(Tachometer_Buffer_Right, TACHOMETER_BUFFER_LEN));
+        Actual_RPM_Left     = 2000000 / ( Average_of_Buffer(Tachometer_Buffer_Left,  TACHOMETER_BUFFER_LEN) );
+        Actual_RPM_Right    = 2000000 / ( Average_of_Buffer(Tachometer_Buffer_Right, TACHOMETER_BUFFER_LEN) );
 
 
         // If the actual RPM measured on the left wheel is greater than
         // the desired RPM, then decrease the duty cycle on the left
         // wheel
         if (        (Actual_RPM_Left > (Desired_RPM_Left + 3))
-                &&  (Duty_Cycle_Left > 100))
-        {
+                &&  (Duty_Cycle_Left > 100)) {
+
             Duty_Cycle_Left = Duty_Cycle_Left - 100;
 
 
         // Otherwise, if the actual RPM is less than the desired RPM,
         // then increase the duty cycle on the left wheel
         } else if (     (Actual_RPM_Left < (Desired_RPM_Left - 3))
-                    &&  (Duty_Cycle_Left < 14898))
-        {
+                    &&  (Duty_Cycle_Left < 14898)) {
+
             Duty_Cycle_Left = Duty_Cycle_Left + 100;
+
         }
 
 
@@ -632,44 +636,57 @@ void Get_Odometry()
         // than the desired RPM, then decrease the duty cycle on the
         // right wheel
         if (        (Actual_RPM_Right > (Desired_RPM_Right + 3))
-                &&  (Duty_Cycle_Right > 100))
-        {
+                &&  (Duty_Cycle_Right > 100)) {
+
             Duty_Cycle_Right = Duty_Cycle_Right - 100;
 
 
         // Otherwise, if the actual RPM is less than the desired RPM,
         // then increase the duty cycle on the right wheel
         } else if (     (Actual_RPM_Right < (Desired_RPM_Right - 3))
-                    &&  (Duty_Cycle_Right < 14898))
-        {
+                    &&  (Duty_Cycle_Right < 14898)) {
+
             Duty_Cycle_Right = Duty_Cycle_Right + 100;
         }
 
-        // Move the motors using the function pointer "command" with the updated duty cycle
-        if (command != NULL) {
-
-            command(Duty_Cycle_Left, Duty_Cycle_Right);
-            printf("command applied\n");
-
-        } else {
-
-            Motor_Stop();
-            printf("command not applied\n");
-        }
-
-
-        // Compare the desired RPM and actual RPM values using the
-        // serial terminal
-//        printf("Desired: %5d | %5d\n", Desired_RPM_Left, Desired_RPM_Right);
-//        printf("Actual:  %5d | %5d\n", Actual_RPM_Left, Actual_RPM_Right);
-//        printf("Steps:   %5d | %5d\n\n", Left_Steps, Right_Steps);
-
     }
-//    */
+
+
+
+    // Move the motors using the function pointer "command" with the updated duty cycle
+    if (command != NULL) {
+
+        command(Duty_Cycle_Left, Duty_Cycle_Right);
+
+    } else {
+
+        Motor_Stop();
+    }
+#endif  // defined(MOTOR_CONTROL_SYSTEM)
+
+
+    // Compare the desired RPM and actual RPM values using the
+    // serial terminal
+//    printf("Desired: %5d | %5d\n", Desired_RPM_Left, Desired_RPM_Right);
+//    printf("Actual:  %5d | %5d\n", Actual_RPM_Left, Actual_RPM_Right);
+//    printf("Steps:   %5d | %5d\n\n", Left_Steps, Right_Steps);
+
+//    sprintf(buffer, "%4d, %5d, %5d\n", counter, Left_Steps, Right_Steps);
+
+//    BLE_UART_OutString(buffer);
 }
+
+volatile int isr_counter = 0;
+
+
 
 int main(void)
 {
+
+
+    // Initialize a buffer that will be used to receive command string from the
+    // BLE module
+    volatile static char BLE_UART_Buffer[BLE_UART_BUFFER_SIZE] = {0};
 
     // Initialize the collision_detected flag
     collision_detected = 0;
@@ -680,16 +697,16 @@ int main(void)
 
 
     // Initialize the built-in red LED and the RGB LEDs
-    LED1_Init();
-    LED2_Init();
+//    LED1_Init();
+//    LED2_Init();
 
 
     // Initialize the user buttons
-    Buttons_Init();
+//    Buttons_Init();
 
 
     // Initialize the front and back LEDs on the chassis board
-    Chassis_Board_LEDs_Init();
+//    Chassis_Board_LEDs_Init();
 
 
     // Initialize EUSCI_A0_UART
@@ -699,11 +716,10 @@ int main(void)
 
     // bluetooth module initialization ---------------------------------
 
-    BLE_UART_Init();
+    BLE_UART_Init(BLE_UART_Buffer);
+//    BLE_UART_Init();
 
-    // Initialize a buffer that will be used to receive command string from the
-    // BLE module
-    char BLE_UART_Buffer[BLE_UART_BUFFER_SIZE] = {0};
+//    __enable_irq();
 
     // Provide a short delay after initialization and reset the BLE module
     Clock_Delay1ms(1000);
@@ -727,18 +743,18 @@ int main(void)
 
 
     // use Timer_A1_Interrupt to get the odometry measurements
-    Timer_A1_Interrupt_Init(&Get_Odometry, 60000);
+    Timer_A1_Interrupt_Init(
+            &some_function,   1,
+            &Get_Odometry,  1,
 
-
-//    // Initialize Timer A1 periodic interrupts every 0.5 ms
-//    Timer_A1_Interrupt_Init(&Timer_A1_Periodic_Task, TIMER_A1_INT_CCR0_VALUE);
+            60000); // in clock ticks
 
 
 //    // Initialize Timer A2 in Capture mode
 //    Timer_A2_Capture_Init(&Detect_Edge);
 
 
-    // Initialize the tachometers
+    // Initialize the tachometers as a function of Timer A3
     Tachometer_Init();
 
 
@@ -748,29 +764,55 @@ int main(void)
 
     // Enable the interrupts used by the SysTick and Timer_A timers
     EnableInterrupts();
+//    __set_PRIMASK(0);    // Clear PRIMASK
+//    __enable_irq();      // Enable interrupts
+//    __ASM volatile ("cpsie i" : : : "memory");  // Assembly enable
 
+
+//    int j = 0;
+    int k;
 
     printf("test scan -------\n");
 
     while (1)
     {
 
+//        BLE_Contact();
 
-        int j;  // internal counter variable
-        int string_size = BLE_UART_InString(BLE_UART_Buffer, BLE_UART_BUFFER_SIZE);
+        printf("%5d\n", isr_counter);
 
-        printf("BLE UART Data: ");
 
-        for (j = 0; j < string_size; j++) {
-            printf("%c", BLE_UART_Buffer[j]);
+//        char c;
+//
+//
+//        if ((EUSCI_A3->IFG & 0x0001) == 1) {
+//
+//
+//            c   = (char)(EUSCI_A3->RXBUF);
+//            EUSCI_A3->IFG  &=  ~0x0001;
+//
+////            printf("RX flag set but ISR not called\n");
+//            printf("%c", c);
+//
+//            j++;
+//        }
+//
+//        if (j > 5) {
+//            j = 0;
+//            printf("\n");
+//        }
+//        BLE_Contact();
 
-        }
 
-        printf("\n");
-
-        Process_BLE_UART_Data(BLE_UART_Buffer);
-
-        printf("buffer_index: %d\n\n", buffer_idx);
+//        printf("BLE: ");
+//
+//        for (k = 0; k < 4; k++) {
+//            printf("%c ", BLE_UART_Buffer[k]);
+//
+//
+//        }
+//
+//        printf("\n");
 
         Clock_Delay1ms(100);
 

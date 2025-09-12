@@ -30,26 +30,26 @@ void Timer_A3_Capture_Init(void(*task0)(uint16_t time), void(*task1)(uint16_t ti
     // P10.5 (PM_TA3.1, Left Encoder A) to use peripheral function mode
     // by setting Bits 4 and 5 of the SEL0 register for P10
     // and clearing Bit 4 and 5 of the SEL1 register for P10
-    P10->SEL0 |=  0x30;
-    P10->SEL1 &= ~0x30;
+    P10->SEL0  |=  0x30;
+    P10->SEL1  &= ~0x30;
 
 
     // Configure pins P10.4 and P10.5 as input pins by
     // clearing Bits 4 and 5 of the DIR register for P10
-    P10->DIR  &= ~0x30;
+    P10->DIR   &= ~0x30;
 
 
     // Halt Timer A3 by clearing the MC bits in the CTL register
-    TIMER_A3->CTL &= ~0x0030;
+    TIMER_A3->CTL  &= ~0x0030;
 
 
-    // In the CTL register, set the TASSEL bits
-    // Choose SMCLK as timer clock source (TASSEL = 10b)
-    // Choose prescale value of 1 (ID = 0)
+    // Modify the following bits in the CTL register:
+    //  - Choose SMCLK as timer clock source (TASSEL = 10b)
+    //  - Choose prescale value of 1 (ID = 0)
 
-    TIMER_A3->CTL &= ~0x03C0;   // clear relevant bits
-    TIMER_A3->CTL |=  0x0200;   // TASSEL set to SMCLK
-    TIMER_A3->CTL &= ~0x00C0;   // Input Divider cleared to 0b00 or /1
+    TIMER_A3->CTL  &= ~0x03C0;  // clear relevant bits
+    TIMER_A3->CTL  |=  0x0200;  // TASSEL set to SMCLK
+    TIMER_A3->CTL  &= ~0x00C0;  // Input Divider cleared to 0b00 or /1
 
 
     // Modify the following bits in the CCTL[0] register:
@@ -105,19 +105,19 @@ void Timer_A3_Capture_Init(void(*task0)(uint16_t time), void(*task1)(uint16_t ti
 
 
     // Enable Interrupt 14 and 15 in NVIC by setting Bits 14 and 15 of the ISER[0] register
-    NVIC->ISER[0] |=  0x0000C000;
+    NVIC->ISER[0]  |=  0x0000C000;
 
 
     // Set the TACLR bit and enable Timer A3 in continuous mode using the
     // MC bits in the CTL register
-    TIMER_A3->CTL |=  0x0020;
+    TIMER_A3->CTL  |=  0x0020;
 
 }
 
 void TA3_0_IRQHandler(void)
 {
     // Acknowledge the Capture/Compare interrupt and clear Bit 0 of the CCTL[0] register
-    TIMER_A3->CCTL[0] &= ~0x1;
+    TIMER_A3->CCTL[0]  &= ~0x1;
 
     // Execute the user-defined task and pass the timer value from CCR[0]
     (*Timer_A3_Capture_Task_0)(TIMER_A3->CCR[0]);

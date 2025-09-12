@@ -29,6 +29,7 @@
 #define INC_BLE_A3_UART_H_
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include "msp.h"
 #include "Clock.h"
@@ -68,10 +69,17 @@
  */
 #define DEL  0x7F
 
+
+/**
+ * @brief function pointer
+ */
+//void (*BLE_A3_Task_0)(void);
+
 /**
  * @brief   initializes the BLE UART module.
  */
-void BLE_UART_Init();
+void BLE_UART_Init(volatile char *buffer_pointer);
+//void BLE_UART_Init();
 
 /**
  * @brief   receives a character from the BLE UART module.

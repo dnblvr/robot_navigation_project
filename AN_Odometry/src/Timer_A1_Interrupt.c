@@ -14,9 +14,7 @@
 #include "../inc/Timer_A1_Interrupt.h"
 
 void Timer_A1_Interrupt_Init(
-        void(*task_0)(void),    uint16_t skip_0,
-        void(*task_1)(void),    uint16_t skip_1,
-//        void(*task_2)(void),    uint16_t skip_2,
+        void(*task_0)(void),
 
         uint16_t period)
 {
@@ -34,16 +32,8 @@ void Timer_A1_Interrupt_Init(
      */
 
 
-    interrupt_counter   = 0;
-
     // Store the user-defined task function for use during interrupt handling
     Timer_A1_Task_0	= task_0;
-    Timer_A1_Task_1	= task_1;
-//    Timer_A1_Task_2	= task_2;
-
-    skip_amount_0   = skip_0;
-    skip_amount_1   = skip_1;
-//    skip_amount_2   = skip_2;
 
 
     // Halt Timer A1 by clearing the MC bits in the CTL register
@@ -106,30 +96,7 @@ void TA1_0_IRQHandler(void)
     TIMER_A1->CCTL[0]  &= ~0x0001;
 
 
-//    printf("in TA1_0_IRQ_Handler\n");
-
-    // increment and/or reset counter
-    interrupt_counter++;
-    if (interrupt_counter > MAX_INTERRUPT_COUNTER) {
-        interrupt_counter   = 0;
-    }
-
-
     // Execute the user-defined tasks
-    if ( (interrupt_counter % skip_amount_0) == 0 ) {
+    (*Timer_A1_Task_0)();
 
-//        printf("in task_0\t");
-        (*Timer_A1_Task_0)();
-    }
-
-    if ( (interrupt_counter % skip_amount_1) == 0 ) {
-
-//        printf("in task_1\n");
-        (*Timer_A1_Task_1)();
-    }
-
-//    if ( (interrupt_counter % skip_amount_2) == 0 ) {
-//
-//        (*Timer_A1_Task_2)();
-//    }
 }

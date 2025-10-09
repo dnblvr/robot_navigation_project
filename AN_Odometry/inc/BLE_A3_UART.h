@@ -9,22 +9,23 @@
  *  - Product Link: https://www.adafruit.com/product/2479
  *
  * The following connections must be made:
- *  - BLE UART MOD  (Pin 1)     <-->  MSP432 LaunchPad Pin P1.6
- *  - BLE UART CTS  (Pin 2)     <-->  MSP432 LaunchPad GND
- *  - BLE UART TXO  (Pin 3)     <-->  MSP432 LaunchPad Pin P9.6 (PM_UCA3RXD)
- *  - BLE UART RXI  (Pin 4)     <-->  MSP432 LaunchPad Pin P9.7 (PM_UCA3TXD)
- *  - BLE UART VIN  (Pin 5)     <-->  MSP432 LaunchPad VCC (3.3V)
- *  - BLE UART RTS  (Pin 6)     <-->  Not Connected
- *  - BLE UART GND  (Pin 7)     <-->  MSP432 LaunchPad GND
- *  - BLE UART DFU  (Pin 8)     <-->  Not Connected
+ *  - BLE UART MOD  (Pin 1)  <-->   MSP432 LaunchPad Pin P1.6
+ *  - BLE UART CTS  (Pin 2)  <-->   MSP432 LaunchPad GND
+ *  - BLE UART TXO  (Pin 3)  <-->   MSP432 LaunchPad Pin P9.6 (PM_UCA3RXD)
+ *  - BLE UART RXI  (Pin 4)  <-->   MSP432 LaunchPad Pin P9.7 (PM_UCA3TXD)
+ *  - BLE UART VIN  (Pin 5)  <-->   MSP432 LaunchPad VCC (3.3V)
+ *  - BLE UART RTS  (Pin 6)  <-->   Not Connected
+ *  - BLE UART GND  (Pin 7)  <-->   MSP432 LaunchPad GND
+ *  - BLE UART DFU  (Pin 8)  <-->   Not Connected
  *
- * @note For more information regarding the Enhanced Universal Serial Communication Interface (eUSCI),
- * refer to the MSP432Pxx Microcontrollers Technical Reference Manual
+ * @note For more information regarding the Enhanced Universal Serial
+ *      Communication Interface (eUSCI), refer to the MSP432Pxx Micro-
+ *      controllers Technical Reference Manual
  *
  * @author Aaron Nanas, Jeff P, and Gian F
  *
  */
-
+    // RPLiDAR C1 initialization ---------------------------------------
 #ifndef INC_BLE_A3_UART_H_
 #define INC_BLE_A3_UART_H_
 
@@ -34,10 +35,21 @@
 #include "msp.h"
 #include "Clock.h"
 
+
+
+/**
+ * @details
+ */
+extern volatile int message_length;
+
+
+volatile char   *UART_BUFFER_ADDR,
+                *uart_buffer_pointer;
+
 /**
  * @brief Specifies the size of the buffer used for the BLE UART module
  */
-#define BLE_UART_BUFFER_SIZE 128
+#define BLE_UART_BUFFER_SIZE 64
 
 /**
  * @brief Carriage return character
@@ -69,17 +81,13 @@
  */
 #define DEL  0x7F
 
-
-/**
- * @brief function pointer
- */
-//void (*BLE_A3_Task_0)(void);
-
 /**
  * @brief   initializes the BLE UART module.
  */
-void BLE_UART_Init(volatile char *buffer_pointer);
-//void BLE_UART_Init();
+void BLE_UART_Init(
+        volatile char *buffer_pointer
+        );
+
 
 /**
  * @brief   receives a character from the BLE UART module.
@@ -126,7 +134,7 @@ void BLE_UART_OutFixed(int32_t pt);
  * @param data_string           pointer to the string to be checked
  * @return uint8_t
  */
-uint8_t Check_BLE_UART_Data(char BLE_UART_Data_Buffer[], char *data_string);
+uint8_t Check_BLE_UART_Data(volatile char BLE_UART_Data_Buffer[], char *data_string);
 
 /**
  * @brief Resets the BLE UART module.

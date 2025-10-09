@@ -14,11 +14,13 @@
 #ifndef INC_TIMER_A2_INTERRUPT_H_
 #define INC_TIMER_A2_INTERRUPT_H_
 
+#include <stdio.h>
 #include <stdint.h>
 #include "msp.h"
 
 // Periodic interrupt rate of 1 kHz for the Periodic Interrupts lab
-#define TIMER_A2_INT_CCR0_VALUE 12000
+//#define TIMER_A2_INT_CCR0_VALUE 12000
+#define TIMER_A2_INT_CCR0_VALUE 6000
 
 void (*Timer_A2_Task)(void);
 

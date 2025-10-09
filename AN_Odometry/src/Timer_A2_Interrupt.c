@@ -7,7 +7,7 @@
  *
  * @note The interrupt rate has been set to 1 kHz for the Periodic Interrupts lab.
  *
- * @author Aaron Nanas
+ * @author Aaron Nanas, Gian Fajardo
  *
  */
 
@@ -77,4 +77,10 @@ void TA2_0_IRQHandler(void)
 
     // Execute the user-defined task
     (*Timer_A2_Task)();
+
+
+//    printf(
+//            "%5d\n",
+////            EUSCI_A2->RXBUF,
+//            EUSCI_A3->RXBUF);
 }

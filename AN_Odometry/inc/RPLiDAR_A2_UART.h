@@ -4,11 +4,13 @@
  *
  * This file contains the function definitions for the EUSCI_A2_UART driver.
  *
- * @note Assumes that the necessary pin configurations for UART communication have been performed
- *       on the corresponding pins. P3.2 is used for UART RX while P3.3 is used for UART TX.
+ * @note Assumes that the necessary pin configurations for UART communication have been
+ *      performed on the corresponding pins. P3.2 is used for UART RX while P3.3 is used
+ *      for UART TX.
  *
- * @note For more information regarding the Enhanced Universal Serial Communication Interface (eUSCI),
- * refer to the MSP432Pxx Microcontrollers Technical Reference Manual
+ * @note For more information regarding the Enhanced Universal Serial Communication In-
+ *      terface (eUSCI), refer to the MSP432Pxx Microcontrollers Technical Reference
+ *      Manual
  *
  * @author Gian Fajardo
  *
@@ -23,53 +25,113 @@
 
 #include "msp.h"
 #include "GPIO.h"
-
-#include "Print_Binary.h"
 #include "coordinate_transform.h"
 
 
 //#define RPLIDAR_DEBUG 1
 // #define TX_RX_CHECKS 1
 // #define ERROR_CHECKING 1
-// #define TIMER_A
 
 
 
 /**
  * @brief Buffer length for UART communication.
  */
-#define BUFFER_LENGTH 256*6
+#define RPLiDAR_UART_BUFFER_SIZE 256*6
+#define MESSAGE_LENGTH               5
+#define FLOAT_BUFFER                75
 
-#define FLOAT_BUFFER 75
 
+// states of the UART system
+#define HOLD            0
+#define FIND_PATTERN    1
+#define ADD_OFFSET      2
+#define SKIP            3
+#define RECORD          4
+#define PROCESS         5
+
+//typedef enum {
+//
+//    HOLD,
+//    FIND_PATTERN,
+//    ADD_OFFSET,
+//    SKIP,
+//    RECORD,
+//    PROCESS
+//
+//} RPLiDAR_States;
+
+
+/**
+ * @brief configuration struct of the RPLiDAR C1
+ *
+ * @param   skip_factor how many 5-byte messages to skip before recording the
+ *              nth one
+ * @param   RX_POINTER  address of input
+ * @param   offset
+ * @param   limit_status  indicates where in the counting stage we are at
+ *
+ * @details     status 0x01:
+ */
 typedef struct {
-    uint32_t skip;
+    uint8_t     skip_factor;
+
+    uint32_t    skip_index,
+                find_index;
+
+    uint8_t    *RX_POINTER;
+    uint8_t     record_data;
+
+    uint8_t     limit_status,
+                limit;
+
+
+    volatile uint8_t   *buffer_pointer;
+
+    volatile uint32_t   isr_counter;
+    volatile uint32_t   print_counter;
+
+    uint8_t     process_data;
+
 } RPLiDAR_Config;
 
 
 /**
- * @brief The EUSCI_A2_UART_Init function initializes the EUSCI_A2 module to use UART mode.
+ * @brief global instance of the configuration struct
+ */
+RPLiDAR_Config *config;
+
+
+/**
+ * @brief The EUSCI_A2_UART_Init function initializes the EUSCI_A2 module to use UART
+ *      mode.
  *
  * @details This function configures the EUSCI_A2 module to enable UART mode
  *          with the following configuration:
  *
- *      - Parity: Disabled
- *      - Bit Order: Least Significant Bit (MSB) first
- *      - Character Length: 8 data bits
- *      - Stop Bits: 1
- *      - Mode: UART
- *      - UART Clock Source: SMCLK
- *      - Baud Rate: 460800
+ *      - Parity:       Disabled
+ *      - Bit Order:    Least Significant Bit (MSB) first
+ *      - Char. Length: 8 data bits
+ *      - Stop Bits:    1
+ *      - Mode:         UART
+ *      - Clock Source: SMCLK
+ *      - Baud Rate:    460800
  *
- * For more information regarding the registers used, refer to the eUSCI_A UART Registers section (24.4)
- * of the MSP432Pxx Microcontrollers Technical Reference Manual
+ * For more information regarding the registers used, refer to the eUSCI_A UART Regi-
+ *      sters section (24.4) of the MSP432Pxx Microcontrollers Technical Reference
+ *      Manual
  *
- * @note This function assumes that the necessary pin configurations for UART communication have been performed
- *       on the corresponding pins. P2.2 is used for UART RX while P2.3 is used for UART TX.
+ * @note This function assumes that the necessary pin configurations for UART communi-
+ *      cation have been performed on the corresponding pins. P2.2 is used for UART RX
+ *      while P2.3 is used for UART TX.
+ *
+ * @oaram[in] config    pointer to the RPLiDAR_Config struct for configuration
+ *
+ * @param[in] RX_Data   pointer to the array
  *
  * @return None
  */
-void EUSCI_A2_UART_Init();
+void EUSCI_A2_UART_Init(RPLiDAR_Config *config, uint8_t *RX_Data);
 
 /**
  * @brief Stops the EUSCI_A2 module.
@@ -113,9 +175,10 @@ uint8_t EUSCI_A2_UART_InChar();
 /**
  * @brief Transmits a single character over UART using the EUSCI_A2 module.
  *
- * This function transmits a single character over UART using the EUSCI_A2 module.
- * It waits until the UART transmit buffer is ready to accept new data and then writes the provided data
- * to the transmit buffer for transmission. A character consists of the following bits:
+ * This function transmits a single character over UART using the EUSCI_A2 module. It
+ *      waits until the UART transmit buffer is ready to accept new data and then writes
+ *      the provided data to the transmit buffer for transmission. A character consists
+ *      of the following bits:
  *
  * - 1 Start Bit
  * - 8 Data Bits
@@ -136,19 +199,27 @@ void EUSCI_A2_UART_OutChar(uint8_t data);
 // -------------------------------------------------------------------------------------
 
 
+
 /**
  * @brief Checks if the given data response packet index matches the expected RPLiDAR
  *              data response pattern.
  *
- * @details From page 15 of the RPLiDAR C1 Interface Protocol and Application Notes,
- *              the expected data response patterns are:
+ * @details From page 15 of the "RPLiDAR C1 Interface Protocol and Application Notes",
+ *              the expected pattern of a 5-byte response message is:
  *
  *          Byte offset 0:      start flag = bit 0      --> bit 0 = !(bit 1)
  *                              expected patterns: 0b10 or 0b01
+ *
  *          Byte offset 1:      check flag = bit 0
  *                              expected pattern:  0b01
  *
- * @param pointer Pointer to the array data buffer to check.
+ *          To make sure that the pattern-matching is infallible, future uses of
+ *              the pattern matching should check the first four sequential messages.
+ *
+ * @note    In theory, this pattern-matching should be applied once and only after
+ *              the initial matching is done.
+ *
+ * @param pointer Pointer to the array data buffer.
  *
  * @return uint8_t 1 if the pattern matches, 0 otherwise.
  */
@@ -184,7 +255,7 @@ void Single_Request_No_Response(const uint16_t command[3]);
  */
 uint8_t Single_Request_Single_Response(
         const uint8_t        command[2],
-              uint8_t RX_DATA_BUFFER[BUFFER_LENGTH]);
+              uint8_t RX_DATA_BUFFER[RPLiDAR_UART_BUFFER_SIZE]);
 
 
 /**
@@ -195,7 +266,7 @@ uint8_t Single_Request_Single_Response(
  */
 void Single_Request_Multiple_Response(
         const uint8_t        command[2],
-              uint8_t RX_DATA_BUFFER[BUFFER_LENGTH]);
+              uint8_t RX_DATA_BUFFER[RPLiDAR_UART_BUFFER_SIZE]);
 
 
 
@@ -209,7 +280,7 @@ void Gather_LiDAR_Data(
         RPLiDAR_Config       *cfg,
 
         uint8_t scan_confirmation,
-        uint8_t           RX_Data[BUFFER_LENGTH],
+        uint8_t           RX_Data[RPLiDAR_UART_BUFFER_SIZE],
 
         float                 out[FLOAT_BUFFER][3]);
 
@@ -223,10 +294,12 @@ void Gather_LiDAR_Data(
 #ifdef TX_RX_CHECKS
 
 /**
- * @brief The Transmit_UART_Data function transmits data over UART based on the status of the user buttons.
+ * @brief The Transmit_UART_Data function transmits data over UART based on the status
+ *      of the user buttons.
  *
- * This function transmits different data values over UART based on the status of Button 1 and Button 2.
- * The data transmitted corresponds to the button status according to the following mapping:
+ * This function transmits different data values over UART based on the status of Button
+ *      1 and Button 2. The data transmitted corresponds to the button status according
+ *      to the following mapping:
  *
  *  button_status      Transmitted Data
  *  -------------      ----------------

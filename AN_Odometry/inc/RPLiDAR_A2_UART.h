@@ -37,29 +37,33 @@
 /**
  * @brief Buffer length for UART communication.
  */
-#define RPLiDAR_UART_BUFFER_SIZE 256*6
+#define OUTPUT_BUFFER               75
 #define MESSAGE_LENGTH               5
-#define FLOAT_BUFFER                75
+#define RPLiDAR_UART_BUFFER_SIZE    OUTPUT_BUFFER*6
 
 
 // states of the UART system
-#define HOLD            0
-#define FIND_PATTERN    1
-#define ADD_OFFSET      2
-#define SKIP            3
-#define RECORD          4
-#define PROCESS         5
+//#define HOLD            0
+//#define FIND_PATTERN    1
+//#define ADD_OFFSET      2
+//#define SKIP            3
+//#define RECORD          4
+//#define PROCESS         5
 
-//typedef enum {
-//
-//    HOLD,
-//    FIND_PATTERN,
-//    ADD_OFFSET,
-//    SKIP,
-//    RECORD,
-//    PROCESS
-//
-//} RPLiDAR_States;
+
+/**
+ *
+ */
+typedef enum {
+
+    HOLD            = 0,
+    FIND_PATTERN,
+    ADD_OFFSET,
+    SKIP,
+    RECORD,
+    PROCESS
+
+} RPLiDAR_States;
 
 
 /**
@@ -82,8 +86,11 @@ typedef struct {
     uint8_t    *RX_POINTER;
     uint8_t     record_data;
 
-    uint8_t     limit_status,
-                limit;
+//    uint8_t     limit_status;
+    RPLiDAR_States     limit_status;
+
+
+    uint8_t     limit;
 
 
     volatile uint8_t   *buffer_pointer;

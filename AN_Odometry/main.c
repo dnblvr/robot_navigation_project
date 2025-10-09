@@ -464,6 +464,44 @@ void BLE_Contact(volatile char UART_Buffer[])
 
 }
 
+void process_rplidar_data() {
+
+    j = 0;
+    for (i = start; i < end; i += MESSAGE_LENGTH*cfg->skip_factor) {
+
+        uint8_t is_nonzero;
+
+        if (j >= FLOAT_BUFFER)
+            break;
+
+        // convert the data to distance and angle
+        is_nonzero = to_angle_distance( &RX_Data[i], distance_angle );
+
+        // if zero radius, then disregard the data
+        if (!is_nonzero)
+            continue;
+
+        // convert the polar coordinates to Cartesian coordinates
+        polar_to_cartesian( distance_angle, out[j] );
+
+
+#ifdef RPLIDAR_DEBUG
+        // print the distance and angle
+        fprintf(stdout, "%i\t%3.2f rad. @ %5.2f mm\n",
+                j, distance_angle[1], distance_angle[0]);
+
+#endif
+
+        // print the position
+        fprintf(stdout, "%i\t%10.2f %10.2f\n",
+                j, out[j][0], out[j][1]);
+
+        ++j;
+
+    }
+
+}
+
 
 void print_results(void) {
 
@@ -485,32 +523,33 @@ void print_results(void) {
 
 
     // print the first n resutls
-    if (l < 25) {
-    //    for (k = 0; k < cfg.print_counter; k += 5) {
-        for (k = 0; k < 25*MESSAGE_LENGTH; k += 5) {
-            printf("%02X%02X%02X%02X%02X %i; ",
-                   RPLiDAR_RX_Data[k+0],
-                   RPLiDAR_RX_Data[k+1],
-                   RPLiDAR_RX_Data[k+2],
-                   RPLiDAR_RX_Data[k+3],
-                   RPLiDAR_RX_Data[k+4],
-                   pattern(RPLiDAR_RX_Data + k));
-
-        }
-        printf("\n\n");
-
-        l++;
-    }
-
 //    if (l < 25) {
 //    //    for (k = 0; k < cfg.print_counter; k += 5) {
-//        for (k = 0; k < 9*MESSAGE_LENGTH; k += 5) {
-//            printf("%i", pattern(RPLiDAR_RX_Data + k));
+//        for (k = 0; k < 25*MESSAGE_LENGTH; k += 5) {
+//            printf("%02X%02X%02X%02X%02X %i; ",
+//                   RPLiDAR_RX_Data[k+0],
+//                   RPLiDAR_RX_Data[k+1],
+//                   RPLiDAR_RX_Data[k+2],
+//                   RPLiDAR_RX_Data[k+3],
+//                   RPLiDAR_RX_Data[k+4],
+//                   pattern(RPLiDAR_RX_Data + k));
+//
 //        }
 //        printf("\n\n");
 //
 //        l++;
 //    }
+
+    if (l < 25) {
+//        for (k = 0; k < cfg.print_counter; k += 5) {
+        for (k = 0; k < RPLiDAR_UART_BUFFER_SIZE; k += 5) {
+//        for (k = 0; k < 9*MESSAGE_LENGTH; k += 5) {
+            printf("%i", pattern(RPLiDAR_RX_Data + k));
+        }
+        printf("\n\n");
+
+        l++;
+    }
 
 //    printf("%6d %6d\n", cfg.print_counter, cfg.isr_counter);
 }

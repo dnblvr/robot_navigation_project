@@ -257,8 +257,8 @@ void EUSCIA2_IRQHandler(void) {
         data = (uint8_t)EUSCI_A2->RXBUF;
 
 
-        // add to the buffer based on the desired state it is, and increment
-        // print_counter
+        // add to the buffer if in the desired states, and increment print_counter
+        //  - FIND_PATTERN: 0b001   - RECORD: 0b100
         if (config->limit_status & (FIND_PATTERN | RECORD)) {
 
             // apparently this operation takes one cycle

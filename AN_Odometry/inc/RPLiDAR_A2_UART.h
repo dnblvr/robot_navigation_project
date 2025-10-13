@@ -38,21 +38,12 @@
  * @brief Buffer length for UART communication.
  */
 #define OUTPUT_BUFFER               75
-#define MESSAGE_LENGTH               5
-#define RPLiDAR_UART_BUFFER_SIZE    OUTPUT_BUFFER*6
-
-
-// states of the UART system
-//#define HOLD            0
-//#define FIND_PATTERN    1
-//#define ADD_OFFSET      2
-//#define SKIP            3
-//#define RECORD          4
-//#define PROCESS         5
+#define MSG_LENGTH                   5
+#define RPLiDAR_UART_BUFFER_SIZE    OUTPUT_BUFFER*MSG_LENGTH
 
 
 /**
- *
+ * @brief states of the UART record system
  */
 typedef enum {
 
@@ -60,9 +51,14 @@ typedef enum {
     FIND_PATTERN,
     ADD_OFFSET,
     SKIP,
-    RECORD,
-    PROCESS
+    RECORD
 
+} Record_States;
+
+typedef enum {
+    IDLING,
+    RECORDING,
+    PROCESSING
 } RPLiDAR_States;
 
 
@@ -78,27 +74,34 @@ typedef enum {
  * @details     status 0x01:
  */
 typedef struct {
+
+    // --------------------------------------
+
     uint8_t     skip_factor;
 
-    uint32_t    skip_index,
+    uint8_t     skip_index,
                 find_index;
 
     uint8_t    *RX_POINTER;
-    uint8_t     record_data;
 
-//    uint8_t     limit_status;
-    RPLiDAR_States     limit_status;
+    Record_States   limit_status;
+    uint8_t         limit;
 
-
-    uint8_t     limit;
-
+    // --------------------------------------
 
     volatile uint8_t   *buffer_pointer;
 
     volatile uint32_t   isr_counter;
-    volatile uint32_t   print_counter;
+    volatile uint32_t   buffer_counter;
+
+    // --------------------------------------
 
     uint8_t     process_data;
+    uint8_t     record_data;
+
+    RPLiDAR_States current_state;
+
+    // --------------------------------------
 
 } RPLiDAR_Config;
 
@@ -107,6 +110,14 @@ typedef struct {
  * @brief global instance of the configuration struct
  */
 RPLiDAR_Config *config;
+
+
+/**
+ * @brief
+ */
+void configure_RPLiDAR_struct(
+        RPLiDAR_Config *input_config,
+        uint8_t        *RX_Data);
 
 
 /**
@@ -138,7 +149,7 @@ RPLiDAR_Config *config;
  *
  * @return None
  */
-void EUSCI_A2_UART_Init(RPLiDAR_Config *config, uint8_t *RX_Data);
+void EUSCI_A2_UART_Init();
 
 /**
  * @brief Stops the EUSCI_A2 module.
@@ -289,7 +300,7 @@ void Gather_LiDAR_Data(
         uint8_t scan_confirmation,
         uint8_t           RX_Data[RPLiDAR_UART_BUFFER_SIZE],
 
-        float                 out[FLOAT_BUFFER][3]);
+        float                 out[OUTPUT_BUFFER][3]);
 
 
 // -------------------------------------------------------------------------------------

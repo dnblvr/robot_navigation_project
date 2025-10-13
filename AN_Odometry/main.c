@@ -96,7 +96,7 @@ uint8_t RPLiDAR_RX_Data[RPLiDAR_UART_BUFFER_SIZE] = {0};
 /**
  * @brief RPLiDAR C1 output data buffer.
  */
-float output[FLOAT_BUFFER][3] = {0};
+float output[OUTPUT_BUFFER][3] = {0};
 
 
 /**
@@ -115,12 +115,18 @@ void initialize_RPLiDAR_C1(RPLiDAR_Config *config) {
     //  3. turn off the UART TX/RX interrupt enable
     //  4. process the data
 
+    // configure the structure
+    configure_RPLiDAR_struct(config, RPLiDAR_RX_Data);
+
+
     // Initialize UART communications
-    EUSCI_A2_UART_Init(config, RPLiDAR_RX_Data);
+    EUSCI_A2_UART_Init();
+
 
     // printf("SRNR: STOP\n");
     Single_Request_No_Response(STOP);
     Clock_Delay1ms(1);
+
 
     // printf("SRNR: RESET\n");
     Single_Request_No_Response(RESET);
@@ -464,18 +470,18 @@ void BLE_Contact(volatile char UART_Buffer[])
 
 }
 
-void process_rplidar_data() {
+void process_rplidar_data(float out[OUTPUT_BUFFER][3]) {
 
-    j = 0;
-    for (i = start; i < end; i += MESSAGE_LENGTH*cfg->skip_factor) {
+    int i, j;
+
+    float distance_angle[2] = {0};
+
+    for (i = 0; i < OUTPUT_BUFFER; i += MSG_LENGTH) {
 
         uint8_t is_nonzero;
 
-        if (j >= FLOAT_BUFFER)
-            break;
-
         // convert the data to distance and angle
-        is_nonzero = to_angle_distance( &RX_Data[i], distance_angle );
+        is_nonzero = to_angle_distance( &RPLiDAR_RX_Data[i], distance_angle );
 
         // if zero radius, then disregard the data
         if (!is_nonzero)
@@ -501,6 +507,8 @@ void process_rplidar_data() {
     }
 
 }
+
+
 
 
 void print_results(void) {
@@ -540,11 +548,19 @@ void print_results(void) {
 //        l++;
 //    }
 
+    // confirms that the bits are aligned
     if (l < 25) {
-//        for (k = 0; k < cfg.print_counter; k += 5) {
-        for (k = 0; k < RPLiDAR_UART_BUFFER_SIZE; k += 5) {
-//        for (k = 0; k < 9*MESSAGE_LENGTH; k += 5) {
+//        for (k = 0; k < cfg.print_counter; k += MESSAGE_LENGTH) {
+        for (k = 0; k < RPLiDAR_UART_BUFFER_SIZE; k += MESSAGE_LENGTH) {
+//        for (k = 0; k < 9*MESSAGE_LENGTH; k += MESSAGE_LENGTH) {
+
+            if ( (k % 4*MESSAGE_LENGTH*MESSAGE_LENGTH) == 0 ) {
+                printf("_");
+            }
+
+
             printf("%i", pattern(RPLiDAR_RX_Data + k));
+
         }
         printf("\n\n");
 
@@ -580,10 +596,19 @@ volatile uint8_t    task_flag       = 0,
 #define TASK_1_DIV_FREQ 1
 #define TASK_2_DIV_FREQ 1
 #define TASK_3_DIV_FREQ 1
-#define TASK_4_DIV_FREQ 1
+#define TASK_4_DIV_FREQ 20
 #define TASK_5_DIV_FREQ 1
 #define TASK_6_DIV_FREQ 1
 #define TASK_7_DIV_FREQ 20
+
+#define TASK_0_OFFSET   0
+#define TASK_1_OFFSET   0
+#define TASK_2_OFFSET   0
+#define TASK_3_OFFSET   0
+#define TASK_4_OFFSET   10
+#define TASK_5_OFFSET   0
+#define TASK_6_OFFSET   0
+#define TASK_7_OFFSET   0
 
 /**
  * @brief Task selector function
@@ -598,35 +623,35 @@ void Task_Selector(void) {
 
 
     // task 0
-    if ( (tick_counter % TASK_0_DIV_FREQ) == 0 )
+    if ( ((tick_counter + TASK_0_OFFSET) % TASK_0_DIV_FREQ) == 0 )
         task_flag  |= TASK_0_FLAG;
 
     // task 1
-    if ( (tick_counter % TASK_1_DIV_FREQ) == 0 )
+    if ( ((tick_counter + TASK_1_OFFSET) % TASK_1_DIV_FREQ) == 0 )
         task_flag  |= TASK_1_FLAG;
 
     // task 2
-    if ( (tick_counter % TASK_2_DIV_FREQ) == 0 )
+    if ( ((tick_counter + TASK_2_OFFSET) % TASK_2_DIV_FREQ) == 0 )
         task_flag  |= TASK_2_FLAG;
 
     // task 3
-    if ( (tick_counter % TASK_3_DIV_FREQ) == 0 )
+    if ( ((tick_counter + TASK_3_OFFSET) % TASK_3_DIV_FREQ) == 0 )
         task_flag  |= TASK_3_FLAG;
 
     // task 4
-    if ( (tick_counter % TASK_4_DIV_FREQ) == 0 )
+    if ( ((tick_counter + TASK_4_OFFSET) % TASK_4_DIV_FREQ) == 0 )
         task_flag  |= TASK_4_FLAG;
 
     // task 5
-    if ( (tick_counter % TASK_5_DIV_FREQ) == 0 )
+    if ( ((tick_counter + TASK_5_OFFSET) % TASK_5_DIV_FREQ) == 0 )
         task_flag  |= TASK_5_FLAG;
 
     // task 6
-    if ( (tick_counter % TASK_6_DIV_FREQ) == 0 )
+    if ( ((tick_counter + TASK_6_OFFSET) % TASK_6_DIV_FREQ) == 0 )
         task_flag  |= TASK_6_FLAG;
 
     // task 7 - send results
-    if ( (tick_counter % TASK_7_DIV_FREQ) == 0 )
+    if ( ((tick_counter + TASK_7_OFFSET) % TASK_7_DIV_FREQ) == 0 )
         task_flag  |= TASK_7_FLAG;
 
 }
@@ -714,11 +739,7 @@ int main(void)
     EnableInterrupts();
 
 
-
-
     printf("test scan -------\n\n");
-
-//    int l;
 
     // RPLiDAR C1 initialization ---------------------------------------
 
@@ -729,42 +750,13 @@ int main(void)
 
     printf("C1 initialized\n");
 
-//    printf("%02X\n", cfg.print_counter);
-//
-//    // this procedure analyzes the current ISR
-//    while (cfg.print_counter < 15) {
-//
-//        printf("%c\n", cfg.print_counter);
-//
-//        EUSCI_A2->IE       |=  0x03;
-//        EUSCI_A0->IE       |=  0x03;
-//
-//        // wait-for-interrupt macro
-////        __WFI();
-//        Clock_Delay1ms(1);
-//    }
-//
-//    int k;
-//    for (k = 0; k > cfg.print_counter; ++k) {
-//        printf("%02X", RPLiDAR_RX_Data[k]);
-//    }
-//
-//    printf("\n");
-
     // RPLiDAR C1 initialization end -----------------------------------
-
-
-//    DisableInterrupts();
-
-//    printf("done\n");
-
-//    return 0;
 
 
 
     while (1)
     {
-
+        RPLiDAR_States current_state;
 
         /**
          * @brief enabling RXIE for all UARTs used affirm that the interrupt is ON.
@@ -782,7 +774,7 @@ int main(void)
 
 //        printf("in main loop\n\n");
 
-        if (task_flag & TASK_0_FLAG) {
+        if ((task_flag + TASK_0_OFFSET) & TASK_0_FLAG) { // continue from here
             // clear the flag
             task_flag  &= ~TASK_0_FLAG;
 
@@ -806,11 +798,11 @@ int main(void)
 
 
 
-//        if (task_flag & TASK_2_FLAG) {
+        if (task_flag & TASK_2_FLAG) {
             task_flag  &= ~TASK_2_FLAG;
-//
-////            Get_Odometry();
-//        }
+
+//            Get_Odometry();
+        }
 
 
 
@@ -820,6 +812,21 @@ int main(void)
 //            Gather_LiDAR_Data(&cfg, 1, RPLiDAR_RX_Data, output);
             cfg.record_data = 1;
         }
+
+
+
+        if (task_flag & TASK_4_FLAG) {
+            task_flag  &= ~TASK_4_FLAG;
+
+//            Gather_LiDAR_Data(&cfg, 1, RPLiDAR_RX_Data, output);
+            if (cfg.current_state == RECORDING) {
+                cfg.current_state == RECORDING;
+
+                process_rplidar_data(output);
+
+            }
+        }
+
 
 
 

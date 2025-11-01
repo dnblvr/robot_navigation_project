@@ -17,7 +17,10 @@
  *
  */
 
-#include "../inc/RPLiDAR_A2_UART.h"
+#include "inc/RPLiDAR_A2_UART.h"
+
+
+RPLiDAR_Config *config = NULL;
 
 
 void configure_RPLiDAR_struct(
@@ -26,23 +29,26 @@ void configure_RPLiDAR_struct(
 {
 
     // link the RPLiDAR_Config struct to the outside
-    config = input_config;
+    config  = input_config;
 
 
-    // assign current buffer position and the absolute position of the array
-    // to the pointer
-    config->    RX_POINTER  = RX_Data;
-    config->buffer_pointer  = RX_Data;
+    // Assign current buffer position and the absolute position of the array
+    // to the pointer.
+    config->     RX_POINTER = RX_Data;
+    config-> buffer_pointer = RX_Data;
 
 
     // Generate the counter variables and the start and stop indices of the nth
     // message.
-    config->   isr_counter  = 0;
-    config->buffer_counter  = 0;
-    config->  find_index    = MSG_LENGTH*4;
-    config->  skip_index    = MSG_LENGTH*config->skip_factor;
+    config->    isr_counter = 0;
+    config-> buffer_counter = 0;
+    config->   wait_index   = MSG_LENGTH*12;
+    config->   find_index   = MSG_LENGTH* 4;
+    config->   skip_index   = MSG_LENGTH*config->skip_factor;
 
-    config-> limit_status   = HOLD;
+    config->  limit_status  = HOLD;
+    config->current_state   = IDLING;
+//    printf("a\n");
 
 
     printf(" 0 -> %2d -> %2d\n", config->skip_index, config->skip_index + 5);
@@ -119,8 +125,8 @@ void EUSCI_A2_UART_Init()
 
     // Set the baud rate value by writing to the UCBRx field (Bits 15 to 0)
     // in the BRW register
-    // N = (Clock Frequency) / (Baud Rate) = (12,000,000 / 460,800)
-    //   = 26.0416666667
+    // - N = (Clock Frequency) / (Baud Rate) = (12,000,000 / 460,800)
+    //     = 26.0416666667
     // Use only the integer part, so N = 26
     EUSCI_A2->BRW       =  26;  // 460,800
 
@@ -236,6 +242,7 @@ void EUSCI_A2_UART_OutChar(uint8_t data)
 
 void EUSCIA2_IRQHandler(void) {
 
+
     /**
      * @todo: figure out what to do in the HOLD state:
      *  If the counting system is a trustless system (has to find the RPLiDAR C1
@@ -257,7 +264,8 @@ void EUSCIA2_IRQHandler(void) {
 
 
     // if EUSCI_A2 RXIFG flag is read, then do the following commands
-    if ((EUSCI_A2->IFG & 0x01)) {
+    if (EUSCI_A2->IFG & 0x01) {
+
 
         /**
          *  the code is made such that it ignores recording certain messages
@@ -267,12 +275,16 @@ void EUSCIA2_IRQHandler(void) {
         data = (uint8_t)EUSCI_A2->RXBUF;
 
 
-        // add to the buffer if in the desired states, and increment buffer_counter
-        //  - FIND_PATTERN: 0b001   - RECORD: 0b100
+        /**
+         * Add to the buffer if in the desired states, and increment
+         *  buffer_counter.
+         *  - FIND_PATTERN: 0b001
+         *  - RECORD:       0b100
+         */
         if (config->limit_status & (FIND_PATTERN | RECORD)) {
 
             // assign `data` and increment pointer
-            *(config->buffer_pointer++) = data;
+          *(config->buffer_pointer++)   = data;
             config->buffer_counter++;
 
         }
@@ -282,7 +294,7 @@ void EUSCIA2_IRQHandler(void) {
 
 
         /**
-         * if isr_counter does arrive at the limit, achieve the following:
+         * If isr_counter does arrive at the limit, achieve the following:
          *  1. transition to the next limit_status
          *  2. change limits based on limit_status
          */
@@ -292,18 +304,21 @@ void EUSCIA2_IRQHandler(void) {
             config->isr_counter = 0;
 
 
-            // switch statement uses jump tables which take up the least overhead
-            // which is perfect for this application
+            // switch statement uses jump tables which take up the least
+            // overhead which is perfect for this application
             switch(config->limit_status) {
 
 
             case HOLD: {  // --------------------------------------------------
 
-                if (config->record_data) {
+                if (config->current_state == READY) {
 
-                    config->limit_status    = FIND_PATTERN;
-                    config->limit           = config->find_index;
-                    config->buffer_pointer  = config->RX_POINTER;
+                    config->current_state   = RECORDING;
+                    config->  limit_status  = FIND_PATTERN;
+                    config->  limit         = config->find_index;
+                    config-> buffer_pointer = config->RX_POINTER;
+
+//                    printf("c\n");
                 }
 
                 break;
@@ -313,29 +328,16 @@ void EUSCIA2_IRQHandler(void) {
 
             case FIND_PATTERN: {  // ------------------------------------------
 
-//                printf("%02X: ", config->limit_status);
-
                 int     i;
                 uint8_t found;
 
                 for (i = 0; i < (MSG_LENGTH + 1); i++) {
 
-//                    found =   (0x1 * pattern(config->RX_POINTER + MSG_LENGTH*0 + i))
-//                            | (0x2 * pattern(config->RX_POINTER + MSG_LENGTH*1 + i))
-//                            | (0x4 * pattern(config->RX_POINTER + MSG_LENGTH*2 + i));
-
                     found =    pattern(config->RX_POINTER + MSG_LENGTH*0 + i)
                             && pattern(config->RX_POINTER + MSG_LENGTH*1 + i)
                             && pattern(config->RX_POINTER + MSG_LENGTH*2 + i);
 
-//                    printf("%01X ", found);
-
-//                    if ( (found & 0x7) == 0x7 ) {
                     if (found) {
-
-//                        printf("found\n");
-//                        printf("a");
-//                        printf("a\n");
 
                         // "MSG_LENGTH - i" is the amount needed to re-align to
                         //  the *next* first byte of the message
@@ -359,8 +361,6 @@ void EUSCIA2_IRQHandler(void) {
 
             case ADD_OFFSET: {  // --------------------------------------------
 
-//                printf("b");
-
                 config->limit_status    = SKIP;
                 config->limit           = config->skip_index;
 
@@ -368,31 +368,32 @@ void EUSCIA2_IRQHandler(void) {
 
             }
 
+
             /**
              * @note after the ADD_OFFSET stage, it trades between SKIP and
-             *      RECORD
+             *      RECORD until
              */
-
 
             case SKIP: {  // --------------------------------------------------
 
                 if (config->buffer_counter >= RPLiDAR_UART_BUFFER_SIZE) {
 
-//                    printf("\n");
-
+                    config->current_state   = PROCESSING;
                     config->limit_status    = HOLD;
                     config->limit           = config->find_index;
                     config->buffer_pointer  = config->RX_POINTER;
                     config->buffer_counter  = 0;
 
+//                    printf("e1\n");
+
                 } else {
 
-//                    printf("c");
-
                     // up-/left-shift to RECORD
-//                    config->limit_status    = RECORD;
+                    // config->limit_status    = RECORD;
                     config->limit_status   += 1;
                     config->limit           = MSG_LENGTH;
+
+//                    printf("d1\n");
 
                 }
 
@@ -403,32 +404,29 @@ void EUSCIA2_IRQHandler(void) {
 
             case RECORD: {  // ------------------------------------------------
 
-                // if previously at the RECORD state
-
                 if (config->buffer_counter >= RPLiDAR_UART_BUFFER_SIZE) {
 
-//                    printf("\n");
-
+                    config->current_state   = PROCESSING;
                     config->limit_status    = HOLD;
-                    config->limit           = config->find_index;
+                    config->limit           = config->wait_index;
                     config->buffer_pointer  = config->RX_POINTER;
                     config->buffer_counter  = 0;
 
+//                    printf("e2\n");
+
                 } else {
 
-//                    printf("d");
-
                     // down-/right-shift to SKIP
-//                    config->limit_status    = SKIP;
+                    // config->limit_status    = SKIP;
                     config->limit_status   -= 1;
                     config->limit           = config->skip_index;
 
+//                    printf("d2\n");
                 }
 
                 break;
 
             }
-
 
 
             default: {  // ----------------------------------------------------
@@ -439,19 +437,13 @@ void EUSCIA2_IRQHandler(void) {
 
             }
 
+
             } // end switch(config->limit_status)  // -------------------------
-
-//            printf("%02X %5d\n", *(config->buffer_pointer), config->isr_counter);
-//            printf("%02X\n", *(config->buffer_pointer));
-//            printf("%5d\n", config->isr_counter);
-
-        } else {
-
-            return;
 
         }
 
     }
+
 }
 
 
@@ -653,115 +645,6 @@ void Single_Request_Multiple_Response(
     }
 }
 
-
-void Gather_LiDAR_Data(
-        RPLiDAR_Config       *cfg,
-
-        uint8_t scan_confirmation,
-        uint8_t           RX_Data[RPLiDAR_UART_BUFFER_SIZE],
-
-        float                 out[OUTPUT_BUFFER][3])
-{
-
-    uint16_t i, j, start, end, data_len = 5;
-
-    float distance_angle[2] = {0};
-
-    EUSCI_A2_UART_Restart();
-
-    // Gathering data from the RPLiDAR C1. At this point, it
-    // should stop recording data as soon as the data stops
-    // recording.
-    for (i = 0; i < RPLiDAR_UART_BUFFER_SIZE; i++) {
-
-        RX_Data[i]  = EUSCI_A2_UART_InChar();
-    }
-
-    EUSCI_A2_UART_Stop();
-
-
-    // find the pattern in the data using pattern() function.
-    for (i = 0; i < (data_len + 1); i++) {
-
-        // if the increment is found
-        if (   pattern(RX_Data + data_len*0 + i)
-            && pattern(RX_Data + data_len*1 + i)
-            && pattern(RX_Data + data_len*2 + i)
-            && pattern(RX_Data + data_len*3 + i))
-        {
-            start = i;
-
-#ifdef RPLIDAR_DEBUG
-            printf("i = %d\n", start);
-#endif
-
-            break;
-        }
-
-        // If the increment passes the critical range
-        //  from "0" to "data_len - 1"
-        if (i == data_len) {
-
-#ifdef RPLIDAR_DEBUG
-            printf("pattern not found\n");
-#endif
-            return;
-        }
-    }
-
-    end = start + RPLiDAR_UART_BUFFER_SIZE - MSG_LENGTH*cfg->skip_factor;
-
-#ifdef RPLIDAR_DEBUG
-
-    // print data
-    for (i = start; i < end; i++) {
-
-        if (i % 20 == 0) {
-            printf("\n");
-        }
-
-        printf("%02X\n", RX_Data[i]);
-
-    }
-
-#endif
-
-    // Then, fill up the OUTPUT_BUFFER
-
-    j = 0;
-    for (i = start; i < end; i += MSG_LENGTH*cfg->skip_factor) {
-
-        uint8_t is_nonzero;
-
-        if (j >= OUTPUT_BUFFER)
-            break;
-
-        // convert the data to distance and angle
-        is_nonzero = to_angle_distance( &RX_Data[i], distance_angle );
-
-        // if zero radius, then disregard the data
-        if (!is_nonzero)
-            continue;
-
-        // convert the polar coordinates to Cartesian coordinates
-        polar_to_cartesian( distance_angle, out[j] );
-
-
-#ifdef RPLIDAR_DEBUG
-        // print the distance and angle
-        fprintf(stdout, "%i\t%3.2f rad. @ %5.2f mm\n",
-                j, distance_angle[1], distance_angle[0]);
-
-#endif
-
-        // print the position
-        fprintf(stdout, "%i\t%10.2f %10.2f\n",
-                j, out[j][0], out[j][1]);
-
-        ++j;
-
-    }
-}
 
 
 // -------------------------------------------------------------------------------------

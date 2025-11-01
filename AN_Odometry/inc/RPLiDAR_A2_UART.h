@@ -20,11 +20,8 @@
 #define INC_RPLIDAR_A2_UART_H_
 
 #include <stdint.h>
-#include <string.h>
-#include <stdio.h>
-
 #include "msp.h"
-#include "GPIO.h"
+#include "Clock.h"
 #include "coordinate_transform.h"
 
 
@@ -43,7 +40,8 @@
 
 
 /**
- * @brief states of the UART record system
+ * @brief states of the UART recorder system
+ * @details  status
  */
 typedef enum {
 
@@ -55,10 +53,17 @@ typedef enum {
 
 } Record_States;
 
+
+/**
+ * @brief RPLiDAR states
+ */
 typedef enum {
-    IDLING,
+
+    IDLING      = 0,
+    READY,
     RECORDING,
     PROCESSING
+
 } RPLiDAR_States;
 
 
@@ -71,7 +76,7 @@ typedef enum {
  * @param   offset
  * @param   limit_status  indicates where in the counting stage we are at
  *
- * @details     status 0x01:
+ * @details     more details in Record_States
  */
 typedef struct {
 
@@ -79,7 +84,8 @@ typedef struct {
 
     uint8_t     skip_factor;
 
-    uint8_t     skip_index,
+    uint8_t     wait_index,
+                skip_index,
                 find_index;
 
     uint8_t    *RX_POINTER;
@@ -99,7 +105,7 @@ typedef struct {
     uint8_t     process_data;
     uint8_t     record_data;
 
-    RPLiDAR_States current_state;
+    volatile RPLiDAR_States  current_state;
 
     // --------------------------------------
 
@@ -107,9 +113,9 @@ typedef struct {
 
 
 /**
- * @brief global instance of the configuration struct
+ * @brief local instance of the configuration struct which links to the outside world
  */
-RPLiDAR_Config *config;
+extern RPLiDAR_Config *config;
 
 
 /**
@@ -286,21 +292,6 @@ void Single_Request_Multiple_Response(
         const uint8_t        command[2],
               uint8_t RX_DATA_BUFFER[RPLiDAR_UART_BUFFER_SIZE]);
 
-
-
-/**
- * @brief       Get data from the RPLiDAR C1
- *
- * @param scan_confirmation Confirmation flag for the scan
- * @return None
- */
-void Gather_LiDAR_Data(
-        RPLiDAR_Config       *cfg,
-
-        uint8_t scan_confirmation,
-        uint8_t           RX_Data[RPLiDAR_UART_BUFFER_SIZE],
-
-        float                 out[OUTPUT_BUFFER][3]);
 
 
 // -------------------------------------------------------------------------------------

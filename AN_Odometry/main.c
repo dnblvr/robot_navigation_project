@@ -5,9 +5,6 @@
  * This file contains the main entry point and function definitions for the
  *      Tachometer program.
  *
- * SysTick is used to check if a collision has been detected and toggles the
- *      LEDs on the chassis board.
- *
  * Then, it uses edge-triggered interrupts from the bumper switches to detect a
  *      collision. After a collision has been detected, the motors should stop
  *      from running.
@@ -15,20 +12,20 @@
  * Timer_A is used in this lab:
  *  - Timer A0: Used to generate PWM signals to drive the DC motors
  *  - Timer A1: Used to generate periodic interrupts at a specified rate (2 kHz)
- *  - Timer A3: Used for input capture to generate interrupts on the rising
- *      edge of P10.4 and P10.5 and to calculate the period between captures.
  *
- * @author Aaron Nanas
+ * @author Gian Fajardo, Aaron Nanas
+ *
  */
 
 #include <stdint.h>
 #include "msp.h"
 //#include "inc/"
 #include "inc/RPLiDAR_A2_UART.h"
+#include "inc/RPLiDAR_C1.h"
 #include "inc/Clock.h"
 #include "inc/CortexM.h"
 #include "inc/EUSCI_A0_UART.h"
-#include <inc/BLE_A3_UART.h>
+#include "inc/BLE_A3_UART.h"
 #include "inc/GPIO.h"
 //#include "inc/SysTick_Interrupt.h"
 #include "inc/Bumper_Switches.h"
@@ -42,107 +39,28 @@
 
 // ----------------------------------------------------------------------------
 //
-//  HIGHER-LEVEL RPLiDAR FUNCTIONS
+//  HIGHER-LEVEL RPLiDAR VARIABLES
 //
 // ----------------------------------------------------------------------------
 
-
 /**
- * @brief Command definitions for the RPLiDAR C1
- * @details These commands are used to control the RPLiDAR C1 and retrieve
- *          information.
- *          For the single-request, no-response commands, the format is in:
- *              {command, byte-length, time}
+ * @brief declaration of an `RPLiDAR_Config` struct instance
+ * @note will be declared in RPLiDAR_C1.c source file
  */
+extern RPLiDAR_Config cfg;
 
-// Single-Request, No-Response
-const uint16_t     STOP[3] = {0x25,  0,  10},
-                  RESET[3] = {0x40,  0, 500};
-
-// Single-Request, Single-Response
-const uint8_t  GET_INFO[2] = {0x50, 20},
-             GET_HEALTH[2] = {0x52,  8},
-         GET_SAMPLERATE[2] = {0x59,  0},
-         GET_LIDAR_CONF[2] = {0x84,  0},
-
-// Single-Request, Multiple-Response
-                   SCAN[2] = {0x20,  5},
-           EXPRESS_SCAN[2] = {0x82,  5};
-
-
-RPLiDAR_Config cfg = {.skip_factor = 4};
-
-/**
- * @brief instance of the struct that only lives in the RPLiDAR source file.
- */
-//RPLiDAR_Config config;
-
-
-//volatile int    lidar_isr_counter,
-//                lidar_print_counter;
-
-volatile int message_length;
-
-/**
- * @brief variables which indicate if the RPLiDAR C1 is operational.
- */
-uint8_t is_operational = 0;
 
 /**
  * @brief RPLiDAR C1 RX data buffer.
  */
 uint8_t RPLiDAR_RX_Data[RPLiDAR_UART_BUFFER_SIZE] = {0};
 
+
 /**
  * @brief RPLiDAR C1 output data buffer.
  */
 float output[OUTPUT_BUFFER][3] = {0};
 
-
-/**
- * @brief Initialize the RPLiDAR C1.
- *
- * This function initializes the RPLiDAR C1 by sending the appropriate commands
- *      to the device and configuring the UART A2 interface.
- *
- * @return None
- */
-void initialize_RPLiDAR_C1(RPLiDAR_Config *config) {
-
-    // @todo: process for using SCAN command:
-    //  1. turn on the UART TX/RX interrupt enable
-    //  2. record our out-characters onto an array until it fills up?
-    //  3. turn off the UART TX/RX interrupt enable
-    //  4. process the data
-
-    // configure the structure
-    configure_RPLiDAR_struct(config, RPLiDAR_RX_Data);
-
-
-    // Initialize UART communications
-    EUSCI_A2_UART_Init();
-
-
-    // printf("SRNR: STOP\n");
-    Single_Request_No_Response(STOP);
-    Clock_Delay1ms(1);
-
-
-    // printf("SRNR: RESET\n");
-    Single_Request_No_Response(RESET);
-    Clock_Delay1ms(1);
-
-
-    // printf("SRSR: GET_HEALTH\n");
-    Single_Request_Single_Response(GET_HEALTH, RPLiDAR_RX_Data);
-    Clock_Delay1ms(1);
-
-
-    // printf("SRMR: SCAN\n");
-    Single_Request_Multiple_Response(SCAN, RPLiDAR_RX_Data);
-    Clock_Delay1ms(200);
-
-}
 
 
 // ----------------------------------------------------------------------------
@@ -336,6 +254,11 @@ void Get_Odometry()
 
 
 /**
+ * @brief local instance of message_length globalized from BLE_A3_UART.c
+ */
+extern volatile int message_length;
+
+/**
  * @brief processes UART feed based on if they're similar to
  *
  * @param BLE_UART_Buffer
@@ -356,8 +279,6 @@ void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[])
         // Initialize the RPLiDAR C1
 //        initialize_RPLiDAR_C1();
 
-        is_operational = 1;
-
         LED2_Output(RGB_LED_OFF);
 
         BLE_UART_OutString("INIT\n");
@@ -370,20 +291,20 @@ void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[])
         Desired_RPM_Left    = 0;
         Desired_RPM_Right   = 0;
 
-        if (is_operational) {
+//        if (is_operational) {
 
-            LED2_Output(RGB_LED_RED);
+//            LED2_Output(RGB_LED_RED);
 
             // commented, but make sure
             // Gather_LiDAR_Data(&cfg, 1, RPLiDAR_RX_Data, output);
 
-            BLE_UART_OutString("DATA REC\n");
+//            BLE_UART_OutString("DATA REC\n");
 
             // uint8_t matrix_multiply(
             //         uint8_t a_rows, uint8_t a_cols, float a[a_rows][a_cols],
             //         uint8_t b_rows, uint8_t b_cols, float b[b_rows][b_cols],
             //         float result[a_rows][b_cols]);
-        }
+//        }
 
 
     // 5: UP is activated when pressed
@@ -444,14 +365,10 @@ void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[])
 void BLE_Contact(volatile char UART_Buffer[])
 {
 
-    // Initialize a buffer that will be used to receive command string from the
-    // BLE module
-//    static char BLE_UART_Buffer[BLE_UART_BUFFER_SIZE] = {0};
-
-    int j;  // internal counter variable
+    // internal counter variable
+    int j;
 
     // read the data from the bluetooth module
-    // int string_size = BLE_UART_InString(BLE_UART_Buffer, BLE_UART_BUFFER_SIZE);
     int string_size = message_length;
 
     if (string_size < 4)
@@ -461,50 +378,11 @@ void BLE_Contact(volatile char UART_Buffer[])
 
     for (j = 0; j < string_size; j++) {
         printf("%c", UART_Buffer[j]);
-
     }
 
-     printf("\n");
+    printf("\n");
 
-     Process_BLE_UART_Data(UART_Buffer);
-
-}
-
-void process_rplidar_data(float out[OUTPUT_BUFFER][3]) {
-
-    int i, j;
-
-    float distance_angle[2] = {0};
-
-    for (i = 0; i < OUTPUT_BUFFER; i += MSG_LENGTH) {
-
-        uint8_t is_nonzero;
-
-        // convert the data to distance and angle
-        is_nonzero = to_angle_distance( &RPLiDAR_RX_Data[i], distance_angle );
-
-        // if zero radius, then disregard the data
-        if (!is_nonzero)
-            continue;
-
-        // convert the polar coordinates to Cartesian coordinates
-        polar_to_cartesian( distance_angle, out[j] );
-
-
-#ifdef RPLIDAR_DEBUG
-        // print the distance and angle
-        fprintf(stdout, "%i\t%3.2f rad. @ %5.2f mm\n",
-                j, distance_angle[1], distance_angle[0]);
-
-#endif
-
-        // print the position
-        fprintf(stdout, "%i\t%10.2f %10.2f\n",
-                j, out[j][0], out[j][1]);
-
-        ++j;
-
-    }
+    Process_BLE_UART_Data(UART_Buffer);
 
 }
 
@@ -514,7 +392,7 @@ void process_rplidar_data(float out[OUTPUT_BUFFER][3]) {
 void print_results(void) {
 
     static int  l   = 0;
-    int         k;
+//    int         k;
 
 //    printf("%5d\n", isr_counter);
 
@@ -531,8 +409,9 @@ void print_results(void) {
 
 
     // print the first n resutls
-//    if (l < 25) {
-//    //    for (k = 0; k < cfg.print_counter; k += 5) {
+    if (l < 35) {
+
+    //    for (k = 0; k < cfg.print_counter; k += 5) {
 //        for (k = 0; k < 25*MESSAGE_LENGTH; k += 5) {
 //            printf("%02X%02X%02X%02X%02X %i; ",
 //                   RPLiDAR_RX_Data[k+0],
@@ -544,70 +423,81 @@ void print_results(void) {
 //
 //        }
 //        printf("\n\n");
-//
-//        l++;
 //    }
 
     // confirms that the bits are aligned
-    if (l < 25) {
-//        for (k = 0; k < cfg.print_counter; k += MESSAGE_LENGTH) {
-        for (k = 0; k < RPLiDAR_UART_BUFFER_SIZE; k += MESSAGE_LENGTH) {
-//        for (k = 0; k < 9*MESSAGE_LENGTH; k += MESSAGE_LENGTH) {
-
-            if ( (k % 4*MESSAGE_LENGTH*MESSAGE_LENGTH) == 0 ) {
-                printf("_");
-            }
 
 
-            printf("%i", pattern(RPLiDAR_RX_Data + k));
+//        for (k = 0; k < RPLiDAR_UART_BUFFER_SIZE; k += MSG_LENGTH) {
+//
+//            if ( (k % 4*MSG_LENGTH*MSG_LENGTH) == 0 ) {
+//                printf("_");
+//            }
+//
+//
+//            printf("%i", pattern(RPLiDAR_RX_Data + k));
+//
+//        }
+//
+//        printf("\n\n");
 
-        }
-        printf("\n\n");
+//        printf("output = \n");
+//        for (k = 0; k < OUTPUT_BUFFER; k+=5) {
+//
+//            printf("%03.2f %03.2f\n", output[k][0], output[k][1]);
+//
+//        }
+//        printf("\n\n");
+
 
         l++;
     }
 
-//    printf("%6d %6d\n", cfg.print_counter, cfg.isr_counter);
+
 }
 
 
 // ----------------------------------------------------------------------------
 //
-//  HIGHER-LEVEL RPLiDAR FUNCTIONS
+//  TIMER A1 TASK SELECTOR
 //
 // ----------------------------------------------------------------------------
 
 
-volatile uint8_t    task_flag       = 0,
-                    tick_counter    = 0;
+volatile uint8_t    task_flag       = 0;
+volatile uint32_t   tick_counter    = 0;
 
-#define MAX_TICK_COUNTER    20
 
 #define TASK_0_FLAG     0x01 << 0
-#define TASK_1_FLAG     0x01 << 1
-#define TASK_2_FLAG     0x01 << 2
-#define TASK_3_FLAG     0x01 << 3
-#define TASK_4_FLAG     0x01 << 4
-#define TASK_5_FLAG     0x01 << 5
-#define TASK_6_FLAG     0x01 << 6
-#define TASK_7_FLAG     0x01 << 7
-
 #define TASK_0_DIV_FREQ 1
-#define TASK_1_DIV_FREQ 1
-#define TASK_2_DIV_FREQ 1
-#define TASK_3_DIV_FREQ 1
-#define TASK_4_DIV_FREQ 20
-#define TASK_5_DIV_FREQ 1
-#define TASK_6_DIV_FREQ 1
-#define TASK_7_DIV_FREQ 20
-
 #define TASK_0_OFFSET   0
+
+#define TASK_1_FLAG     0x01 << 1
+#define TASK_1_DIV_FREQ 1
 #define TASK_1_OFFSET   0
+
+#define TASK_2_FLAG     0x01 << 2
+#define TASK_2_DIV_FREQ 1
 #define TASK_2_OFFSET   0
+
+#define TASK_3_FLAG     0x01 << 3
+#define TASK_3_DIV_FREQ 20
 #define TASK_3_OFFSET   0
+
+#define TASK_4_FLAG     0x01 << 4
+#define TASK_4_DIV_FREQ 20
 #define TASK_4_OFFSET   10
+
+#define TASK_5_FLAG     0x01 << 5
+#define TASK_5_DIV_FREQ 1
 #define TASK_5_OFFSET   0
+
+#define TASK_6_FLAG     0x01 << 6
+#define TASK_6_DIV_FREQ 2
 #define TASK_6_OFFSET   0
+
+#define TASK_7_FLAG     0x01 << 7
+#define TASK_7_DIV_FREQ 20
 #define TASK_7_OFFSET   0
 
 /**
@@ -616,10 +506,8 @@ volatile uint8_t    task_flag       = 0,
  */
 void Task_Selector(void) {
 
-    // Increment and keep the counter in the loop
+    // Increment the counter
     tick_counter++;
-    if (tick_counter >= MAX_TICK_COUNTER)
-        tick_counter    = 0;
 
 
     // task 0
@@ -641,6 +529,7 @@ void Task_Selector(void) {
     // task 4
     if ( ((tick_counter + TASK_4_OFFSET) % TASK_4_DIV_FREQ) == 0 )
         task_flag  |= TASK_4_FLAG;
+
 
     // task 5
     if ( ((tick_counter + TASK_5_OFFSET) % TASK_5_DIV_FREQ) == 0 )
@@ -705,7 +594,7 @@ int main(void)
     Clock_Delay1ms(1000);
 
 
-    // BlueTooth module initialization end -----------------------------
+    // Bluetooth module initialization end -----------------------------
 
 
     // Initialize the bumper switches which will be used to generate external
@@ -720,10 +609,10 @@ int main(void)
     // use Timer_A1_Interrupt to get the odometry measurements
     Timer_A1_Interrupt_Init(
             &Task_Selector,
-            60000); // in clock ticks
+            TIMER_A1_CCR0_VALUE); // in clock ticks
 
 
-//    // Initialize Timer A2 in Capture mode
+    // Initialize Timer A2 in Capture mode
 //    Timer_A2_Capture_Init(&Detect_Edge);
 
 
@@ -735,57 +624,60 @@ int main(void)
     Motor_Init();
 
 
-    // Enable the interrupts used by the SysTick and Timer_A timers
-    EnableInterrupts();
-
-
     printf("test scan -------\n\n");
 
     // RPLiDAR C1 initialization ---------------------------------------
 
-    EUSCI_A2->IE       |=  0x03;
     EUSCI_A0->IE       |=  0x03;
+    EUSCI_A2->IE       |=  0x03;
 
-    initialize_RPLiDAR_C1(&cfg);
+    initialize_RPLiDAR_C1(&cfg, RPLiDAR_RX_Data);
 
-    printf("C1 initialized\n");
+    printf("C1 initialized\n\n");
 
     // RPLiDAR C1 initialization end -----------------------------------
 
 
 
+    // Enable the interrupts used by the SysTick and Timer_A timers
+    EnableInterrupts();
+
+
+    int local_counter = 0;
+
     while (1)
     {
-        RPLiDAR_States current_state;
+
+        /**
+         * @brief   wait-for-interrupt macro. This function allows the loop to
+         *          proceed if any interrupt is triggered.
+         */
+        __WFI();
 
         /**
          * @brief enabling RXIE for all UARTs used affirm that the interrupt is ON.
          *      By itself, it turns off.
-         * @note Turning on the UART RX (b0) and TX (b1) disables RX for whatever
+         * @note receiving UART bytes disables RXIE for whatever
          *      reason.
          */
-//        EUSCI_A0->IE       |=  0x0003;
-//        EUSCI_A2->IE       |=  0x0003;
 
         EUSCI_A0->IE       |=  0x0001;
         EUSCI_A2->IE       |=  0x0001;
         EUSCI_A3->IE       |=  0x0001;
 
 
-//        printf("in main loop\n\n");
-
-        if ((task_flag + TASK_0_OFFSET) & TASK_0_FLAG) { // continue from here
+        if (task_flag & TASK_0_FLAG) { // continue from here
             // clear the flag
             task_flag  &= ~TASK_0_FLAG;
 
-//            BLE_Contact(BLE_UART_Buffer);
+            BLE_Contact(BLE_UART_Buffer);
         }
 
 
         // Get the measurements made by the tachometers and update the buffers
-//        if (task_flag & TASK_1_FLAG) {
+        if (task_flag & TASK_1_FLAG) {
             task_flag  &= ~TASK_1_FLAG;
-//
+
 //            Tachometer_Get(
 //                    &Tachometer_Buffer_Left[buffer_idx],
 //                    &Left_Direction,
@@ -794,14 +686,14 @@ int main(void)
 //                    &Tachometer_Buffer_Right[buffer_idx],
 //                    &Right_Direction,
 //                    &Right_Steps);
-//        }
+        }
 
 
 
         if (task_flag & TASK_2_FLAG) {
             task_flag  &= ~TASK_2_FLAG;
 
-//            Get_Odometry();
+            Get_Odometry();
         }
 
 
@@ -809,22 +701,50 @@ int main(void)
         if (task_flag & TASK_3_FLAG) {
             task_flag  &= ~TASK_3_FLAG;
 
-//            Gather_LiDAR_Data(&cfg, 1, RPLiDAR_RX_Data, output);
-            cfg.record_data = 1;
+//            cfg.record_data = 1;
+
+            if (cfg.current_state == IDLING) {
+                cfg.current_state   = READY;
+//                printf("b\n");
+            }
         }
 
 
 
+        /**
+         *
+         */
         if (task_flag & TASK_4_FLAG) {
             task_flag  &= ~TASK_4_FLAG;
 
-//            Gather_LiDAR_Data(&cfg, 1, RPLiDAR_RX_Data, output);
-            if (cfg.current_state == RECORDING) {
-                cfg.current_state == RECORDING;
 
-                process_rplidar_data(output);
+            if (local_counter == 5) {
+//                printf(">5\n\n");
 
+                if (cfg.current_state == PROCESSING) {
+//                    printf("\tPROCESSING\n");
+
+                    process_rplidar_data(RPLiDAR_RX_Data, output);
+
+                    cfg.current_state   = IDLING;
+//                    printf("a\n");
+
+                }
+
+            } else {
+                printf("counting\n");
+                local_counter++;
             }
+
+        }
+
+
+
+        // place to put printing function at the same rate
+        if (task_flag & TASK_6_FLAG) {
+            task_flag  &= ~TASK_6_FLAG;
+
+//            printf("%1d\n", cfg.current_state);
         }
 
 
@@ -837,12 +757,7 @@ int main(void)
         }
 
 
-        /**
-         * @brief   wait-for-interrupt macro. This function allows the loop to
-         *          proceed if any interrupt is triggered.
-         */
-        __WFI();
-
-
     }
 }
+
+

@@ -29,6 +29,12 @@
 #include "inc/BLE_A3_UART.h"
 
 
+volatile int    message_length      = 0;
+
+volatile char  *UART_BUFFER_ADDR    = NULL,
+               *uart_buffer_pointer = NULL;
+
+
 void BLE_UART_Init(volatile char *buffer_pointer)
 {
 

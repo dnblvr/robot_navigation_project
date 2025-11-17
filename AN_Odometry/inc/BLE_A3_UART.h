@@ -29,8 +29,8 @@
 #ifndef INC_BLE_A3_UART_H_
 #define INC_BLE_A3_UART_H_
 
+
 #include <stdint.h>
-#include <stdio.h>
 #include <string.h>
 #include "msp.h"
 #include "Clock.h"
@@ -40,11 +40,13 @@
 /**
  * @details
  */
-extern volatile int message_length;
+extern volatile int     message_length;
 
-
-volatile char   *UART_BUFFER_ADDR,
-                *uart_buffer_pointer;
+/**
+ *
+ */
+extern volatile char   *UART_BUFFER_ADDR,
+                       *uart_buffer_pointer;
 
 /**
  * @brief Specifies the size of the buffer used for the BLE UART module
@@ -84,9 +86,7 @@ volatile char   *UART_BUFFER_ADDR,
 /**
  * @brief   initializes the BLE UART module.
  */
-void BLE_UART_Init(
-        volatile char *buffer_pointer
-        );
+void BLE_UART_Init(volatile char *buffer_pointer);
 
 
 /**

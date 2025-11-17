@@ -20,11 +20,8 @@
 #define INC_RPLIDAR_A2_UART_H_
 
 #include <stdint.h>
-#include <string.h>
-#include <stdio.h>
-
 #include "msp.h"
-#include "GPIO.h"
+#include "Clock.h"
 #include "coordinate_transform.h"
 
 
@@ -40,6 +37,8 @@
 #define OUTPUT_BUFFER               75
 #define MSG_LENGTH                   5
 #define RPLiDAR_UART_BUFFER_SIZE    OUTPUT_BUFFER*MSG_LENGTH
+#define MSG_LENGTH                   5
+#define RPLiDAR_UART_BUFFER_SIZE    OUTPUT_BUFFER*MSG_LENGTH
 
 
 /**
@@ -51,6 +50,20 @@ typedef enum {
     FIND_PATTERN,
     ADD_OFFSET,
     SKIP,
+    RECORD
+
+} Record_States;
+
+
+/**
+ * @brief RPLiDAR states
+ */
+typedef enum {
+
+    IDLING      = 0,
+    READY,
+    RECORDING,
+    PROCESSING
     RECORD
 
 } Record_States;
@@ -71,14 +84,19 @@ typedef enum {
  * @param   offset
  * @param   limit_status  indicates where in the counting stage we are at
  *
- * @details     status 0x01:
+ * @details     more details in Record_States
  */
 typedef struct {
 
     // --------------------------------------
 
+
+    // --------------------------------------
+
     uint8_t     skip_factor;
 
+    uint8_t     wait_index,
+                skip_index,
     uint8_t     skip_index,
                 find_index;
 
@@ -86,7 +104,10 @@ typedef struct {
 
     Record_States   limit_status;
     uint8_t         limit;
+    Record_States   limit_status;
+    uint8_t         limit;
 
+    // --------------------------------------
     // --------------------------------------
 
     volatile uint8_t   *buffer_pointer;
@@ -95,8 +116,16 @@ typedef struct {
     volatile uint32_t   buffer_counter;
 
     // --------------------------------------
+    volatile uint32_t   buffer_counter;
+
+    // --------------------------------------
 
     uint8_t     process_data;
+    uint8_t     record_data;
+
+    volatile RPLiDAR_States  current_state;
+
+    // --------------------------------------
     uint8_t     record_data;
 
     RPLiDAR_States current_state;
@@ -107,7 +136,7 @@ typedef struct {
 
 
 /**
- * @brief global instance of the configuration struct
+ * @brief local instance of the configuration struct which links to the outside world
  */
 RPLiDAR_Config *config;
 
@@ -149,6 +178,7 @@ void configure_RPLiDAR_struct(
  *
  * @return None
  */
+void EUSCI_A2_UART_Init();
 void EUSCI_A2_UART_Init();
 
 /**

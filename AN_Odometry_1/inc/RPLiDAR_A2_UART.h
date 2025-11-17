@@ -37,7 +37,7 @@
 /**
  * @brief Buffer length for UART communication.
  */
-#define OUTPUT_BUFFER               75
+#define OUTPUT_BUFFER               60
 #define MSG_LENGTH                   5
 #define RPLiDAR_UART_BUFFER_SIZE    OUTPUT_BUFFER*MSG_LENGTH
 
@@ -56,7 +56,8 @@ typedef enum {
 } Record_States;
 
 typedef enum {
-    IDLING,
+    IDLING      = 0,
+    READY,
     RECORDING,
     PROCESSING
 } RPLiDAR_States;
@@ -80,7 +81,8 @@ typedef struct {
     uint8_t     skip_factor;
 
     uint8_t     skip_index,
-                find_index;
+                find_index,
+                wait_index;
 
     uint8_t    *RX_POINTER;
 
@@ -109,7 +111,7 @@ typedef struct {
 /**
  * @brief global instance of the configuration struct
  */
-RPLiDAR_Config *config;
+//volatile RPLiDAR_Config *config;
 
 
 /**

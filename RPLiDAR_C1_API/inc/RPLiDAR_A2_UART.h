@@ -18,6 +18,8 @@
 #ifndef __INC_RPLIDAR_A2_UART_H__
 #define __INC_RPLIDAR_A2_UART_H__
 
+#include "GPIO_Utilities.h"
+
 
 #include "Project_Config.h"
 
@@ -32,7 +34,7 @@
 
 #ifdef DEBUG_OUTPUT
 #include <stdio.h>          // for printf() debugging
-#include "inc/Profiler.h"
+#include "Profiler.h"
 #endif
 
 
@@ -239,7 +241,7 @@ void EUSCI_A2_UART_OutChar(uint8_t data);
  *
  * @return uint8_t 1 if the pattern matches, 0 otherwise.
  */
-static uint8_t pattern(const uint8_t*   msg_ptr);
+static inline uint8_t pattern(const uint8_t*   msg_ptr);
 
 
 /**

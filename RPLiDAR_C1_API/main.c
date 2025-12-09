@@ -52,7 +52,7 @@
 #include "inc/CortexM.h"
 #include "inc/EUSCI_A0_UART.h"
 #include "inc/GPIO.h"
-#include "inc/Motor.h"
+//#include "inc/Motor.h"
 #include "inc/Timer_A1_Interrupt.h"
 #include "inc/Tachometer.h"
 #include "inc/GPIO_Utilities.h"
@@ -983,7 +983,7 @@ void main(void) {
 
 
     // Initialize the DC motors
-    Motor_Init();
+//    Motor_Init();
 
 
     Set_All_Interrupts_1();

@@ -37,7 +37,7 @@ void configure_RPLiDAR_struct(
 {
 
     // link the RPLiDAR_Config struct to the outside
-    config  = (volatile RPLiDAR_Config*)input_config;
+    config  = (RPLiDAR_Config*)input_config;
 
 
     // Assign current buffer position and the absolute position of the array
@@ -179,8 +179,8 @@ void EUSCI_A2_UART_Init()
     // set priority to n
     // IP[4] = 0x02 << 21
     // NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00000000;  // 0
-    // NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00200000;  // 1
-    NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00400000;  // 2
+     NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00200000;  // 1
+//    NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00400000;  // 2
     // NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00600000;  // 3
 
 }
@@ -267,6 +267,7 @@ void EUSCI_A2_UART_OutChar(uint8_t data)
 void EUSCIA2_IRQHandler(void) {
 
 
+
     /**
      * @todo: figure out what to do in the HOLD state:
      *  If the counting system is a trustless system (has to find the RPLiDAR C1
@@ -309,7 +310,7 @@ void EUSCIA2_IRQHandler(void) {
      *  only 8 bits wide.
      */
     uint32_t data;
-    uint32_t process_data_flag;
+//    uint32_t process_data_flag;
 
 
     // if EUSCI_A2 RXIFG flag is read, then do the following commands
@@ -372,6 +373,8 @@ void EUSCIA2_IRQHandler(void) {
             // reset the counter
             config->isr_counter = 0;
 
+            uint8_t over_limit = config->buffer_counter > RPLiDAR_UART_BUFFER_SIZE;
+
 
             // switch statement uses jump tables which take up the least
             // overhead which is perfect for this application
@@ -390,9 +393,9 @@ void EUSCIA2_IRQHandler(void) {
 
                     config->current_state   = RECORDING;
                     config->  limit_status  = FIND_PATTERN;
+                    config->  limit         = config->find_index;
                     config-> buffer_pointer = config->RX_POINTER;
                     config-> buffer_counter = 0;
-                    config->  limit         = config->find_index;
 
 //                    printf("a\n");
 
@@ -405,42 +408,61 @@ void EUSCIA2_IRQHandler(void) {
 
             case FIND_PATTERN: {  // ------------------------------------------
 
+                // this helps determine which index lines up the message
+                #define FIND_PATTERN_SPECIFIC 1
+
                 // printf("b");
 
                 uint32_t    i;
                 uint32_t    found = 0;
 
+                // check all indices to see what index
                 for (i = 0; i < MSG_LENGTH; i++) {
 
-//                    found =    pattern(config->RX_POINTER + MSG_LENGTH*0 + i)
-//                            && pattern(config->RX_POINTER + MSG_LENGTH*1 + i)
+//                #ifndef FIND_PATTERN_SPECIFIC
+
+                    found =    pattern(config->RX_POINTER + MSG_LENGTH*0 + i)
+                            && pattern(config->RX_POINTER + MSG_LENGTH*1 + i);
 //                            && pattern(config->RX_POINTER + MSG_LENGTH*2 + i);
 
-                    found =   0x1*pattern(config->RX_POINTER + MSG_LENGTH*0 + i)
-                            + 0x2*pattern(config->RX_POINTER + MSG_LENGTH*1 + i)
-                            + 0x4*pattern(config->RX_POINTER + MSG_LENGTH*2 + i);
 
+                    if (found) {
+
+//                #else
+
+//                    found =   0x1*pattern(config->RX_POINTER + MSG_LENGTH*0 + i)
+//                            + 0x2*pattern(config->RX_POINTER + MSG_LENGTH*1 + i)
+//                            + 0x4*pattern(config->RX_POINTER + MSG_LENGTH*2 + i);
+
+//                    found =   0x1*pattern(config->RX_POINTER + MSG_LENGTH*0 + i)
+//                            + 0x2*pattern(config->RX_POINTER + MSG_LENGTH*1 + i);
+////                            + 0x4*pattern(config->RX_POINTER + MSG_LENGTH*2 + i);
+
+                #ifdef DEBUG_OUTPUT
 //                    printf("%d", found);
-//                    if (found) {
-                    if (found == 7) {
-//                        printf("\n");
+                #endif
+//                    if (found == 7) {
+//                    if (found == 3) {
 
-                        // Already aligned - go directly to SKIP
+                #ifdef DEBUG_OUTPUT
+//                        printf("\n");
+                #endif
+
+//                #endif // #ifndef FIND_PATTERN_SPECIFIC
+
+                        // if already aligned, go directly to SKIP
                         if (i == 0) {
                             
                             config-> limit_status   = SKIP;
                             config-> limit          = config->skip_factor;
-//                            config->buffer_pointer  = config->RX_POINTER;
                         
                         // Need to add offset to align - go to ADD_OFFSET
                         } else {
                             
                             config->limit_status    = ADD_OFFSET;
-                            config->limit           = MSG_LENGTH - i;
-//                            config->buffer_pointer  = config->RX_POINTER;
+//                            config->limit           = MSG_LENGTH - i;
+                            config->limit           = i;
                         }
-                        
-//                        config->buffer_counter  = 0;
 
                         // printf("1");
 
@@ -456,9 +478,10 @@ void EUSCIA2_IRQHandler(void) {
 
                 // *** FIX: Only reset pointer if alignment NOT found ***
 //                if (!found) {
-                    // Pattern not found - reset and try again next time
-                    config->buffer_pointer  = config->RX_POINTER;
-                    config->buffer_counter  = 0;
+                // regardless of if pattern is found or not found, reset the
+                // pointer and counter for next time
+                config->buffer_pointer  = config->RX_POINTER;
+                config->buffer_counter  = 0;
 //                }
 
                 // printf("2");
@@ -473,6 +496,7 @@ void EUSCIA2_IRQHandler(void) {
                 config->limit_status    = SKIP;
                 config->buffer_pointer  = config->RX_POINTER;
                 config->limit           = config->skip_factor;
+                config->buffer_counter  = 0;
 
                 break;
 
@@ -491,7 +515,7 @@ void EUSCIA2_IRQHandler(void) {
 
             case SKIP: {  // --------------------------------------------------
 
-                if (config->buffer_counter >= RPLiDAR_UART_BUFFER_SIZE) {
+                if (over_limit) {
 
 //                    printf(SKIP == 3 ? "SKIP\n": "\n");
 
@@ -525,7 +549,7 @@ void EUSCIA2_IRQHandler(void) {
 
             case RECORD: {  // ------------------------------------------------
 
-                if (config->buffer_counter >= RPLiDAR_UART_BUFFER_SIZE) {
+                if (over_limit) {
 
 //                    printf(RECORD == 4 ? "REC\n": "\n");
 
@@ -584,7 +608,7 @@ void EUSCIA2_IRQHandler(void) {
 // 
 // ----------------------------------------------------------------------------
 
-static uint8_t pattern(const uint8_t*   msg_ptr) {
+static inline uint8_t pattern(const uint8_t*   msg_ptr) {
 
 #define BYTE_1_CHECK 0x01
 

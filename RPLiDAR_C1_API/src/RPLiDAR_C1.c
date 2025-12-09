@@ -96,7 +96,6 @@ void Initialize_RPLiDAR_C1(
 
 
 
-
 void Process_RPLiDAR_Data(
         const uint8_t   RX_DATA[RPLiDAR_UART_BUFFER_SIZE],
         float               out[OUTPUT_BUFFER][3],

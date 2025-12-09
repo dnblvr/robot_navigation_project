@@ -14,6 +14,7 @@
 #define M_PI_F 3.1415927f
 
 #define DEG_TO_RAD M_PI_F/180.f
+#define RAD_TO_DEG 180.f/M_PI_F
 
 
 
@@ -36,7 +37,7 @@
  * @param pose      Pointer to the pose state
  * @param matrix    Output transformation matrix (3x3)
  */
- void make_transformation_matrix_pose(
+ void Make_Transformation_Matrix_Pose(
         Pose  *pose,
         float       matrix[3][3]);
 
@@ -74,9 +75,15 @@
  *                          distance_angle[1] = phis (angle in radians)
  * @param pos            Output array of size 3 [x, y, 1]
  */
-inline void polar_to_cartesian(
+static inline void polar_to_cartesian(
         float   distance_angle[2],
-        float   pos[3]);
+        float   pos[3])
+{
+    // Assuming single point conversion
+    pos[0] = distance_angle[0]*cosf(distance_angle[1]); // x = r*cos(phi)
+    pos[1] = distance_angle[0]*sinf(distance_angle[1]); // y = r*sin(phi)
+}
+
 
 /**
  * @brief 

@@ -26,7 +26,7 @@
  *
  */
 
-#include "inc/BLE_A3_UART.h"
+#include "../inc/BLE_A3_UART.h"
 
 
 volatile int    message_length      = 0;
@@ -315,7 +315,7 @@ uint8_t Check_BLE_UART_Data(
         volatile char  BLE_UART_Data_Buffer[],
                  char *data_string)
 {
-    if (strstr(BLE_UART_Data_Buffer, data_string) != NULL) {
+    if (strstr((const char*)BLE_UART_Data_Buffer, data_string) != NULL) {
 
         return 0x01;
 

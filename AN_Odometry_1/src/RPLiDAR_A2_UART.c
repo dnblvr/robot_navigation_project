@@ -4,40 +4,42 @@
  *
  * This file contains the function definitions for the EUSCI_A2_UART driver.
  *
- * @note Assumes that the necessary pin configurations for UART communication have been
- *      performed on the corresponding pins. P3.2 is used for UART RX while P3.3 is used
- *      for UART TX.
+ * @note Assumes that the necessary pin configurations for UART communication
+ *      have been performed on the corresponding pins. P3.2 is used for UART RX
+ *      while P3.3 is used for UART TX.
  *
- * @note For more information regarding the Enhanced Universal Serial Communication
- *      Interface (eUSCI), refer to the MSP432Pxx Microcontrollers Technical Reference
- *      Manual
+ * @note For more information regarding the Enhanced Universal Serial
+ *      Communication Interface (eUSCI), refer to the MSP432Pxx 
+ *      Microcontrollers Technical Reference Manual
  *
  *
  * @author Gian Fajardo
  *
  */
 
-#include "inc/RPLiDAR_A2_UART.h"
-
+#include "../inc/RPLiDAR_A2_UART.h"
 #include "../inc/Timer_A1_Interrupt.h"
 
 
-volatile RPLiDAR_Config *config = NULL;
+//#include "../inc/Profiler.h"
+
+
+volatile RPLiDAR_Config* config = NULL;
 
 
 void configure_RPLiDAR_struct(
-        RPLiDAR_Config *input_config,
-        uint8_t        *RX_Data)
+        const RPLiDAR_Config*   input_config,
+        const uint8_t*          RX_Data)
 {
 
     // link the RPLiDAR_Config struct to the outside
-    config  = input_config;
+    config  = (volatile RPLiDAR_Config*)input_config;
 
 
     // Assign current buffer position and the absolute position of the array
     // to the pointer.
-    config->     RX_POINTER = RX_Data;
-    config-> buffer_pointer = RX_Data;
+    config->     RX_POINTER = (uint8_t*)RX_Data;
+    config-> buffer_pointer = (uint8_t*)RX_Data;
 
 
     // Generate the counter variables and the start and stop indices of the nth
@@ -45,15 +47,18 @@ void configure_RPLiDAR_struct(
     config->    isr_counter = 0;
     config-> buffer_counter = 0;
     config->   wait_index   = MSG_LENGTH*4;
-    config->   find_index   = MSG_LENGTH* 4;
+    config->   find_index   = MSG_LENGTH*4;
     config->   skip_index   = MSG_LENGTH*config->skip_factor;
 
     config->  limit_status  = HOLD;
     config->current_state   = IDLING;
+    config->  limit         = config->wait_index;  // Initial limit for HOLD state
 //    printf("a\n");
 
 
-    printf(" 0 -> %2d -> %2d\n", config->skip_index, config->skip_index + 5);
+#ifdef DEBUG_OUTPUTS
+//    printf(" 0 -> %2d -> %2d\n", config->skip_index, config->skip_index + 5);
+#endif
 
 }
 
@@ -156,23 +161,13 @@ void EUSCI_A2_UART_Init()
     // turn on interrupt number 18 using ISER[0]
     NVIC->ISER[0] =  0x00040000;
 
-    // set priority to 0
+
+    // set priority to n
     // IP[4] = 0x02 << 21
-//        NVIC->IP[4]     = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00000000;
-
-
-    // set priority to 1
-    // IP[4] = 0x02 << 21
-    NVIC->IP[4]     = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00200000;
-
-
-    // set priority to 2
-    // IP[4] = 0x02 << 21
-//    NVIC->IP[4]     = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00400000;
-
-    // set priority to 3
-    // IP[4] = 0x03 << 21
-//    NVIC->IP[4]     = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00600000;
+//    NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00000000;  // 0
+//    NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00200000;  // 1
+    NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00400000;  // 2
+//    NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00600000;  // 3
 
 }
 
@@ -273,9 +268,26 @@ void EUSCIA2_IRQHandler(void) {
      * 
      *  2. and take the hold state to SKIP (?).
      *  3. make sure that isr_counter counts in multiples of MSG_LENGTH
+     *
+     * @todo there is another problem with the distance measurements.
+     *  some data is literally zero-distance. here's a sample of the data I
+     *  collected:
+     *      RAW[02 75 0D 00 00] -> dist=0 ang=27.8 deg
+     *      RAW[02 2B 0E 00 00] -> dist=0 ang=28.7 deg
+     *      RAW[02 DF 0E 00 00] -> dist=0 ang=29.5 deg
+     *      RAW[02 C9 13 00 00] -> dist=0 ang=39.1 deg
+     *      RAW[02 23 14 00 00] -> dist=0 ang=40.5 deg
+     *      RAW[96 7D 14 9B 09] -> dist=2459 ang=42.0 deg
+     *      RAW[76 D7 14 74 09] -> dist=2420 ang=41.4 deg
+     *      RAW[56 2F 15 68 09] -> dist=2408 ang=42.7 deg
+     *      RAW[02 89 15 00 00] -> dist=0 ang=42.1 deg
+     *      RAW[02 E1 15 00 00] -> dist=0 ang=43.5 deg
+     *      RAW[02 3B 16 00 00] -> dist=0 ang=44.9 deg
+     *      RAW[02 99 16 00 00] -> dist=0 ang=44.4 deg
+     *      RAW[02 F3 16 00 00] -> dist=0 ang=45.8 deg
      */
 
-    uint8_t data;
+    uint32_t data;
 
 
     // if EUSCI_A2 RXIFG flag is read, then do the following commands
@@ -301,7 +313,8 @@ void EUSCIA2_IRQHandler(void) {
         if (config->limit_status & (FIND_PATTERN | RECORD)) {
 
             // assign `data` and increment pointer
-          *(config->buffer_pointer++)   = data;
+//          *(config->buffer_pointer++)   = data;
+          *(config->buffer_pointer++)   = (uint8_t)data;
             config->buffer_counter++;
 
         }
@@ -344,10 +357,15 @@ void EUSCIA2_IRQHandler(void) {
 
                 if (config->current_state == READY) {
 
+                    Timer_A1_Ignore();
+
                     config->current_state   = RECORDING;
                     config->  limit_status  = FIND_PATTERN;
-                    // config->  limit         = config->find_index;
-                    config->  limit         = 1;
+                    config->buffer_pointer  = config->RX_POINTER;
+                    config->buffer_counter  = 0;
+                    config->  limit         = config->find_index;
+
+//                    printf("a\n");
 
                 }
 
@@ -358,10 +376,12 @@ void EUSCIA2_IRQHandler(void) {
 
             case FIND_PATTERN: {  // ------------------------------------------
 
-                int     i;
-                uint8_t found = 0;
+//                printf("b");
 
-                for (i = 0; i < (MSG_LENGTH + 1); i++) {
+                int     i;
+                int     found = 0;
+
+                for (i = 0; i < MSG_LENGTH; i++) {
 
                     found =    pattern(config->RX_POINTER + MSG_LENGTH*0 + i)
                             && pattern(config->RX_POINTER + MSG_LENGTH*1 + i)
@@ -369,10 +389,23 @@ void EUSCIA2_IRQHandler(void) {
 
                     if (found) {
 
-                        // "MSG_LENGTH - i" is the amount needed to re-align to
-                        //  the *next* first byte of the message
-                        config->limit_status    = ADD_OFFSET;
-                        config->limit           = MSG_LENGTH - i;
+                        // Already aligned - go directly to SKIP
+                        if (i == 0) {
+                            
+                            config->limit_status    = SKIP;
+                            config->buffer_pointer  = config->RX_POINTER;
+                            config->limit           = config->skip_factor;
+                        
+                        // Need to add offset to align - go to ADD_OFFSET
+                        } else {
+                            
+                            config->limit_status    = ADD_OFFSET;
+                            config->limit           = MSG_LENGTH - i;
+                        }
+                        
+                        config->buffer_counter  = 0;
+
+//                        printf("1");
 
                         break;
 
@@ -380,9 +413,16 @@ void EUSCIA2_IRQHandler(void) {
 
                 }
 
-                // Restart buffer
-                config->buffer_pointer  = config->RX_POINTER;
-                config->buffer_counter  = 0;
+                // *** FIX: Only reset pointer if alignment NOT found ***
+                if (!found) {
+                    // Pattern not found - reset and try again next time
+                    config->buffer_pointer  = config->RX_POINTER;
+                    config->buffer_counter  = 0;
+                }
+
+                Timer_A1_Acknowledge();
+
+//                printf("2");
 
                 break;
 
@@ -391,8 +431,10 @@ void EUSCIA2_IRQHandler(void) {
 
             case ADD_OFFSET: {  // --------------------------------------------
 
-                config->limit_status    = HOLD;
-                config->limit           = MSG_LENGTH;
+                config->limit_status    = SKIP;
+                // *** FIX: Don't reset pointer - already aligned from FIND_PATTERN ***
+                config->buffer_pointer  = config->RX_POINTER;
+                config->limit           = config->skip_factor;
 
                 break;
 
@@ -410,9 +452,11 @@ void EUSCIA2_IRQHandler(void) {
 
                     config->current_state   = PROCESSING;
                     config->limit_status    = HOLD;
-                    config->limit           = MSG_LENGTH;
+                    config->limit           = config->wait_index;
                     config->buffer_pointer  = config->RX_POINTER;
                     config->buffer_counter  = 0;
+
+//                    Stop_Timer();
 
 //                    printf("e1\n");
 
@@ -438,9 +482,11 @@ void EUSCIA2_IRQHandler(void) {
 
                     config->current_state   = PROCESSING;
                     config->limit_status    = HOLD;
-                    config->limit           = MSG_LENGTH;
+                    config->limit           = config->wait_index;
                     config->buffer_pointer  = config->RX_POINTER;
                     config->buffer_counter  = 0;
+
+//                    Stop_Timer();
 
 //                    printf("e2\n");
 
@@ -462,14 +508,16 @@ void EUSCIA2_IRQHandler(void) {
             default: {  // ----------------------------------------------------
 
                 config->limit_status    = HOLD;
-                config->limit           = MSG_LENGTH;
-                config->record_data     = 0;
+                config->limit           = config->wait_index;
                 break;
 
             }
 
 
             } // end switch(config->limit_status)  // -------------------------
+
+
+//            printf("%3d\n", config->limit_status);
 
         }
 
@@ -479,51 +527,41 @@ void EUSCIA2_IRQHandler(void) {
 
 
 
-// -------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 //
 //  HELPER FUNCTIONS
-//
-// -------------------------------------------------------------------------------------
+// 
+// ----------------------------------------------------------------------------
 
-
-inline uint8_t pattern(
-        uint8_t *pointer)
+uint8_t pattern(
+        const uint8_t*  pointer)
 {
-    // checks byte 0 for pattern 0x2 or 0x1 (0b10 or 0b01) ...
-    return      ( ((*pointer & 0x3) == 0x2) || ((*pointer & 0x3) == 0x1) )
-
-            // ... and pattern 0x10
-            &&  ( (*(pointer + 1) & 0x1) == 0x1 );
+    // Check byte 0: bits 0 and 1 should be complements (01 or 10)
+    // Valid values are 0x01 or 0x02, invalid are 0x00 or 0x03
+    uint8_t start_bits = (*pointer) & 0x03;
+    
+    return     (start_bits == 0x01 || start_bits == 0x02)
+            && ((*(pointer + 1) & 0x01) == 0x01);
 }
 
 
-uint8_t to_angle_distance(
-        uint8_t    *base_ptr,
-        float       distance_angle[2])
+uint8_t confirm_aligned(
+        const uint8_t RPLiDAR_RX_Data[RPLiDAR_UART_BUFFER_SIZE])
 {
+    uint32_t i, aligned;
 
-#ifdef ERROR_CHECKING
-    uint8_t start       = (*base_ptr)      & 0x01,
-            start_inv   = (*base_ptr) >> 1 & 0x01;
+    // Assume aligned until proven otherwise
+    aligned     = 1;
+    for (i = 0; i < RPLiDAR_UART_BUFFER_SIZE; i += MSG_LENGTH)
+    {
+        // break if misaligned packet is found
+        if (!pattern(RPLiDAR_RX_Data + i)) {
+            aligned = 0;
+            break;
+        }
 
-    if (start != start_inv) return;
-#endif
-
-    uint16_t distance, angle;
-
-    angle       = ( *(base_ptr + 2) << 7 ) | ( *(base_ptr + 1) >> 1 );
-    distance    = ( *(base_ptr + 4) << 8 ) | ( *(base_ptr + 3)      );
-
-    if (distance < 0x01) {
-        return 0;
     }
-
-    // If the above condition does not hold, then calculate the float
-    // values
-    distance_angle[0]   = (float)(distance / 4.f);
-    distance_angle[1]   = (float)(DEG_TO_RAD * angle / 64.f);
-
-    return 1;
+    return aligned;
 }
 
 
@@ -540,13 +578,9 @@ void Single_Request_No_Response(const uint16_t command[3]) {
     EUSCI_A2_UART_OutChar(       0xA5 );    // start flag
     EUSCI_A2_UART_OutChar( command[0] );
 
-#ifdef TIMER_A
-#else
 
     // wait for the RPLiDAR to process the command
     Clock_Delay1ms(command[2]);
-
-#endif // TIMER_A
 
 }
 
@@ -676,7 +710,10 @@ void Single_Request_Multiple_Response(
 #endif
 
     } else {
+
+#ifdef DEBUG_OUTPUTS
         printf("Invalid Response\n");
+#endif
 
         // wait for some time before resetting the RPLiDAR
         Clock_Delay1ms(5000);
@@ -792,15 +829,16 @@ void Single_Request_Multiple_Response(
 //        ++j;
 //
 //    }
+//
 //}
 
 
 
-// -------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 // 
 //  TRANSMIT AND RECEIVE CHECKING FUNCTIONS
 // 
-// -------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 
 #ifdef TX_RX_CHECKS
@@ -896,8 +934,4 @@ void EUSCI_A2_UART_Validate_Data(uint8_t TX_Buffer[], uint8_t RX_Buffer[])
 }
 
 #endif // TX_RX_CHECKS
-
-
-
-
 

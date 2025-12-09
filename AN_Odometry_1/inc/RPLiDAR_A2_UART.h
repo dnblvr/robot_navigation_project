@@ -6,40 +6,39 @@
  *
  * @note Assumes that the necessary pin configurations for UART communication have been
  *      performed on the corresponding pins. P3.2 is used for UART RX while P3.3 is used
- *      for UART TX.
+ *      for UART TX. Meanwhile, the configuration expects
  *
  * @note For more information regarding the Enhanced Universal Serial Communication In-
  *      terface (eUSCI), refer to the MSP432Pxx Microcontrollers Technical Reference
  *      Manual
  *
  * @author Gian Fajardo
- *
  */
 
-#ifndef INC_RPLIDAR_A2_UART_H_
-#define INC_RPLIDAR_A2_UART_H_
+#ifndef __INC_RPLIDAR_A2_UART_H__
+#define __INC_RPLIDAR_A2_UART_H__
+
+
+#include "Project_Config.h"
+
+
+#include "msp.h"
+#include "Clock.h"
+#include "coordinate_transform.h"
 
 #include <stdint.h>
 #include <string.h>
-#include <stdio.h>
 
-#include "msp.h"
-#include "GPIO.h"
-#include "coordinate_transform.h"
+#ifdef DEBUG_OUTPUTS
+#include "inc/Profiler.h"
+#include <stdio.h> // for printf() debugging
+#endif
 
 
 //#define RPLIDAR_DEBUG 1
 // #define TX_RX_CHECKS 1
 // #define ERROR_CHECKING 1
 
-
-
-/**
- * @brief Buffer length for UART communication.
- */
-#define OUTPUT_BUFFER               60
-#define MSG_LENGTH                   5
-#define RPLiDAR_UART_BUFFER_SIZE    OUTPUT_BUFFER*MSG_LENGTH
 
 
 /**
@@ -55,6 +54,9 @@ typedef enum {
 
 } Record_States;
 
+/**
+ * @brief states of the RPLiDAR C1 system itself
+ */
 typedef enum {
     IDLING      = 0,
     READY,
@@ -66,15 +68,15 @@ typedef enum {
 /**
  * @brief configuration struct of the RPLiDAR C1
  *
- * @param   skip_factor how many 5-byte messages to skip before recording the
+ * @param   skip_factor     how many 5-byte messages to skip before recording the
  *              nth one
- * @param   RX_POINTER  address of input
+ * @param   RX_POINTER      address of input
  * @param   offset
- * @param   limit_status  indicates where in the counting stage we are at
+ * @param   limit_status    indicates where in the counting stage we are at
  *
  * @details     status 0x01:
  */
-typedef struct {
+typedef volatile struct {
 
     // --------------------------------------
 
@@ -98,9 +100,6 @@ typedef struct {
 
     // --------------------------------------
 
-    uint8_t     process_data;
-    uint8_t     record_data;
-
     RPLiDAR_States current_state;
 
     // --------------------------------------
@@ -108,18 +107,13 @@ typedef struct {
 } RPLiDAR_Config;
 
 
-/**
- * @brief global instance of the configuration struct
- */
-//volatile RPLiDAR_Config *config;
-
 
 /**
  * @brief
  */
 void configure_RPLiDAR_struct(
-        RPLiDAR_Config *input_config,
-        uint8_t        *RX_Data);
+        const RPLiDAR_Config*   input_config,
+        const uint8_t*          RX_Data);
 
 
 /**
@@ -213,28 +207,27 @@ void EUSCI_A2_UART_OutChar(uint8_t data);
 
 
 // -------------------------------------------------------------------------------------
-// 
-//  HIGHER-LEVEL RPLiDAR FUNCTIONS
-// 
+//
+//  HELPER FUNCTIONS
+//
 // -------------------------------------------------------------------------------------
 
-
-
 /**
- * @brief Checks if the given data response packet index matches the expected RPLiDAR
- *              data response pattern.
+ * @brief Checks if the given data response packet index matches the expected
+ *          RPLiDAR data response pattern.
  *
- * @details From page 15 of the "RPLiDAR C1 Interface Protocol and Application Notes",
- *              the expected pattern of a 5-byte response message is:
+ * @details From page 15 of the "RPLiDAR C1 Interface Protocol and Application
+ *              Notes", the expected pattern of a 5-byte response message is:
  *
- *          Byte offset 0:      start flag = bit 0      --> bit 0 = !(bit 1)
- *                              expected patterns: 0b10 or 0b01
+ *          Byte offset 0:  start flag = bit 0      --> bit 0 = !(bit 1)
+ *                          expected patterns: 0b10 or 0b01
  *
- *          Byte offset 1:      check flag = bit 0
- *                              expected pattern:  0b01
+ *          Byte offset 1:  check flag = bit 0
+ *                          expected pattern:  0b01
  *
- *          To make sure that the pattern-matching is infallible, future uses of
- *              the pattern matching should check the first four sequential messages.
+ *          To make sure that the pattern-matching is infallible, future uses
+ *              of the pattern matching should check the first four sequential
+ *              messages.
  *
  * @note    In theory, this pattern-matching should be applied once and only after
  *              the initial matching is done.
@@ -243,19 +236,27 @@ void EUSCI_A2_UART_OutChar(uint8_t data);
  *
  * @return uint8_t 1 if the pattern matches, 0 otherwise.
  */
-inline uint8_t pattern(
-        uint8_t    *pointer);
+uint8_t pattern(
+        const uint8_t *pointer);
 
 
 /**
- * @brief Converts the raw data from the RPLiDAR to angle and distance values.
- *
- * @param base_ptr       Pointer to the raw data buffer.
- * @param distance_angle Array to store the converted distance and angle values.
+ * @brief helper function that confirms if the RPLiDAR data is aligned
+ * 
+ * @param RX_Data 
+ * @return uint8_t
+ * @retval 1 if aligned, 0 otherwise
  */
-uint8_t to_angle_distance(
-        uint8_t    *base_ptr,
-        float       distance_angle[2]);
+uint8_t confirm_aligned(
+        const uint8_t RPLiDAR_RX_Data[RPLiDAR_UART_BUFFER_SIZE]);
+
+
+
+// -------------------------------------------------------------------------------------
+//
+//  HIGHER-LEVEL RPLiDAR FUNCTIONS
+//
+// -------------------------------------------------------------------------------------
 
 
 /**
@@ -291,18 +292,20 @@ void Single_Request_Multiple_Response(
 
 
 /**
- * @brief       Get data from the RPLiDAR C1
+ * @brief       Get data from the RPLiDAR C1 without interrupts
  *
  * @param scan_confirmation Confirmation flag for the scan
  * @return None
+ *
+ * @note not needed for this particular application
  */
-void Gather_LiDAR_Data(
-        RPLiDAR_Config       *cfg,
-
-        uint8_t scan_confirmation,
-        uint8_t           RX_Data[RPLiDAR_UART_BUFFER_SIZE],
-
-        float                 out[OUTPUT_BUFFER][3]);
+//void Gather_LiDAR_Data(
+//        RPLiDAR_Config       *cfg,
+//
+//        uint8_t scan_confirmation,
+//        uint8_t           RX_Data[RPLiDAR_UART_BUFFER_SIZE],
+//
+//        float                 out[OUTPUT_BUFFER][3]);
 
 
 // -------------------------------------------------------------------------------------
@@ -365,7 +368,4 @@ void EUSCI_A2_UART_Validate_Data(uint8_t TX_Buffer[], uint8_t RX_Buffer[]);
 
 #endif // TX_RX_CHECKS
 
-
-
-
-#endif /* INC_EUSCI_A2_UART_H_ */
+#endif /* __INC_RPLIDAR_A2_UART_H__ */

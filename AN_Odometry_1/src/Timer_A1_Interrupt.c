@@ -29,10 +29,12 @@ void Timer_A1_Interrupt_Init(
 
 
     // In the CTL register, set the TASSEL and ID bits:
-    //  - Choose SMCLK as timer clock source (TASSEL = 10b)
-    //  - Choose prescale value of 4 (ID = 2)
+    //  - [x] Choose SMCLK as timer clock source (TASSEL = 10b)
+    //  - [ ] Choose prescale value of 4 (ID = 2); 2 << 6
+    //  - [x] Choose prescale value of 8 (ID = 3); 3 << 6
     TIMER_A1->CTL  |=  0x0200;
     TIMER_A1->CTL  |=  0x0080;
+//    TIMER_A1->CTL  |=  0x00C0;
 
 
     // Enable interrupt request of the
@@ -52,9 +54,12 @@ void Timer_A1_Interrupt_Init(
     TIMER_A1->EX0  |=  0x0004;
 
 
-    // Set interrupt priority level to 2 using the IPR2 register of NVIC
+    // Set interrupt priority level to n using the IPR2 register of NVIC
     // Timer A1 has an IRQ number of 10
-    NVIC->IP[2]     = (NVIC->IP[2] & 0xFF00FFFF) | 0x00600000;
+    NVIC->IP[2]     = (NVIC->IP[2] & 0xFF00FFFF) | 0x00000000; // 0
+//    NVIC->IP[2]     = (NVIC->IP[2] & 0xFF00FFFF) | 0x00200000; // 1
+//    NVIC->IP[2]     = (NVIC->IP[2] & 0xFF00FFFF) | 0x00400000; // 2
+//    NVIC->IP[2]     = (NVIC->IP[2] & 0xFF00FFFF) | 0x00600000; // 3
 
 
     // Enable Interrupt 10 in NVIC by setting Bit 10 of the ISER register
@@ -88,6 +93,7 @@ void Timer_A1_Ignore(void) {
 void Timer_A1_Acknowledge(void) {
 
     TIMER_A1->CCTL[0]  |=  0x0010;
+//    TIMER_A1->CCTL[0]  &=  0x0010;
 
 }
 

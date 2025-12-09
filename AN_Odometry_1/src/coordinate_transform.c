@@ -1,5 +1,5 @@
 
-#include "./inc/coordinate_transform.h"
+#include "../inc/coordinate_transform.h"
 
 
 //void make_transformation_matrix(float theta, float T[2], float matrix[3][3]) {
@@ -31,7 +31,7 @@
 //
 //}
 
-void make_transformation_matrix_pose(
+void Make_Transformation_Matrix_Pose(
     Pose  *pose,
     float       matrix[3][3])
 {
@@ -42,7 +42,7 @@ void make_transformation_matrix_pose(
      *      [      0           0      1 ]
      */
 
-    uint8_t i, j;
+    int i, j;
 
     // Initialize to identity
     for (i = 0; i < 3; i++) {
@@ -94,15 +94,15 @@ void make_transformation_matrix_pose(
 //     pos[2] = 1;                     //
 // }
 
-inline void polar_to_cartesian(
-        float   distance_angle[2],
-        float   pos[3])
-{
-    // Assuming single point conversion
-    pos[0] = distance_angle[0]*cosf(distance_angle[1]); // x = r*cos(phi)
-    pos[1] = distance_angle[0]*sinf(distance_angle[1]); // y = r*sin(phi)
-}
 
+//static inline void polar_to_cartesian(
+//        float   distance_angle[2],
+//        float   pos[3])
+//{
+//    // Assuming single point conversion
+//    pos[0] = distance_angle[0]*cosf(distance_angle[1]); // x = r*cos(phi)
+//    pos[1] = distance_angle[0]*sinf(distance_angle[1]); // y = r*sin(phi)
+//}
 
 
 

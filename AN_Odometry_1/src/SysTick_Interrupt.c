@@ -32,3 +32,12 @@ void SysTick_Interrupt_Init(uint32_t clock_cycles, uint32_t priority)
     // Enable SysTick with interrupts and the core clock
     SysTick->CTRL = 0x00000007;
 }
+
+void SysTick_Interrupt_Disable()
+{
+    // Disable SysTick
+    SysTick->CTRL  &= ~0x00000007;
+
+    // Any write to the current value clears it
+    SysTick->VAL = 0;
+}

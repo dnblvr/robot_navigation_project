@@ -9,8 +9,8 @@
  *
  */
 
-#ifndef INC_SYSTICK_INTERRUPT_H_
-#define INC_SYSTICK_INTERRUPT_H_
+#ifndef __INC_SYSTICK_INTERRUPT_H__
+#define __INC_SYSTICK_INTERRUPT_H__
 
 #include <stdint.h>
 #include "msp.h"
@@ -26,7 +26,8 @@
 #define SYSTICK_INT_NUM_CLK_CYCLES 48000
 
 // The priority level of the SysTick interrupt
-#define SYSTICK_INT_PRIORITY 2
+#define SYSTICK_INT_PRIORITY 1
+
 
 /**
  * @brief Initializes the SysTick timer with periodic interrupts.
@@ -53,4 +54,12 @@
  */
 void SysTick_Interrupt_Init(uint32_t clock_cycles, uint32_t priority);
 
-#endif /* INC_SYSTICK_INTERRUPT_H_ */
+
+/**
+ * @brief disables the SysTick timer entirely
+ * @return None
+ */
+void SysTick_Interrupt_Disable();
+
+
+#endif /* __INC_SYSTICK_INTERRUPT_H__ */

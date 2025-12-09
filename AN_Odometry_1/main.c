@@ -1,298 +1,622 @@
 /**
- * @file main.c
- * @brief Main source code for the Tachometer program.
+ * @file    main.c
+ * @brief   Main source code for the LiDAR mapping program.
  *
- * This file contains the main entry point and function definitions for the
- *      Tachometer program.
+ * @details This file expands on the main entry point and function definitions
+ *  from the Tachometer lab to include UART definitions for the upcoming
+ *  RPLiDAR C1 LiDAR scanner and BLE communications.
  *
  *
- * Timer_A is used in this lab:
- *  - Timer A0: Used to generate PWM signals to drive the DC motors
- *  - Timer A1: Used to generate periodic interrupts at a specified rate (10 Hz)
+ * Timer_A is used:
+ *  - Timer A0: (was) used to generate PWM signals to drive the DC motors
+ *  - Timer A1: Used as a task scheduler to:
+ *      - generate periodic interrupts at a specified rate (10 Hz)
+ *      - triggers under eight tasks to be run in the main-loop
+ *          - with WaitForInterrupt() to wait until
+ *          - and Set_All_Interrupts_1() to reaffirm all EUSCI UART
+ *                  interrupts
+ *  - Timer A3: used to record the amount of steps taken by the wheels
  *
- * @author Gian Fajardo
  *
- *          massive credit to Aaron Nanas for providing the files
+ * UART A0-3:
+ *  - UART A0 used for receiving data to
+ *  - UART A2 used to receive the consecutive 5-byte messages from the RPLiDAR
+ *      C1
+ *  - UART A3 (was) used for BLE communication
+ * 
+ * @note some files are not included in main.c. as of this moment, the
+ *      necessary functions are in-place.
+ *
+ * @author  Gian Fajardo
+ * @authors massive credit to Prof. Aaron Nanas for providing the files!
  *
  */
+
+
+#include "inc/Project_Config.h"
+
 
 #include <stdint.h>
 #include <string.h>
 
+
+#include "inc/Timer_A1_Tasks.h"
+
+
 #include "msp.h"
 //#include "inc/"
-#include "inc/RPLiDAR_A2_UART.h"
 #include "inc/RPLiDAR_C1.h"
 #include "inc/Clock.h"
 #include "inc/CortexM.h"
 #include "inc/EUSCI_A0_UART.h"
+//#include "inc/BLE.h"
 //#include "inc/BLE_A3_UART.h"
 #include "inc/GPIO.h"
-#include "inc/SysTick_Interrupt.h"
-#include "inc/Bumper_Switches.h"
+//#include "inc/Bumper_Switches.h"
 #include "inc/Motor.h"
 //#include "inc/Timer_A0_Interrupt.h"
 #include "inc/Timer_A1_Interrupt.h"
 #include "inc/Tachometer.h"
+#include "inc/GPIO_Utilities.h"
 
 
+#ifdef DEBUG_OUTPUTS
+#include "inc/Profiler.h"
+#endif
 
 //#include "arm_math.h"
-#include "inc/icp_2d.h"
-#include "inc/graphslam.h"
+#include "inc/matrices.h"
 #include "inc/coordinate_transform.h"
+#include "inc/ICP_2D.h"
+#include "inc/graphslam.h"
+
 
 
 // ----------------------------------------------------------------------------
 //
-//  SLAM ALGORITHM VARIABLES
+//  GRAPHSLAM ALGORITHM VARIABLES
 //
 // ----------------------------------------------------------------------------
 
-// SLAM Testing Variables
-SLAMOptimizer slam_optimizer;
-bool slam_initialized = false;
-PointCloud previous_scan;
-bool has_previous_scan = false;
-Pose current_pose = {0.0f, 0.0f, 0.0f, 0};  // x, y, theta, timestamp
-int slam_pose_count = 0;
 
 // Testing flags
-#define TEST_ICP_ONLY           1
-//#define TEST_ADD_POSE           1
-//#define TEST_ODOMETRY_CONSTRAINT 1
-//#define TEST_LOOP_CLOSURE       1
-//#define TEST_OPTIMIZATION       11
+// #define TEST_ICP_ONLY               1
+#define TEST_ODOMETRY_CONSTRAINT    1
+#define TEST_LOOP_CLOSURE           1
+#define TEST_OPTIMIZATION           1
+
+
+
+/**
+ * @brief main SLAM structure
+ */
+SLAMOptimizer slam_optimizer;
+
+/**
+ * @brief boolean that indicates whether SLAM has been initialized
+ */
+uint8_t slam_initialized   = false;
+
+/**
+ * @brief Incremental pose change since last scan (from odometry)
+ */
+Pose incremental_pose = {0.0f, 0.0f, 0.0f, 0};
+
+/**
+ * @brief Global accumulated pose estimate (dead reckoning)
+ */
+Pose global_pose = {0.0f, 0.0f, 0.0f, 0};
 
 
 /**
  * @brief Test SLAM components incrementally after processing RPLiDAR data
  * 
- * @param output The processed point cloud in Cartesian coordinates
+ * @param[in] local_cloud Pointer to the local scan in sensor frame (for SLAM)
+ * @param[in] transformed_cloud Pointer to the transformed point cloud in
+ *      global coordinates (for visualization)
  */
-void test_slam(
-    float output[OUTPUT_BUFFER][3])
+void Perform_SLAM(
+    PointCloud* local_cloud,
+    PointCloud* transformed_cloud)
 {
-
-    // counter variable
-    int i;
-    
+    // counter variables
+    // int i;
     static uint32_t scan_counter = 0;
-    PointCloud      current_scan;
-    char            debug_buffer[128];
 
-    
-    // Convert output array to PointCloud structure
-    current_scan.num_points     = 0;
-    for (i = 0; i < OUTPUT_BUFFER && i < MAX_POINTS_PER_SCAN; i++) {
+    // debug character
+    // char            debug_buffer[128];
 
-        // if is a valid point
-        if (output[i][0] != 0.0f || output[i][1] != 0.0f) {  
 
-            current_scan.points[current_scan.num_points].x  = output[i][0];
-            current_scan.points[current_scan.num_points].y  = output[i][1];
-            current_scan.num_points++;
-        }
-
-    }
-    
-    sprintf(
-        debug_buffer,
-        "Scan %lu: %d points\n", scan_counter, current_scan.num_points);
-
-//    BLE_UART_OutString(debug_buffer);
+#ifdef DEBUG_OUTPUTS
+    printf(
+        "Scan %lu: %d points\n", scan_counter, local_cloud->num_pts);
+#endif
     
     // Initialize SLAM on first run
     if (!slam_initialized) {
+
+
         slam_initialize(&slam_optimizer);
         slam_initialized = true;
-//        BLE_UART_OutString("SLAM initialized\n");
+        // BLE_UART_OutString("SLAM initialized\n");
+
+    }
+
+
+    
+    
+    // Key: Transform scans to global frame BEFORE running ICP
+    // This way ICP finds the correction in a consistent reference frame
+    Pose icp_correction = {0.0f, 0.0f, 0.0f, 0};
+    float icp_confidence = 0.5f;
+    bool have_icp_correction = false;
+    
+    if (slam_optimizer.buffer_size > 0) {
+        PointCloud previous_scan_local, previous_scan_global;
+        PointCloud current_scan_global;
+        Pose previous_pose;
+        int prev_id = slam_optimizer.buffer_size - 1;
+        
+        // Get previous scan and its pose
+        if (    slam_get_scan(&slam_optimizer, prev_id, &previous_scan_local)
+             && slam_get_pose(&slam_optimizer, prev_id, &previous_pose))
+        {
+            
+            // Transform previous scan to global frame using its pose
+            transform_point_cloud(&previous_scan_local, &previous_pose, &previous_scan_global);
+            
+            // Transform current scan to global frame using predicted pose
+            // Predicted pose = previous_pose ⊕ odometry
+            Pose predicted_current_pose;
+            compose_poses(&incremental_pose, &previous_pose, &predicted_current_pose);
+            transform_point_cloud(local_cloud, &predicted_current_pose, &current_scan_global);
+            
+            // Now run ICP between these two GLOBAL-frame clouds
+            ICPResult icp_result;
+            Pose zero_guess = {0.0f, 0.0f, 0.0f, 0};  // No guess needed - clouds already aligned
+            
+            slam_perform_icp(&previous_scan_global,
+                           &current_scan_global,
+                           &zero_guess,
+                           &icp_result);
+            
+            // Compute confidence
+            icp_confidence = slam_compute_icp_confidence(&previous_scan_global,
+                                                        &current_scan_global,
+                                                        &zero_guess,
+                                                        &icp_result);
+            
+            // ICP result is the CORRECTION to apply to the predicted pose
+            icp_correction.x = icp_result.dx;
+            icp_correction.y = icp_result.dy;
+            icp_correction.theta = icp_result.dtheta;
+            have_icp_correction = true;
+            
+#ifdef DEBUG_OUTPUTS
+            float correction_mag = sqrtf(icp_correction.x*icp_correction.x + 
+                                        icp_correction.y*icp_correction.y);
+            if (correction_mag > 5.0f || fabsf(icp_correction.theta) > 0.02f) {
+                printf("  ICP correction: dx=%.1f dy=%.1f dθ=%.3f (%.1fmm) conf=%.2f\n",
+                       icp_correction.x, icp_correction.y, icp_correction.theta,
+                       correction_mag, icp_confidence);
+            }
+#endif
+        }
     }
     
-    // ========================================================================
-    // TEST 1: ICP ONLY
-    // ========================================================================
-    #ifdef TEST_ICP_ONLY
-    if (has_previous_scan && current_scan.num_points > 10) {
+    // ------------------------------------------------------------------------
+    // STEP 2: Update global_pose using ODOMETRY (state initialization)
+    // This gives us an initial estimate that may differ from ICP observation
+    // The optimizer will adjust it to balance odometry and ICP constraints
+    // ------------------------------------------------------------------------
+    
+    compose_poses(&incremental_pose, &global_pose, &global_pose);
+    global_pose.timestamp = incremental_pose.timestamp;
+    
+    // ------------------------------------------------------------------------
+    // STEP 2: Add current pose (with ICP-refined global position) to SLAM
+    // ------------------------------------------------------------------------
+    
+    slam_add_pose(&slam_optimizer,
+                  &global_pose,
+                  local_cloud);
+
+    #ifdef DEBUG_OUTPUTS
+//    printf("Added pose to buffer. New buffer_size: %d\n",
+//           slam_optimizer.buffer_size);
+    #endif
+
+    // ------------------------------------------------------------------------
+    //
+    //  TEST 1: ICP ONLY (standalone ICP test - results not used elsewhere)
+    //
+    // ------------------------------------------------------------------------
+
+#ifdef TEST_ICP_ONLY
+    
+    // Only run ICP if we have at least 2 scans in buffer
+    if (    slam_optimizer.buffer_size >= 2
+         && local_cloud->num_pts > 10)
+    {
         
         ICPResult icp_result;
         Pose initial_guess = {0.0f, 0.0f, 0.0f, 0};  // Identity transform
         float confidence;
+        PointCloud previous_scan;
         
-        // Run ICP between previous and current scan
-        slam_perform_icp(
-                &previous_scan,
-                &current_scan,
-                &initial_guess,
-                &icp_result);
+
+        // Get the second-to-last scan from the circular buffer
+        if (slam_get_scan(&slam_optimizer,
+                          slam_optimizer.buffer_size - 2,
+                          &previous_scan))
+        {
+            
+            // Run ICP between previous and current LOCAL scan
+            slam_perform_icp(
+                    &previous_scan,
+                    local_cloud,
+                    &initial_guess,
+                    &icp_result);
+            
+            // Compute confidence
+            confidence = slam_compute_icp_confidence(
+                                &previous_scan,
+                                local_cloud,
+                                &initial_guess,
+                                &icp_result);
+            icp_result.confidence = confidence;
         
-        // Compute confidence
-        confidence = slam_compute_icp_confidence(
-                            &previous_scan,
-                            &current_scan,
-                            &icp_result);
-        icp_result.confidence = confidence;
-        
-        // Send results via Bluetooth
-        sprintf(
-                debug_buffer,
+
+        // Send results via Bluetooth/Serial
+
+    #ifdef DEBUG_OUTPUTS
+        // sprintf(
+        //         debug_buffer,
+        printf(
                 "ICP: dx=%.3f dy=%.3f dtheta=%.3f conf=%.2f\n",
                 icp_result.dx, icp_result.dy, icp_result.dtheta, confidence);
-//        BLE_UART_OutString(debug_buffer);
+        // BLE_UART_OutString(debug_buffer);
+
+    #endif
         
-        // Visual feedback
-        if (confidence > 0.5f) {
-            LED2_Output(RGB_LED_GREEN);  // Good match
-        } else {
-            LED2_Output(RGB_LED_RED);    // Poor match
+            // Visual feedback
+            if (confidence > 0.5f) {
+                LED2_Output(RGB_LED_GREEN);  // Good match
+            } else {
+                LED2_Output(RGB_LED_RED);    // Poor match
+            }
+            Clock_Delay1ms(40);
         }
     }
-    #endif
     
-    // ========================================================================
-    // TEST 2: ADD POSES
-    // ========================================================================
-    #ifdef TEST_ADD_POSE
-    {
-        bool success;
+#endif // #ifdef TEST_ICP_ONLY
+
+
+    // ------------------------------------------------------------------------
+    //
+    //  TEST 3: ODOMETRY CONSTRAINTS
+    //
+    // ------------------------------------------------------------------------
+
+#ifdef TEST_ODOMETRY_CONSTRAINT
+
+    if (slam_optimizer.buffer_size >= 2) {
         
-        // Update pose based on ICP (simple integration)
-        if (has_previous_scan) {
-            ICPResult icp_result;
-            Pose initial_guess = {0.0f, 0.0f, 0.0f, 0};
+        int prev_id = slam_optimizer.buffer_size - 2;
+        int curr_id = slam_optimizer.buffer_size - 1;
+        
+        // Measurement = Odometry + ICP correction (Stachniss method)
+        // ICP was run on global-frame clouds, so correction is in global frame
+        Pose measurement;
+        
+        if (have_icp_correction && icp_confidence > 0.2f) {
+            // Apply ICP correction to odometry measurement
+            compose_poses(&icp_correction, &incremental_pose, &measurement);
             
-            slam_perform_icp(&previous_scan, &current_scan, &initial_guess, &icp_result);
-            
-            // Update current pose
-            current_pose.x += icp_result.dx;
-            current_pose.y += icp_result.dy;
-            current_pose.theta += icp_result.dtheta;
-            current_pose.theta = normalize_angle(current_pose.theta);
-        }
-        
-        // Add pose to SLAM
-        success = slam_add_pose(&slam_optimizer, &current_pose, &current_scan);
-        
-        if (success) {
-            slam_pose_count++;
-//            sprintf(debug_buffer, "Pose %d added: x=%.2f y=%.2f theta=%.2f\n",
-//                    slam_pose_count, current_pose.x, current_pose.y, current_pose.theta);
-//            BLE_UART_OutString(debug_buffer);
+#ifdef DEBUG_OUTPUTS
+            printf("  Measurement: odom=(%.1f,%.1f,%.3f) + ICP_corr=(%.1f,%.1f,%.3f) = final=(%.1f,%.1f,%.3f)\n",
+                   incremental_pose.x, incremental_pose.y, incremental_pose.theta,
+                   icp_correction.x, icp_correction.y, icp_correction.theta,
+                   measurement.x, measurement.y, measurement.theta);
+#endif
         } else {
-//            BLE_UART_OutString("ERROR: Failed to add pose\n");
+            // Low confidence or no ICP - use odometry only
+            measurement = incremental_pose;
+            
+#ifdef DEBUG_OUTPUTS
+            if (have_icp_correction) {
+                printf("  Measurement: odom only (ICP conf too low: %.2f)\n", icp_confidence);
+            }
+#endif
         }
-    }
-    #endif
-    
-    // ========================================================================
-    // TEST 3: ODOMETRY CONSTRAINTS
-    // ========================================================================
-    #ifdef TEST_ODOMETRY_CONSTRAINT
-    if (slam_pose_count > 1) {
         
-        int prev_id = slam_pose_count - 2;
-        int curr_id = slam_pose_count - 1;
+        float base_confidence = icp_confidence;
         
-        ICPResult icp_result;
-        Pose initial_guess = {0.0f, 0.0f, 0.0f, 0};
+        // Compute magnitude of the measurement
+        float measurement_magnitude = sqrtf(
+                    measurement.x * measurement.x
+                 +  measurement.y * measurement.y);
         
-        slam_perform_icp(&previous_scan, &current_scan, &initial_guess, &icp_result);
+        // For small motions (likely noise), use very low confidence
+        #define MIN_CONSTRAINT_MOTION_MM 15.0f
+        #define MIN_CONFIDENCE_FOR_SMALL_MOTION 0.01f
         
-        // Add odometry constraint between consecutive poses
+        float effective_confidence = base_confidence;
+        if (measurement_magnitude < MIN_CONSTRAINT_MOTION_MM && 
+            fabsf(measurement.theta) < 0.05f) {
+            effective_confidence = MIN_CONFIDENCE_FOR_SMALL_MOTION;
+        }
+        
+        // Add constraint using ICP-corrected odometry
         slam_add_odometry_constraint(
-            &slam_optimizer,
-            prev_id,
-            curr_id,
-            icp_result.dx,
-            icp_result.dy,
-            icp_result.dtheta,
-            100.0f  // confidence
-        );
+                &slam_optimizer,
+                prev_id,
+                curr_id,
+                measurement.x,
+                measurement.y,
+                measurement.theta,
+                effective_confidence);
         
-        sprintf(debug_buffer, "Constraint added: %d -> %d\n", prev_id, curr_id);
-        BLE_UART_OutString(debug_buffer);
+#ifdef DEBUG_OUTPUTS
+        if (effective_confidence < base_confidence) {
+            printf("Constraint %d->%d: meas=(%.2f,%.2f,%.3f) mag=%.1f conf=%.2f->%.2f [LOW CONF]\n",
+                   prev_id, curr_id,
+                   measurement.x, measurement.y, measurement.theta,
+                   measurement_magnitude, base_confidence, effective_confidence);
+        } else {
+            printf("Constraint %d->%d: meas=(%.2f,%.2f,%.3f) mag=%.1f conf=%.2f [ADDED]\n",
+                   prev_id, curr_id,
+                   measurement.x, measurement.y, measurement.theta,
+                   measurement_magnitude, effective_confidence);
+        }
+#endif
     }
-    #endif
     
-    // ========================================================================
-    // TEST 4: LOOP CLOSURE DETECTION
-    // ========================================================================
-    #ifdef TEST_LOOP_CLOSURE
-    if (slam_pose_count > MIN_TEMPORAL_GAP + 1) {
+#endif // #ifdef TEST_ODOMETRY_CONSTRAINT
+
+
+    // ------------------------------------------------------------------------
+    //
+    //  TEST 4: LOOP CLOSURE DETECTION
+    //
+    // ------------------------------------------------------------------------
+
+#ifdef TEST_LOOP_CLOSURE
+
+    if (slam_optimizer.buffer_size > MIN_TEMPORAL_GAP + 1) {
         
-        bool loop_detected = slam_detect_loop_closure(
-            &slam_optimizer,
-            slam_pose_count - 1
-        );
+
+    #ifdef PROCESSING_EXPECTED_OUTPUTS
+//        printf("CLEAR\n");
+    #endif
+
+
+        uint8_t loop_detected = slam_detect_loop_closure(
+                &slam_optimizer,
+                slam_optimizer.buffer_size - 1);
+
+
+    #ifdef DEBUG_OUTPUTS
+        printf("\n*** LOOP CLOSURE DETECTION ***");
+    #endif
         
         if (loop_detected) {
-            BLE_UART_OutString("*** LOOP CLOSURE DETECTED! ***\n");
-            LED2_Output(RGB_LED_BLUE);
-            Clock_Delay1ms(500);
-        }
-    }
+
+    #ifdef DEBUG_OUTPUTS
+            printf(" --> *** LOOP CLOSURE DETECTED! ***\n\n");
     #endif
+
+            LED2_Output(RGB_LED_BLUE);
+            Clock_Delay1ms(40);
+
+        } else {
+
+            printf("\n\n");
+
+        }
+
+    } // if (slam_optimizer.buffer_size > MIN_TEMPORAL_GAP + 1) {
     
-    // ========================================================================
-    // TEST 5: OPTIMIZATION
-    // ========================================================================
-    #ifdef TEST_OPTIMIZATION
-    if (slam_pose_count > 0 && (slam_pose_count % OPTIMIZE_INTERVAL == 0)) {
+#endif // #ifdef TEST_LOOP_CLOSURE
+
+
+    // ------------------------------------------------------------------------
+    //
+    //  TEST 5: OPTIMIZATION
+    //
+    // ------------------------------------------------------------------------
+
+#ifdef TEST_OPTIMIZATION
+
+    if (     slam_optimizer.buffer_size > 0
+         && (slam_optimizer.buffer_size % OPTIMIZE_INTERVAL == 0))
+    {
         
-        BLE_UART_OutString("Optimizing graph...\n");
+#ifdef DEBUG_OUTPUTS
+        printf("\nOptimizing graph...\n");
+#endif
+
         LED2_Output(RGB_LED_PINK);
         
-        slam_optimize_gauss_newton(&slam_optimizer, 5);
+
+        slam_optimize_gauss_newton(&slam_optimizer, MAX_GAUSS_NEWTON_ITERS);
         
-        // Get optimized current pose
+
+#ifdef PROCESSING_EXPECTED_OUTPUTS
+        // Clear visualization before sending complete optimized map
+        printf("CLEAR\n");
+#endif
+
+        // Retrieve and transform all optimized poses and their point clouds
+        int pose_idx;
         Pose optimized_pose;
-        slam_get_current_pose(&slam_optimizer, &optimized_pose);
+        PointCloud original_scan, transformed_scan;
         
-        sprintf(debug_buffer, "Optimized: x=%.2f y=%.2f theta=%.2f\n",
-                optimized_pose.x, optimized_pose.y, optimized_pose.theta);
-        BLE_UART_OutString(debug_buffer);
+        // Store last two transformed clouds for alignment testing
+        static PointCloud last_two_clouds[2];
+        static int clouds_stored = 0;
+
+
+        // corrects all poses in the buffer and their scans
+        for (   pose_idx = 0;
+                pose_idx < slam_optimizer.buffer_size;
+                pose_idx++)
+        {
+            
+            // Get optimized pose
+            if ( !slam_get_pose(&slam_optimizer,
+                                pose_idx,
+                                &optimized_pose) ) {
+                continue;  // Skip if pose retrieval fails
+            }
+            
+            // Get original point cloud for this pose; skip if scan retrieval fails
+            if ( !slam_get_scan(&slam_optimizer,
+                                pose_idx,
+                                &original_scan) ) {
+                continue; 
+            }
+            
+            // Transform point cloud to new optimized global frame
+            transform_point_cloud(&original_scan,
+                                  &optimized_pose,
+                                  &transformed_scan);
+            
+            // Store last two transformed clouds for alignment testing
+            if (pose_idx == slam_optimizer.buffer_size - 2 && slam_optimizer.buffer_size >= 2) {
+                last_two_clouds[0] = transformed_scan;
+                clouds_stored = 1;
+            } else if (pose_idx == slam_optimizer.buffer_size - 1 && slam_optimizer.buffer_size >= 2) {
+                last_two_clouds[1] = transformed_scan;
+                clouds_stored = 2;
+            }
+            
+#ifdef DEBUG_OUTPUTS
+            // printf("Pose[%2d] optimized: x=%.2f y=%.2f theta=%.3f | %d points transformed\n",
+            //        pose_idx,
+            //        optimized_pose.x, optimized_pose.y, optimized_pose.theta,
+            //        transformed_scan.num_pts);
+#endif
+
+
+#ifdef PROCESSING_EXPECTED_OUTPUTS
+
+            int k;
+
+            // Print all optimized poses with correct pose data
+            printf("POSE,%5.2f,%5.2f,%5.2f\n",
+                    optimized_pose.x,
+                    optimized_pose.y,
+                    optimized_pose.theta);
+
+            printf("SCAN_START\n");
+
+            for (k = 0; k < transformed_scan.num_pts; k++)
+            {
+                printf("P,%5.2f,%5.2f\n",
+                        transformed_scan.points[k].x,
+                        transformed_scan.points[k].y);
+            }
+
+            printf("SCAN_END\n");
+#endif
+        }
+        
+        // ------------------------------------------------------------------------
+        // TEST: Run ICP on last two transformed point clouds to verify alignment
+        // ------------------------------------------------------------------------
+#ifdef DEBUG_OUTPUTS
+        if (clouds_stored == 2 && slam_optimizer.buffer_size >= 2) {
+            
+            float R[4];  // 2x2 rotation matrix
+            float t[2];  // translation vector
+            Pose zero_guess = {0.0f, 0.0f, 0.0f, 0};
+            
+            printf("\n=== ALIGNMENT TEST: ICP on last two transformed clouds ===\n");
+            printf("Cloud[%d]: %d points\n", slam_optimizer.buffer_size - 2, last_two_clouds[0].num_pts);
+            printf("Cloud[%d]: %d points\n", slam_optimizer.buffer_size - 1, last_two_clouds[1].num_pts);
+            
+            // Run ICP between the two already-transformed clouds
+            // If poses are correct, these should already be aligned (small correction needed)
+            ICP_2d(last_two_clouds[0].points, last_two_clouds[0].num_pts,
+                   last_two_clouds[1].points, last_two_clouds[1].num_pts,
+                   25,      // max iterations
+                   0.01f,   // tolerance
+                   R, t);
+            
+            // Convert rotation matrix to angle
+            float theta_correction = atan2f(R[2], R[0]);  // atan2(R[1][0], R[0][0])
+            float translation_mag = sqrtf(t[0]*t[0] + t[1]*t[1]);
+            
+            printf("ICP Correction needed: dx=%.2f mm, dy=%.2f mm, dtheta=%.3f rad (%.1f deg)\n",
+                   t[0], t[1], theta_correction, theta_correction * 57.2958f);
+            printf("Translation magnitude: %.2f mm\n", translation_mag);
+            
+            // Compute mean correspondence error after ICP
+            int i, j;
+            float total_error = 0.0f;
+            int match_count = 0;
+            PointCloud transformed_cloud0;
+            
+            // Apply ICP correction to first cloud
+            Pose icp_correction;
+            icp_correction.x = t[0];
+            icp_correction.y = t[1];
+            icp_correction.theta = theta_correction;
+            transform_point_cloud(&last_two_clouds[0], &icp_correction, &transformed_cloud0);
+            
+            // Find mean nearest-neighbor distance
+            for (i = 0; i < transformed_cloud0.num_pts; i++) {
+                float min_dist = FLT_MAX;
+                for (j = 0; j < last_two_clouds[1].num_pts; j++) {
+                    float dx = transformed_cloud0.points[i].x - last_two_clouds[1].points[j].x;
+                    float dy = transformed_cloud0.points[i].y - last_two_clouds[1].points[j].y;
+                    float dist = sqrtf(dx*dx + dy*dy);
+                    if (dist < min_dist) min_dist = dist;
+                }
+                if (min_dist < 200.0f) {  // Only count reasonable matches
+                    total_error += min_dist;
+                    match_count++;
+                }
+            }
+            
+            float mean_error = (match_count > 0) ? (total_error / match_count) : -1.0f;
+            printf("Mean correspondence error after ICP: %.2f mm (%d/%d matches)\n",
+                   mean_error, match_count, transformed_cloud0.num_pts);
+            
+            // Alignment quality assessment
+            if (translation_mag < 10.0f && fabsf(theta_correction) < 0.05f && mean_error < 20.0f) {
+                printf("✓ GOOD ALIGNMENT: Clouds are well-aligned!\n");
+            } else if (translation_mag < 50.0f && fabsf(theta_correction) < 0.2f && mean_error < 50.0f) {
+                printf("⚠ MODERATE ALIGNMENT: Some drift present\n");
+            } else {
+                printf("✗ POOR ALIGNMENT: Significant misalignment detected!\n");
+            }
+            printf("=======================================================\n\n");
+        }
+        
+#endif // #ifdef DEBUG_OUTPUTS
+        
+#ifdef DEBUG_OUTPUTS
+
+        // Get current pose for debugging
+        slam_get_current_pose(&slam_optimizer, &optimized_pose);
+
+        printf("Current (most recent) pose: x=%.2f y=%.2f theta=%.3f\n",
+               optimized_pose.x, optimized_pose.y, optimized_pose.theta);
+#endif
         
         LED2_Output(RGB_LED_GREEN);
     }
-    #endif
     
-    // ========================================================================
-    // SEND TO VISUALIZER (if enabled)
-    // ========================================================================
-    #if defined(TEST_ADD_POSE) || defined(TEST_OPTIMIZATION)
-    {
-        Pose viz_pose;
-        slam_get_current_pose(&slam_optimizer, &viz_pose);
-        
-        // Send pose
-        sprintf(
-                debug_buffer,
-                "POSE,%.3f,%.3f,%.3f\n", 
-                viz_pose.x, viz_pose.y, viz_pose.theta);
-        BLE_UART_OutString(debug_buffer);
-        
+#endif // #ifdef TEST_OPTIMIZATION
 
-        // Send scan (decimated)
-        BLE_UART_OutString("SCAN_START\n");
-        for (i = 0; i < current_scan.num_points; i += 4) {  // Every 4th point
-
-            sprintf(debug_buffer,
-                    "POINT,%.3f,%.3f\n",
-                    current_scan.points[i].x, current_scan.points[i].y);
-            BLE_UART_OutString(debug_buffer);
-        }
-
-        BLE_UART_OutString("SCAN_END\n");
-
-    }
-    #endif
     
-    // Save current scan as previous for next iteration
-    previous_scan       = current_scan;
-    has_previous_scan   = true;
+    // Increment scan counter
     scan_counter++;
 
 }
+
 
 
 // ----------------------------------------------------------------------------
@@ -307,59 +631,15 @@ void test_slam(
  */
 extern RPLiDAR_Config cfg;
 
-
 /**
  * @brief RPLiDAR C1 RX data buffer.
  */
 uint8_t RPLiDAR_RX_Data[RPLiDAR_UART_BUFFER_SIZE] = {0};
 
-
 /**
  * @brief RPLiDAR C1 output data buffer.
  */
 float output[OUTPUT_BUFFER][3] = {0};
-
-
-
-// ----------------------------------------------------------------------------
-//
-//  MOTOR-OPERATION FUNCTIONS
-//
-// ----------------------------------------------------------------------------
-
-
-/**
- * @brief Motor speed settings
- */
-//uint16_t forward_speed  = 500, // forward duty cycle
-//         backward_speed = 300, // reverse duty cycle
-//         rotation_speed = 300; // rotation duty cycle
-
-/**
- * @brief MotorCommand function pointer type
- *
- * @param[in] left_speed    The speed of the left motor.
- * @param[in] right_speed   The speed of the right motor.
- */
-//typedef void (*MotorCommand)(uint16_t left_speed, uint16_t right_speed);
-
-/**
- * @brief instance of the MotorCommand function pointer
- */
-//static MotorCommand command;
-
-/**
- * @brief   Wrapper function to stop the motors. In order to offer compatibility with the
- *      MotorCommand function prototype, the parameters are unused.
- * 
- * @param[in] left_speed    The speed of the left motor.
- * @param[in] right_speed   The speed of the right motor.
- */
-//void Motor_Stop_Wrapper(uint16_t left_speed, uint16_t right_speed) {
-//
-//    Motor_Stop();
-//}
-
 
 
 
@@ -373,32 +653,6 @@ float output[OUTPUT_BUFFER][3] = {0};
 // Initialize length of the tachometer buffers
 #define TACHOMETER_BUFFER_LEN         10
 
-// Set the maximum RPM for both wheels
-//#define MAX_RPM                       120
-
-// Set the minimum RPM for both wheels
-//#define MIN_RPM                       30
-
-// Desired RPM for the left wheel
-uint16_t Desired_RPM_Left           = 70;
-
-// Desired RPM for the right wheel
-uint16_t Desired_RPM_Right          = 70;
-
-// Declare a global variable used to store the measured RPM by the left
-// tachometer
-//uint16_t Actual_RPM_Left            = 0;
-
-// Declare a global variable used to store the measured RPM by the right
-// tachometer
-//uint16_t Actual_RPM_Right           = 0;
-
-// Set initial duty cycle of the left wheel to 25%
-//uint16_t Duty_Cycle_Left            = 3750;
-
-// Set initial duty cycle of the right wheel to 25%
-//uint16_t Duty_Cycle_Right           = 3750;
-
 // Number of left wheel steps measured by the tachometer
 int32_t Left_Steps                  = 0;
 
@@ -406,7 +660,7 @@ int32_t Left_Steps                  = 0;
 int32_t Right_Steps                 = 0;
 
 
-
+// Number of left and right wheel distances in millimeters
 float left_steps_mm, right_steps_mm;
 
 // Store tachometer period of the left wheel in a buffer
@@ -425,250 +679,145 @@ enum Tachometer_Direction Right_Direction;
 
 // Buffer index
 int buffer_idx = 0;
-//
-////#define MOTOR_CONTROL_SYSTEM 1
-//
-//void Get_Odometry()
-//{
-////    char buffer[40];
-//
-//
-//    static uint32_t counter = 0;
-//
-//    buffer_idx = buffer_idx + 1;
-//
-//    counter++;
-//
-//    // the incremental control system is updated when the buffer is filled.
-//    // from there, it takes the average
-//    if (buffer_idx >= TACHOMETER_BUFFER_LEN)
-//    {
-//
-//        // reset the buffer index
-//        buffer_idx = 0;
-//
-//        // (1/Tachometer Step/Cycles) * (12,000,000 Cycles / Second) * (60 Second / Minute) * (1/360 Rotation/Step)
-//
-//        Actual_RPM_Left     = 2000000 / ( Average_of_Buffer(Tachometer_Buffer_Left,  TACHOMETER_BUFFER_LEN) );
-//        Actual_RPM_Right    = 2000000 / ( Average_of_Buffer(Tachometer_Buffer_Right, TACHOMETER_BUFFER_LEN) );
-//
-//
-//#ifdef MOTOR_CONTROL_SYSTEM
-//
-//        // If the actual RPM measured on the left wheel is greater than
-//        // the desired RPM, then decrease the duty cycle on the left
-//        // wheel
-//        if (        (Actual_RPM_Left > (Desired_RPM_Left + 3))
-//                &&  (Duty_Cycle_Left > 100)) {
-//
-//            Duty_Cycle_Left = Duty_Cycle_Left - 100;
-//
-//
-//        // Otherwise, if the actual RPM is less than the desired RPM,
-//        // then increase the duty cycle on the left wheel
-//        } else if (     (Actual_RPM_Left < (Desired_RPM_Left - 3))
-//                    &&  (Duty_Cycle_Left < 14898)) {
-//
-//            Duty_Cycle_Left = Duty_Cycle_Left + 100;
-//
-//        }
-//
-//
-//        // If the actual RPM measured on the right wheel is greater
-//        // than the desired RPM, then decrease the duty cycle on the
-//        // right wheel
-//        if (        (Actual_RPM_Right > (Desired_RPM_Right + 3))
-//                &&  (Duty_Cycle_Right > 100)) {
-//
-//            Duty_Cycle_Right = Duty_Cycle_Right - 100;
-//
-//
-//        // Otherwise, if the actual RPM is less than the desired RPM,
-//        // then increase the duty cycle on the right wheel
-//        } else if (     (Actual_RPM_Right < (Desired_RPM_Right - 3))
-//                    &&  (Duty_Cycle_Right < 14898)) {
-//
-//            Duty_Cycle_Right = Duty_Cycle_Right + 100;
-//        }
-//
-//
-//#endif // defined(MOTOR_CONTROL_SYSTEM)
-//
-//    }
-//
-//
-//    // Move the motors using the function pointer "command" with the updated duty cycle
-//    if (command != NULL) {
-//
-//        command(Duty_Cycle_Left, Duty_Cycle_Right);
-//
-//    } else {
-//
-//        Motor_Stop();
-//    }
-//
-//
-//
-//}
+
+#define POSE_ARRAY_SIZE 100
+
+typedef struct {
+    Pose        all_poses[POSE_ARRAY_SIZE];
+    uint32_t    num_elements;
+} Accumulated_Poses;
 
 
-// ----------------------------------------------------------------------------
-//
-//  BLUETOOTH COMMUNICATION FUNCTIONS
-//
-// ----------------------------------------------------------------------------
+Accumulated_Poses   poses;
+Accumulated_Poses*  pose_ptr = &poses;
 
 
 /**
- * @brief local instance of message_length globalized from BLE_A3_UART.c
+ * @brief resets the Accumulated_Poses structure
+ * 
+ * @param pose_ptr 
  */
-extern volatile int message_length;
+void Reset_Pose_Accumulator(Accumulated_Poses* pose_ptr) {
 
+    // reset the accumulator
+    memset(pose_ptr->all_poses, 0, sizeof(Pose) * POSE_ARRAY_SIZE);
 
-int begin_state     = 0;
+    // reset the internal counter
+    pose_ptr->num_elements  = 0;
+}
 
 /**
- * @brief processes UART feed based on if they're similar to
- *
- * @param BLE_UART_Buffer
+ * @brief Accumulate all intermediate poses into single composite transformation
+ * 
+ * @param pose_ptr  Pointer to pose accumulator buffer
+ * @param output    Resulting composite pose change
+ * 
+ * @details Uses sequential 3x3 transformation matrix multiplication (instead
+ *      of the funny way of adding poses together) to properly compose all
+ *      incremental pose changes, accounting for rotation effects on subsequent
+ *      translations.
  */
-//void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[])
-//{
-////    printf("len = %2d\n", message_length);
-//
-//    // internal counter variable
-//    int j;
-//
-//    if (message_length < 4)
-//        return;
-//
-//    printf("BLE UART Data: ");
-//
-//    for (j = 0; j < message_length; j++) {
-//        printf("%c", BLE_UART_Buffer[j]);
-//    }
-//
-//    printf("\n");
-//
-//
-//    command = NULL;
-//
-//    if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B11")) {
-//
-//        command             = &Motor_Stop_Wrapper;
-//        Desired_RPM_Left    = 0;
-//        Desired_RPM_Right   = 0;
-//
-//
-//    // 2: begin operation
-//    } else
-//    if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B21")) {
-//
-//        command             = &Motor_Stop_Wrapper;
-//        Desired_RPM_Left    = 0;
-//        Desired_RPM_Right   = 0;
-//
-//        begin_state = 1;
-//
-//        LED2_Output(RGB_LED_WHITE);
-//
-//
-//    // 5: UP is activated when pressed
-//    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B51")) {
-//
-//        command             = &Motor_Forward;
-//        Desired_RPM_Left    = forward_speed;
-//        Desired_RPM_Right   = forward_speed;
-//
-//        LED2_Output(RGB_LED_GREEN);
-//
-//
-//    // 6: DOWN is activated when pressed
-//    } else
-//    if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B61")) {
-//
-//        command             = &Motor_Backward;
-//        Desired_RPM_Left    = backward_speed;
-//        Desired_RPM_Right   = backward_speed;
-//
-//        LED2_Output(RGB_LED_PINK);
-//
-//
-//    // 7: LEFT is activated when pressed
-//    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B71")) {
-//
-//        // update duty cycles
-//        command             = &Motor_Left;
-//        Desired_RPM_Left    = rotation_speed;
-//        Desired_RPM_Right   = rotation_speed;
-//
-////        LED2_Output(RGB_LED_YELLOW);
-//
-//
-//    // 8: RIGHT is activated when pressed
-//    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B81")) {
-//
-//        // update duty cycles
-//        command             = &Motor_Right;
-//        Desired_RPM_Left    = rotation_speed;
-//        Desired_RPM_Right   = rotation_speed;
-//
-////        LED2_Output(RGB_LED_BLUE);
-//
-//
-//    } else {
-//
-//        command             = &Motor_Stop_Wrapper;
-//        Desired_RPM_Left    = 0;
-//        Desired_RPM_Right   = 0;
-//
-//        LED2_Output(RGB_LED_OFF);
-//
-//    }
-//
-//    // to apply the command only once, clear the buffer memory
-//    for (j = 0; j < message_length; j++) {
-//        BLE_UART_Buffer[j] = 0;
-//    }
-//    message_length = 0;
-//
-//
-//    // Move the motors using the function pointer "command" with the updated duty cycle
-//    if (command != NULL) {
-//
-//        command(Desired_RPM_Left, Desired_RPM_Right);
-//
-//    } else {
-//
-//        Motor_Stop();
-//    }
-//
-//}
-
-
-
-/**
- * @brief Calculate robot pose from wheel encoder data
- *
- * @param left_steps_mm   Left wheel displacement in mm
- * @param right_steps_mm  Right wheel displacement in mm
- * @param pose            Pointer to current pose (will be updated)
- *
- * @details   I am following the yaw orientation convention
- *          if Left_Steps > Right_Steps:
- *              (+) yaw
- *          vice versa
- *          450 mm required from both wheels to maintain simple rotation
- */
-void Get_Pose(
-        uint32_t local_counter,
-        int32_t Left_Steps,
-        int32_t Right_Steps,
-        Pose *pose_at_time)
+void Accumulate_Poses(
+        Accumulated_Poses*  pose_ptr,
+        Pose*               output)
 {
 
-    #define CONVERT_COUNTS_TO_DIST 0.6111111111
-    #define WHEEL_BASE_MM 141.0f  // Distance between wheels in mm
+    // if the accumulator is empty, return with zero pose
+    if (pose_ptr->num_elements == 0) {
+        output->x           = 0.0f;
+        output->y           = 0.0f;
+        output->theta       = 0.0f;
+        output->timestamp   = 0;
+        return;
+    }
+
+    int i, row, col;
+
+    // Start with identity transformation
+    float T_composite[3][3] = {
+        {1.0f, 0.0f, 0.0f},
+        {0.0f, 1.0f, 0.0f},
+        {0.0f, 0.0f, 1.0f}
+    };
+
+    float T_temp[3][3];
+    float T_pose[3][3];
+
+    // Multiply all intermediate pose transformations sequentially
+    for (i = 0; i < pose_ptr->num_elements; i++) {
+
+        Pose *p = &pose_ptr->all_poses[i];
+
+        // Convert pose to 3x3 transformation matrix
+        Make_Transformation_Matrix_Pose(p, T_pose);
+
+        // T_composite = T_composite × T_pose
+        matrix_multiply_3x3(T_composite, T_pose, T_temp);
+
+        // Copy result back to T_composite
+        for (row = 0; row < 3; row++) {
+            for (col = 0; col < 3; col++) {
+                T_composite[row][col] = T_temp[row][col];
+            }
+        }
+    }
+
+    // Extract final pose from composite transformation matrix
+    output->x       = T_composite[0][2];      // Translation x
+    output->y       = T_composite[1][2];      // Translation y
+
+    // Extract rotation angle from rotation matrix
+    output->theta   = atan2(T_composite[1][0], T_composite[0][0]);
+
+    // Use timestamp from last pose in accumulator with better error handling
+    if (pose_ptr->num_elements > 0) {
+        output->timestamp \
+            = pose_ptr->all_poses[pose_ptr->num_elements - 1].timestamp;
+
+#ifdef DEBUG_OUTPUTS
+        // Calculate time span for debugging/analysis
+//        uint32_t dt = output->timestamp - pose_ptr->all_poses[0].timestamp;
+
+        // Optional: Log time span and sample count for performance analysis
+        if (pose_ptr->num_elements > 1) {
+//            printf("Pose composite: %lu samples over %lu ticks\n",
+//                   pose_ptr->num_elements, dt);
+        }
+#endif
+    } else {
+        output->timestamp = 0;  // Fallback for empty accumulator
+    }
+}
+
+/**
+ * @brief Calculate robot pose from wheel encoder data and add to accumulator
+ *
+ * @param local_counter   Loop iteration counter
+ * @param Left_Steps      Left wheel encoder count
+ * @param Right_Steps     Right wheel encoder count
+ * @param pose_accumulator Pointer to pose accumulator
+ * @param timestamp       Current system tick counter for timestamping
+ *
+ * @details I am following the yaw orientation convention:
+ *              if Left_Steps > Right_Steps, (+) yaw
+ *              if Left_Steps < Right_Steps, (-) yaw
+ *          450 mm required from both wheels to maintain simple rotation
+ *          
+ *          This function now stores incremental pose changes in the accumulator
+ *          rather than maintaining a single running pose estimate.
+ */
+void Get_Pose(
+        uint32_t    local_counter,
+        int32_t     Left_Steps,
+        int32_t     Right_Steps,
+        Accumulated_Poses* pose_accumulator,
+        uint32_t    timestamp)
+{
+
+    #define COUNTS_TO_DIST 0.6111111111
+
+    // Distance between wheels in mm
+    #define WHEEL_BASE_MM 141.0f  
 
 
     // variables for the previous values for later
@@ -684,262 +833,113 @@ void Get_Pose(
 
             x_local, y_local;
 
-    // saved values for later
-    float cos_theta, sin_theta;
+    // NOTE: Uses global incremental_pose declared at top of file
+    // Do NOT declare a local one here - it shadows the global!
+
 
     // Convert encoder counts to distance in mm
-    left_steps_mm   = CONVERT_COUNTS_TO_DIST * Left_Steps;
-    right_steps_mm  = CONVERT_COUNTS_TO_DIST * Right_Steps;
-
+    left_steps_mm   = COUNTS_TO_DIST * Left_Steps;
+    right_steps_mm  = COUNTS_TO_DIST * Right_Steps;
 
     // Calculate change in wheel positions since last update
     delta_left  = left_steps_mm  - prev_left_mm;
     delta_right = right_steps_mm - prev_right_mm;
-
 
     // Save current values for next iteration
     prev_left_mm    = left_steps_mm;
     prev_right_mm   = right_steps_mm;
 
 
-    // Calculate linear and angular displacement
-    delta_s     = (delta_left + delta_right) / 2.0f;  // Average linear displacement
-    delta_theta = (delta_right - delta_left) / WHEEL_BASE_MM;  // Angular change (radians)
+    /** ---------------------------------------------------------------------
+     * Calculate linear and angular displacement
+     */
+
+    // Average linear displacement `s` between the two wheels
+    delta_s     = (delta_left + delta_right) / 2.0f;
+
+    // Angular change (in radians)
+    delta_theta = (delta_right - delta_left) / WHEEL_BASE_MM;  
 
 
-    // Calculate displacement in local (robot) frame;
-    // based on arc motion; based on formula `s = r*theta`
+    /**
+     * Calculate displacement in local (robot) frame; based on arc motion 
+     *  formula `s = r*theta`. 
+     */
+
     // Option 1: Moving straight; avoid division by zero
     if (fabs(delta_theta) < 1e-6) {
 
         x_local = delta_s;
         y_local = 0.0f;
 
+
     // Option 2: arc motion; uses the formula
     } else {
+        float radius;
 
-        float radius    = delta_s / delta_theta;
+        radius  = delta_s / delta_theta;
         x_local = radius * sin(delta_theta);
         y_local = radius * (1.0f - cos(delta_theta));
+
+
     }
 
 
-    // Transform to global frame using current orientation
-    cos_theta   = cos(pose_at_time->theta);
-    sin_theta   = sin(pose_at_time->theta);
+    // Store incremental pose change (in local robot frame)
+    incremental_pose.x      = x_local;
+    incremental_pose.y      = y_local;
+    incremental_pose.theta  = delta_theta;
+    incremental_pose.timestamp = timestamp;
 
+    // Normalize angle to [-pi, pi]
+    incremental_pose.theta  = normalize_angle(incremental_pose.theta);
 
-    pose_at_time->x     += cos_theta*x_local - sin_theta*y_local;
-    pose_at_time->y     += sin_theta*x_local + cos_theta*y_local;
-    pose_at_time->theta += delta_theta;
-
-
-    // Normalize angle to [-π, π]
-    pose_at_time->theta = normalize_angle(pose_at_time->theta);
-
+    // Add to accumulator
+    if (pose_accumulator->num_elements < POSE_ARRAY_SIZE) {
+        pose_accumulator->all_poses[pose_accumulator->num_elements] \
+                = incremental_pose;
+        pose_accumulator->num_elements++;
+    }
 
     // Debug output
+#ifdef DEBUG_OUTPUT
 //    printf("trv %3u: L=%7.2f R=%7.2f | x=%7.2f y=%7.2f θ=%6.3f\n",
 //            local_counter,
 //            left_steps_mm, right_steps_mm,
 //            pose_at_time->x, pose_at_time->y, pose_at_time->theta);
+#endif
+
 }
 
 
-
-
-void print_results(void) {
+void Print_Results(void) {
 
     static int  l   = 0;
 
-
-    // print the first n resutls
+    // print the first n results
     if (l < 35) {
 
-    //    for (k = 0; k < cfg.print_counter; k += 5) {
-//        for (k = 0; k < 25*MESSAGE_LENGTH; k += 5) {
-//            printf("%02X%02X%02X%02X%02X %i; ",
-//                   RPLiDAR_RX_Data[k+0],
-//                   RPLiDAR_RX_Data[k+1],
-//                   RPLiDAR_RX_Data[k+2],
-//                   RPLiDAR_RX_Data[k+3],
-//                   RPLiDAR_RX_Data[k+4],
-//                   pattern(RPLiDAR_RX_Data + k));
-//
-//        }
-//        printf("\n\n");
-//    }
-
     // confirms that the bits are aligned
+        // for (k = 0; k < RPLiDAR_UART_BUFFER_SIZE; k += MSG_LENGTH) {
 
+        //     if ( (k % 4*MSG_LENGTH*MSG_LENGTH) == 0 )
+        //         printf("_");
 
-//        for (k = 0; k < RPLiDAR_UART_BUFFER_SIZE; k += MSG_LENGTH) {
-//
-//            if ( (k % 4*MSG_LENGTH*MSG_LENGTH) == 0 ) {
-//                printf("_");
-//            }
-//
-//
-//            printf("%i", pattern(RPLiDAR_RX_Data + k));
-//
-//        }
-//
-//        printf("\n\n");
+        //     printf("%i", pattern(RPLiDAR_RX_Data + k));
+        // }
+        // printf("\n\n");
 
-//        printf("output = \n");
-//        for (k = 0; k < OUTPUT_BUFFER; k+=5) {
-//
-//            printf("%03.2f %03.2f\n", output[k][0], output[k][1]);
-//
-//        }
-//        printf("\n\n");
+        // printf("output = \n");
+        // for (k = 0; k < OUTPUT_BUFFER; k+=5)
+        //     printf("%03.2f %03.2f\n", output[k][0], output[k][1]);
 
+        // printf("\n\n");
 
-        l++;
+        // l++;
     }
-
 
 }
 
-
-// ----------------------------------------------------------------------------
-//
-//  TIMER A1 TASK SELECTOR
-//
-// ----------------------------------------------------------------------------
-
-
-#define TASK_0_FLAG     0x01 << 0
-#define TASK_0_DIV_FREQ 1
-#define TASK_0_OFFSET   0
-
-#define TASK_1_FLAG     0x01 << 1
-#define TASK_1_DIV_FREQ 1
-#define TASK_1_OFFSET   0
-
-#define TASK_2_FLAG     0x01 << 2
-#define TASK_2_DIV_FREQ 10
-#define TASK_2_OFFSET   0
-
-#define TASK_3_FLAG     0x01 << 3
-#define TASK_3_DIV_FREQ 20
-#define TASK_3_OFFSET   0
-
-#define TASK_4_FLAG     0x01 << 4
-#define TASK_4_DIV_FREQ 20
-#define TASK_4_OFFSET   5
-
-//#define TASK_5_FLAG     0x01 << 5
-//#define TASK_5_DIV_FREQ 20
-//#define TASK_5_OFFSET   19
-
-#define TASK_6_FLAG     0x01 << 6
-#define TASK_6_DIV_FREQ 1
-#define TASK_6_OFFSET   0
-
-#define TASK_7_FLAG     0x01 << 7
-#define TASK_7_DIV_FREQ 20
-#define TASK_7_OFFSET   19
-
-
-volatile uint8_t    task_flag       = 0;
-volatile uint32_t   tick_counter    = 0;
-
-/**
- * @brief Task selector function
- * 
- */
-void Task_Selector(void) {
-
-
-    // task 0
-    if ( ((tick_counter + TASK_0_OFFSET) % TASK_0_DIV_FREQ) == 0 ) {
-        task_flag  |= TASK_0_FLAG;
-//        printf("T0\n");
-    }
-
-
-    // task 1
-//    if ( ((tick_counter + TASK_1_OFFSET) % TASK_1_DIV_FREQ) == 0 )
-//        task_flag  |= TASK_1_FLAG;
-
-    // task 2
-    if ( ((tick_counter + TASK_2_OFFSET) % TASK_2_DIV_FREQ) == 0 ) {
-
-
-        task_flag  |= TASK_2_FLAG;
-
-    }
-
-    // task 3
-    if ( ((tick_counter + TASK_3_OFFSET) % TASK_3_DIV_FREQ) == 0 )
-        task_flag  |= TASK_3_FLAG;
-
-    // task 4
-    if ( ((tick_counter + TASK_4_OFFSET) % TASK_4_DIV_FREQ) == 0 )
-        task_flag  |= TASK_4_FLAG;
-
-
-    // task 5
-//    if ( ((tick_counter + TASK_5_OFFSET) % TASK_5_DIV_FREQ) == 0 )
-//        task_flag  |= TASK_5_FLAG;
-
-    // task 6
-    if ( ((tick_counter + TASK_6_OFFSET) % TASK_6_DIV_FREQ) == 0 ) {
-        task_flag  |= TASK_6_FLAG;
-    }
-
-
-    // task 7 - send results
-    if ( ((tick_counter + TASK_7_OFFSET) % TASK_7_DIV_FREQ) == 0 )
-        task_flag  |= TASK_7_FLAG;
-
-
-    // Increment the counter
-    tick_counter++;
-
-}
-
-
-
-/**
- * @brief set up all receive and send UART interrupts
- */
-void Set_All_Interrupts_1(void) {
-
-
-    EUSCI_A0->IE   |=  0x0001;  // printf()
-    EUSCI_A2->IE   |=  0x0001;  // RPLiDAR C1
-    EUSCI_A3->IE   |=  0x0001;  // BLE UART Friend
-
-    // take out the register that assigns the interrupt EN of TIMER_A1
-//    TIMER_A1->CCTL[0]  |= 0x0010;
-
-}
-
-/**
- * @brief set up all receive and send UART interrupts
- * @details difference 1 & 2 is that it holds and releases the whole EUSCI_Ax block
- *      while performing changes. In reality, it is not necessary
- */
-void Set_All_Interrupts_2(void) {
-
-    EUSCI_A0->CTLW0    |=  0x01;
-    EUSCI_A2->CTLW0    |=  0x01;
-    EUSCI_A3->CTLW0    |=  0x01;
-
-
-    EUSCI_A0->IE   |=  0x0001;  // printf()
-    EUSCI_A2->IE   |=  0x0001;  // RPLiDAR C1
-    EUSCI_A3->IE   |=  0x0001;  // BLE UART Friend
-//    TIMER_A1->CCTL[0]  |= 0x0010;
-
-
-    EUSCI_A0->CTLW0    &= ~0x01;
-    EUSCI_A2->CTLW0    &= ~0x01;
-    EUSCI_A3->CTLW0    &= ~0x01;
-
-}
 
 // ----------------------------------------------------------------------------
 //
@@ -947,59 +947,47 @@ void Set_All_Interrupts_2(void) {
 //
 // ----------------------------------------------------------------------------
 
-int main(void) {
+void main(void) {
 
     // disable watchdog timer
     WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;
 
-    // main-loop counter
-    int local_counter   = 0;
-
     // Initialize a buffer that will be used to receive command string from the
     // BLE module
-//    volatile char BLE_UART_Data_Buffer[BLE_UART_BUFFER_SIZE] = {0};
+    // volatile char BLE_UART_Data_Buffer[BLE_UART_BUFFER_SIZE] = {0};
 
+    // Initialize unused ports to reduce power consumption
+    Init_Unused_Ports();
 
     // Initialize the 48 MHz Clock
     Clock_Init48MHz();
 
 
     // Initialize the built-in red LED and the RGB LEDs
-//    LED1_Init();
+    // LED1_Init();    
     LED2_Init();
 
 
-    // Initialize the user buttons
-//    Buttons_Init();
-
-
-    // Initialize the front and back LEDs on the chassis board
-//    Chassis_Board_LEDs_Init();
+    // Buttons_Init();
+    // Chassis_Board_LEDs_Init();
 
 
     // Initialize EUSCI_A0_UART
     EUSCI_A0_UART_Init_Printf();
 
 
-
-    // Initialize the bumper switches which will be used to generate external
-    // I/O-triggered interrupts
-//    Bumper_Switches_Init(&Bumper_Switches_Handler);
-//    SysTick_Interrupt_Init(SYSTICK_INT_NUM_CLK_CYCLES, SYSTICK_INT_PRIORITY);
-
-
     // use Timer_A1_Interrupt to get the odometry measurements
-    Timer_A1_Interrupt_Init(
-            &Task_Selector,
-            TIMER_A1_CCR0_VALUE); // in clock ticks
+    // resulting output will be measured in increments of 10 ticks per second
+    Timer_A1_Interrupt_Init(&Task_Selector, TIMER_A1_CCR0_VALUE);
 
 
     // Initialize the tachometers as a function of Timer A3
     Tachometer_Init();
+    Reset_Pose_Accumulator(pose_ptr);
 
 
     // Initialize the DC motors
-//    Motor_Init();
+    Motor_Init();
 
 
     Set_All_Interrupts_1();
@@ -1008,27 +996,33 @@ int main(void) {
     // Enable the interrupts used by the SysTick and Timer_A timers
     EnableInterrupts();
 
-    // RPLiDAR C1 initialization ---------------------------------------
+    
+    /** ----------------------------------------------------------------------
+     * Initialize RPLiDAR C1 configuration struct instance 
+     */
+    Initialize_RPLiDAR_C1(&cfg, RPLiDAR_RX_Data);
 
-    initialize_RPLiDAR_C1(&cfg, RPLiDAR_RX_Data);
-
-    printf("C1 initialized\n\n");
-
-    // RPLiDAR C1 initialization end -----------------------------------
-
+#ifdef DEBUG_OUTPUTS
+    // printf("C1 initialized\n\n");
+#endif
 
     Set_All_Interrupts_1();
 
 
+#ifdef DEBUG_OUTPUTS
     printf("test scan -------\n\n");
+#endif
 
-    // BlueTooth module initialization ---------------------------------
 
-//    BLE_UART_Init(BLE_UART_Data_Buffer);
-//    Clock_Delay1ms(1000);
-//    BLE_UART_Reset();
-//    BLE_UART_OutString("BLE UART Active\r\n");
-//    Clock_Delay1ms(1000);
+    /** ----------------------------------------------------------------------
+     * Initialize BlueTooth module instance
+     */
+
+    // BLE_UART_Init(BLE_UART_Data_Buffer);
+    // Clock_Delay1ms(1000);
+    // BLE_UART_Reset();
+    // BLE_UART_OutString("BLE UART Active\r\n");
+    // Clock_Delay1ms(1000);
 
 
     // Enable the interrupts used by the SysTick and Timer_A timers
@@ -1039,237 +1033,360 @@ int main(void) {
     EUSCI_A2->IE   |=  0x0001;  // RPLiDAR C1
     EUSCI_A3->IE   |=  0x0001;  // BLE UART Friend
 
+//    Set_All_Interrupts_1();
 
-    printf("pressed\n");
-
-
-    // Bluetooth module initialization end -----------------------------
+#ifdef DEBUG_OUTPUTS
+//    printf("pressed\n");
+#endif
 
     TIMER_A1->CCTL[0]  |=  0x0010;
 
+
+    /** ----------------------------------------------------------------------
+     * main loop
+     */
+
+    uint32_t sequence_counter   = 0;
+    uint32_t local_counter      = 0;
+
     while (1)
     {
-
         /**
-         * @note   blocks execution until any interrupt occurs
+         * @note   blocks execution until *any* interrupt occurs
          */
         WaitForInterrupt();
 
         /**
          * @note receiving information over UART disables RXIE for whatever reason.
-         *       Enabling RXIE after __WFI() ensures that RXIE is *always* ON.
+         *       Enabling RXIE after W.F.I. ensures that RXIE is *always* ON.
          */
+        Set_All_Interrupts_1();
+
+        // printf("%04X\n", EUSCI_A3->IE); 
 
 
-        EUSCI_A0->IE   |=  0x0001;  // printf()
-        EUSCI_A2->IE   |=  0x0001;  // RPLiDAR C1
-        EUSCI_A3->IE   |=  0x0001;  // BLE UART Friend
-        TIMER_A1->CCTL[0]  |= 0x0010;
-
-
-
-
-//        printf("%04X\n", EUSCI_A3->IE);
-
-
-
-        // TASK 0: receive BLE motor commands at 10 times a second
+#ifdef TASK_0_FLAG
+        /**
+         * @note TASK 0: receive BLE motor commands at 10 times a second
+         */
         if (task_flag & TASK_0_FLAG) {
             task_flag  &= ~TASK_0_FLAG; // clear the flag
 
-//            Timer_A1_Ignore();
-
-//            Process_BLE_UART_Data(BLE_UART_Data_Buffer);
-
-//            Timer_A1_Acknowledge();
+            Timer_A1_Ignore();
+            Process_BLE_UART_Data(BLE_UART_Data_Buffer);
+            Timer_A1_Acknowledge();
         }
+#endif
 
 
-        // TASK 1: increment local_counter
-//        if (task_flag & TASK_1_FLAG) {
-//            task_flag  &= ~TASK_1_FLAG;
-//
-//
-//        }
+#ifdef TASK_1_FLAG
+        /**
+         * @note TASK 1: increment local_counter
+         */
+        if (task_flag & TASK_1_FLAG) {
+            task_flag  &= ~TASK_1_FLAG;
+        }
+#endif
 
 
-
+#ifdef TASK_2_FLAG
         /**
          * @note TASK 2: Get the measurements made by the tachometers
+         *       Accumulate incremental pose changes between LiDAR scans
          */
         if (task_flag & TASK_2_FLAG) {
             task_flag  &= ~TASK_2_FLAG;
 
+            // Get current tachometer readings
+            Tachometer_Get(&Tachometer_Buffer_Left[buffer_idx],
+                           &Left_Direction,
+                           &Left_Steps,
+                    
+                           &Tachometer_Buffer_Right[buffer_idx],
+                           &Right_Direction,
+                           &Right_Steps);
 
-
-            Tachometer_Get(
-                    &Tachometer_Buffer_Left[buffer_idx],
-                    &Left_Direction,
-                    &Left_Steps,
-
-                    &Tachometer_Buffer_Right[buffer_idx],
-                    &Right_Direction,
-                    &Right_Steps);
-
-
-            Get_Pose(local_counter, Left_Steps, Right_Steps, &current_pose);
-            current_pose.timestamp = tick_counter;  // Record timestamp
-
-
+            // Add incremental pose to accumulator
+            Get_Pose(local_counter,
+                     Left_Steps, Right_Steps,
+                     pose_ptr,
+                     tick_counter);
         }
+#endif
 
 
-        // TASK 3: turn on the RPLiDAR C1
+#ifdef TASK_3_FLAG
+        /**
+         * @note TASK 3: set flag to collect RPLiDAR C1 data
+         */
         if (task_flag & TASK_3_FLAG) {
             task_flag  &= ~TASK_3_FLAG;
 
+            // data collection profiling! --------------------------------
+            // Start_Timer();
 
             if (cfg.current_state == IDLING) {
 
-                // clear the memory before proceeding
-                memset(RPLiDAR_RX_Data, 0, RPLiDAR_UART_BUFFER_SIZE);
-
+                // memset(RPLiDAR_RX_Data, 0, RPLiDAR_UART_BUFFER_SIZE);
                 cfg.current_state   = READY;
             }
 
         }
+#endif
 
 
-
+#ifdef TASK_4_FLAG
         /**
-         * @note prepares the processor to record data
+         * @note TASK 4: processes recorded data and runs ICP
          */
-        if (task_flag & TASK_4_FLAG) {
+        if (task_flag & TASK_4_FLAG)
+        {
             task_flag  &= ~TASK_4_FLAG;
 
+    #ifdef DEBUG_OUTPUTS
+            // printf(cfg.current_state == IDLING      ? "IDLE\n" : "");
+            // printf(cfg.current_state == READY       ? "READY\n" : "");
+            // printf(cfg.current_state == RECORDING   ? "RECORDING\n" : "");
+            // printf(cfg.current_state == PROCESSING  ? "PROCESSING\n" : "");
+    #endif
 
-#define DATA_PT 5
+            // Timer_A1_Ignore();  
 
-            Timer_A1_Ignore();
-
-
-            if (cfg.current_state == PROCESSING) {
-
-
-                int aligned = 1;
-                int k;
-//
-                for (k = 0; k < RPLiDAR_UART_BUFFER_SIZE; k += 2*MSG_LENGTH) {
-//
-                     printf("%i", pattern(RPLiDAR_RX_Data + k));
-//
-//                    aligned &=      pattern(RPLiDAR_RX_Data + k + 0) \
-//                                &&  pattern(RPLiDAR_RX_Data + k + 1);
-//
-                }
-                aligned =       pattern(RPLiDAR_RX_Data + 0) \
-                            &&  pattern(RPLiDAR_RX_Data + 1) \
-                            &&  pattern(RPLiDAR_RX_Data + 2) \
-                            &&  pattern(RPLiDAR_RX_Data + 3);
-
-                printf("\n%d\n", aligned);
-
-                if (local_counter > 5) {
-//                if (aligned) {
-
-//                    printf("recording\n");
-
-                    process_rplidar_data(RPLiDAR_RX_Data, output);
-
-//                    printf("%3i: %7.2f, %7.2f\n",
-//                           DATA_PT, output[DATA_PT][0], output[DATA_PT][1]);
+            LED2_Output(RGB_LED_BLUE);
 
 
-                    // Transform point cloud to global frame using current pose
+            // profiling start! -----------------------------------------------
+
+    #ifdef DEBUG_OUTPUTS
+//            Start_Timer();
+    #endif
+            /**
+             * @brief If in PROCESSING state, process the recorded data
+             */
+            if (cfg.current_state == PROCESSING)
+            {
+                uint32_t aligned;
+
+    #ifdef DEBUG_OUTPUTS
+                // int first_5;
+    #endif
+
+                aligned = confirm_aligned(RPLiDAR_RX_Data);
+
+    #ifdef DEBUG_OUTPUTS
+                // Second test: Check first few packets specifically
+                // first_5 =    pattern(RPLiDAR_RX_Data + 0*MSG_LENGTH) \
+                //           && pattern(RPLiDAR_RX_Data + 1*MSG_LENGTH) \
+                //           && pattern(RPLiDAR_RX_Data + 2*MSG_LENGTH) \
+                //           && pattern(RPLiDAR_RX_Data + 3*MSG_LENGTH);
+
+                // printf("Alignment: %d, %d\n", aligned, first_5);
+    #endif                
+
+                /**
+                 * @brief If data is aligned, process it and run SLAM
+                 * 
+                 * @note the expected Processing Sketch format for pose + 
+                 *  pointcloud info is:
+                 *   POSE,x,y,theta
+                 *   SCAN_START
+                 *   P,x,y
+                 *   P,x,y
+                 *   ...
+                 *   SCAN_END
+                 */
+                if (aligned)
+                {
+                    // counter variables
+                    int k;
+                    
+                    uint32_t valid_point_count;
+
                     float T_matrix[3][3] = {0};
                     PointCloud transformed_cloud;
+                    PointCloud local_cloud;  // Local scan in sensor frame
+
+
+                    // visually indicate if aligned
+                    LED2_Output(RGB_LED_WHITE);
+
+
+                    /**
+                     * Collate all intermediate poses into single composite 
+                     *      transformation, and then reset the accumulator.
+                     */
+    #ifdef DEBUG_OUTPUTS
+//                    uint32_t num_samples = pose_ptr->num_elements;  // Save before reset
+    #endif
+                    // Get incremental motion since last scan
+                    Accumulate_Poses(pose_ptr, &incremental_pose);
+                    incremental_pose.timestamp = tick_counter;
                     
-                    // Create transformation matrix from current pose
-                    make_transformation_matrix_pose(&current_pose, T_matrix);
+                    // NOTE: We do NOT update global_pose here anymore!
+                    // Perform_SLAM() will refine incremental_pose with ICP and update global_pose
+                    // This ensures state and constraints are consistent
+                    
+                    Reset_Pose_Accumulator(pose_ptr);
+                    
+    #ifdef DEBUG_OUTPUTS
+                //    printf("Composite pose from %lu samples: "
+                //           "x=%.2f y=%.2f theta=%.3f\n",
+                //           num_samples,
+                //           incremental_pose.x, incremental_pose.y, incremental_pose.theta);
+    #endif
+                    
+                    /**
+                     * Process RPLiDAR C1 data into buffer `output`, and 
+                     *  transform it with the global pose for visualization. 
+                     */
+                    valid_point_count = 0;
+                    Process_RPLiDAR_Data(RPLiDAR_RX_Data,
+                                         output,
+                                         &valid_point_count);
+
+                    // Use global_pose for visualization transform
+                    Make_Transformation_Matrix_Pose(&global_pose, 
+                                                    T_matrix);
                     
 
-                    // Transform each point to global frame and populate PointCloud
-                    transformed_cloud.num_points = 0;
+                    // Populate local and transformed point clouds
+                    transformed_cloud.num_pts    = 0;
+                    local_cloud.num_pts          = 0;
 
-                    int k;
-                    for (k = 0; k < OUTPUT_BUFFER; k++) {
 
-                        // Skip invalid points
-                        if (output[k][0] == 0.0f && output[k][1] == 0.0f) {
-                            continue;
-                        }
+                    printf("POSE,%5.2f,%5.2f,%5.2f\n",
+                           global_pose.x,
+                           global_pose.y,
+                           global_pose.theta);
+
+//                    printf("SCAN_START\n");
+
+                    
+                    // for each valid point in the output buffer
+                    for (k = 0; k < valid_point_count; k++)
+                    {
+                        
+                        // Store local scan point (in sensor frame)
+                        local_cloud.points[local_cloud.num_pts].x \
+                            = output[k][0];
+                        local_cloud.points[local_cloud.num_pts].y \
+                            = output[k][1];
+                        local_cloud.num_pts++;
                         
                         // Each point as homogeneous coordinates [x, y, 1]
                         float point[3] = {output[k][0], output[k][1], 1.0f};
                         
                         // Transformed point = T_matrix * point
-                        transformed_cloud.points[transformed_cloud.num_points].x \
+                        transformed_cloud.points[transformed_cloud.num_pts].x \
                             =    T_matrix[0][0]*point[0] \
                                + T_matrix[0][1]*point[1] \
                                + T_matrix[0][2]*point[2];
-                        transformed_cloud.points[transformed_cloud.num_points].y \
+                        transformed_cloud.points[transformed_cloud.num_pts].y \
                             =    T_matrix[1][0]*point[0] \
                                + T_matrix[1][1]*point[1] \
                                + T_matrix[1][2]*point[2];
                         
-                        transformed_cloud.num_points++;
+                        transformed_cloud.num_pts++;
+
+    #ifdef PROCESSING_EXPECTED_OUTPUTS
+//                        printf("P,%5.2f,%5.2f\n",
+//                               transformed_cloud.points[transformed_cloud.num_pts].x,
+//                               transformed_cloud.points[transformed_cloud.num_pts].y);
+    #endif
                     }
+
+    #ifdef PROCESSING_EXPECTED_OUTPUTS
+//                    printf("SCAN_END\n");
+                    // printf("SAVE\n");
+    #endif
+
                     
-//                    printf("Transformed cloud: %d points | Sample %3i: local(%7.2f, %7.2f) -> global(%7.2f, %7.2f)\n",
-//                           transformed_cloud.num_points, DATA_PT,
-//                           output[DATA_PT][0], output[DATA_PT][1],
-//                           transformed_cloud.points[DATA_PT].x, transformed_cloud.points[DATA_PT].y);
+    #ifdef DEBUG_OUTPUTS
 
-    //                test_slam(&transformed_cloud);
+        #define DATA_PT 5
 
+                    // printf("Transformed cloud: %d points"
+                    //        " | Sample %3i: local(%7.2f, %7.2f)"
+                    //        " -> global(%7.2f, %7.2f)\n",
+                    //         transformed_cloud.num_pts,
+                    //         DATA_PT,
+                    //         output[DATA_PT][0],
+                    //         output[DATA_PT][1],
+                    //         transformed_cloud.points[DATA_PT].x,
+                    //         transformed_cloud.points[DATA_PT].y);
+    #endif
 
+                    Perform_SLAM(&local_cloud, &transformed_cloud);
+                    
                 }
 
-                // regardless, reset the state to IDLE
+                LED2_Output(RGB_LED_OFF);
+
+                // regardless if non-/aligned, reset the state to IDLE
                 cfg.current_state   = IDLING;
 
-
-
-
-
-            } else {
-
-                printf("counting\n");
-
             }
+
+
+            // profiling end! -------------------------------------------------
+
+    #ifdef DEBUG_OUTPUTS
+//            printf("\tdata processing ");
+//            Stop_Timer();
+    #endif
 
             Timer_A1_Acknowledge();
 
         }
+#endif // #ifdef TASK_4_FLAG
 
 
+
+#ifdef TASK_5_FLAG
+        /**
+         * @note TASK 5: blank
+         */
+        if (task_flag & TASK_5_FLAG) {
+            task_flag  &= ~TASK_5_FLAG;
+        }
+#endif // #ifdef TASK_5_FLAG
+
+
+
+#ifdef TASK_6_FLAG
+        /**
+         * @note: TASK 6: print persistently
+         */
         if (task_flag & TASK_6_FLAG) {
             task_flag  &= ~TASK_6_FLAG;
 
-//            printf("am here 6");
-            printf("%5d\n", local_counter);
+    #ifdef DEBUG_OUTPUTS
+//             printf("%5d %5d\n", local_counter, sequence_counter);
+    #endif
 
-
+            sequence_counter++;
         }
+#endif // #ifdef TASK_6_FLAG
 
 
 
-
+#ifdef TASK_7_FLAG
         /**
-         * @note TASK 6: increment counter if either:
-         *      - LiDAR data is correct!
+         * @note TASK 7: increment counter
          */
         if (task_flag & TASK_7_FLAG) {
             task_flag  &= ~TASK_7_FLAG;
 
-
-            printf("\n\n\n");
-
-
+    #ifdef DEBUG_OUTPUTS
+            printf("\n\n");
+    #endif
             local_counter++;
+
+            sequence_counter = 0;
         }
+#endif // #ifdef TASK_7_FLAG
 
     }
 
-}
+} // void main(void) end ------------------------------------------------------
 

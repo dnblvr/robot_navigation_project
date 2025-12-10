@@ -1,4 +1,5 @@
-# 1. Autonomous Navigation Project
+<!-- omit in toc -->
+# Autonomous Navigator
 
 Principal Authors: &nbsp; **Lucero Aguilar-Larios** & **Gian Fajardo**
 
@@ -7,27 +8,26 @@ Faculty Advisor: &emsp; **Dr. Shahnam Mirzaei**
 <!-- markdownlint-disable MD059 -->
 <!-- markdownlint-disable MD033 -->
 
-## 1.1. Table of Contents
+<!-- omit in toc -->
+## Table of Contents
 
-- [1. Autonomous Navigation Project](#1-autonomous-navigation-project)
-  - [1.1. Table of Contents](#11-table-of-contents)
-  - [1.2. Goals](#12-goals)
-  - [1.3. Methods](#13-methods)
-  - [1.4. Materials](#14-materials)
-  - [1.5. Online Resources](#15-online-resources)
-    - [1.5.1. Things I've made to explain this stuff](#151-things-ive-made-to-explain-this-stuff)
-    - [1.5.2. C library](#152-c-library)
-    - [1.5.3. Hardware Development](#153-hardware-development)
-    - [1.5.4. Sensor Fusion with MARG sensor](#154-sensor-fusion-with-marg-sensor)
-    - [1.5.5. Iterative Closest Point (ICP)](#155-iterative-closest-point-icp)
-    - [1.5.6. GraphSLAM](#156-graphslam)
-    - [1.5.7. EKF-SLAM](#157-ekf-slam)
-    - [1.5.8. RRT\*](#158-rrt)
-  - [1.6. Checklist](#16-checklist)
+- [1. Goals](#1-goals)
+- [2. Methods](#2-methods)
+- [3. Materials](#3-materials)
+- [4. Online Resources](#4-online-resources)
+  - [4.1. Things I've made to explain this stuff](#41-things-ive-made-to-explain-this-stuff)
+  - [4.2. C library](#42-c-library)
+  - [4.3. Hardware Development](#43-hardware-development)
+  - [4.4. Sensor Fusion with MARG sensor](#44-sensor-fusion-with-marg-sensor)
+  - [4.5. Iterative Closest Point (ICP)](#45-iterative-closest-point-icp)
+  - [4.6. GraphSLAM](#46-graphslam)
+  - [4.7. EKF-SLAM](#47-ekf-slam)
+  - [4.8. RRT\*](#48-rrt)
+- [5. Checklist](#5-checklist)
 
 ---
 
-## 1.2. Goals
+## 1. Goals
 
 ![alt text](<./images/image 1.png>)
 
@@ -40,7 +40,7 @@ Faculty Advisor: &emsp; **Dr. Shahnam Mirzaei**
    2. EKF-SLAM method
 <!-- 2. navigates from one user-defined coordinate to another all while avoiding obstacles. -->
 
-## 1.3. Methods
+## 2. Methods
 
 Here is how we achieve our goals:
 
@@ -52,7 +52,7 @@ Here is how we achieve our goals:
 
 <!-- - We will also write a motion planning algorithm called the Rapidly-Exploring Random Trees (RRT*) or some equivalent. -->
 
-## 1.4. Materials
+## 3. Materials
 
 The materials involved include:
 
@@ -76,19 +76,19 @@ The materials involved include:
 
 [sparkfun-icm-20948]: (http://www.sparkfun.com/sparkfun-9dof-imu-breakout-icm-20948-qwiic.html)
 
-## 1.5. Online Resources
+## 4. Online Resources
 
-### 1.5.1. Things I've made to explain this stuff
+### 4.1. Things I've made to explain this stuff
 
 - the [CSUN-SPaRA presentation][] I spoke at to explain my progress
 
 [CSUN-SPaRA Presentation]: https://docs.google.com/presentation/d/1J_DLSFxBZO6KGPgfmmhxmArGXOe7M399n4DHQqT86TA/edit?usp=sharing
 
-### 1.5.2. C library
+### 4.2. C library
 
 - [The GNU C Library Reference Manual - GNU.org][]
 
-### 1.5.3. Hardware Development
+### 4.3. Hardware Development
 
 - [RPLiDAR C1 Support Page][]
   - [RPLiDAR S&C Series Protocol v2.8][rplidar-c1-application-notes]
@@ -146,11 +146,11 @@ The materials involved include:
 
 [rplidar-c1-application-notes]: https://bucket-download.slamtec.com/c5971f2703a8d014f3925694d798ea490a370efa/LR001_SLAMTEC_rplidar_S&C%20series_protocol_v2.8_en.pdf
 
-### 1.5.4. Sensor Fusion with MARG sensor
+### 4.4. Sensor Fusion with MARG sensor
 
 - [SparkFun\_ICM\-20948\_ArduinoLibrary\/examples\/PortableC\/Example999\_Portable\/Example999\_Portable\.ino at main · sparkfun\/SparkFun\_ICM\-20948\_ArduinoLibrary][]
 
-### 1.5.5. Iterative Closest Point (ICP)
+### 4.5. Iterative Closest Point (ICP)
 
 - [Iterative Closest Point \(ICP\) - 5 Minutes with Cyrill - YouTube][]
 - [Singular value decomposition - Wikipedia][]
@@ -158,7 +158,7 @@ The materials involved include:
 [Iterative Closest Point \(ICP\) - 5 Minutes with Cyrill - YouTube]: https://www.youtube.com/watch?v=QWDM4cFdKrE "Iterative Closest Point \(ICP\) - 5 Minutes with Cyrill - YouTube"
 [Singular value decomposition - Wikipedia]: https://en.wikipedia.org/wiki/Singular_value_decomposition "Singular value decomposition - Wikipedia"
 
-### 1.5.6. GraphSLAM
+### 4.6. GraphSLAM
 
 - [Understanding SLAM Using Pose Graph Optimization \| Autonomous Navigation\, Part 3 \- YouTube][]
 - [A brief introduction to GraphSLAM \| by Shiva Chandrachary \| Medium][]
@@ -181,7 +181,7 @@ The materials involved include:
 
 [A Tutorial on Graph-Based SLAM - Grisetti et. al.]: http://www2.informatik.uni-freiburg.de/~stachnis/pdf/grisetti10titsmag.pdf
 
-### 1.5.7. EKF-SLAM
+### 4.7. EKF-SLAM
 
 - [The Extended Kalman Filter: An Interactive Tutorial][]
 - [EKF-SLAM A Very Quick Guide - SLAM course.pdf][]
@@ -189,7 +189,7 @@ The materials involved include:
 [The Extended Kalman Filter: An Interactive Tutorial]: https://simondlevy.github.io/ekf-tutorial/ "The Extended Kalman Filter: An Interactive Tutorial"
 [EKF-SLAM A Very Quick Guide - SLAM course.pdf]: https://www.iri.upc.edu/people/jsola/JoanSola/objectes/curs_SLAM/SLAM2D/SLAM%20course.pdf "EKF-SLAM A Very Quick Guide - SLAM course.pdf"
 
-### 1.5.8. RRT\*
+### 4.8. RRT\*
 
 - [Path Planning with A\* and RRT \| Autonomous Navigation\, Part 4 \- YouTube][]
 - [path finding \- rapid exploring random trees \- Stack Overflow][]
@@ -212,7 +212,7 @@ The materials involved include:
 
 [An application of Numerical Solution to Maximum Likelihood Estimation in GraphSLAM \| by Shiva Chandrachary \| Medium]: https://shivachandrachary.medium.com/an-application-of-numerical-solutions-to-maximum-likelihood-estimation-in-graphslam-31a7284721e3 "An application of Numerical Solution to Maximum Likelihood Estimation in GraphSLAM | by Shiva Chandrachary | Medium"
 
-## 1.6. Checklist
+## 5. Checklist
 
 In general, for all tasks, they should follow the same guidelines:
 

@@ -7,8 +7,6 @@
 #define __INC_RPLIDAR_C1_H__
 
 #include "Project_Config.h"
-
-
 #include "RPLiDAR_A2_UART.h"
 #include "coordinate_transform.h"
 
@@ -28,9 +26,9 @@
  *
  *  - For the single-request, no-response commands, the format is in:
  *      {command, byte-length, time}
+ *
  *  - For the single-request, single-response commands, the format is in:
  *      {command, byte-length}
- *
  */
 typedef struct {
     uint8_t command,
@@ -71,7 +69,6 @@ void Process_RPLiDAR_Data(
         const uint8_t   RX_DATA[RPLiDAR_UART_BUFFER_SIZE],
         float           out[OUTPUT_BUFFER][3],
         uint32_t*       point_count);
-
 
 
 

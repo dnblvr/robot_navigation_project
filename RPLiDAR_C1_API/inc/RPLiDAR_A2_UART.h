@@ -80,7 +80,7 @@ typedef enum {
  * @param   offset
  * @param   limit_status    indicates where in the counting stage we are at
  *
- * @details     status 0x01:
+ * @details     status
  */
 typedef volatile struct {
 
@@ -88,25 +88,19 @@ typedef volatile struct {
 
     uint8_t     skip_factor;
 
-    uint8_t     skip_index,
-                find_index,
-                wait_index;
-
-    uint8_t    *RX_POINTER;
-
     Record_States   limit_status;
-    uint8_t         limit;
+    volatile uint8_t    limit;
 
     // --------------------------------------
 
-    volatile uint8_t   *buffer_pointer;
+    volatile uint8_t*   buffer_pointer;
 
     volatile uint32_t   isr_counter;
     volatile uint32_t   buffer_counter;
 
     // --------------------------------------
 
-    RPLiDAR_States current_state;
+    volatile RPLiDAR_States current_state;
 
     // --------------------------------------
 

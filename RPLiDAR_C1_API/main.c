@@ -1058,7 +1058,7 @@ void main(void) {
          */
         Set_All_Interrupts_1();
 
-        // printf("%04X\n", EUSCI_A3->IE); 
+        // printf("%04X\n", EUSCI_A3->IE);
 
 
 #ifdef TASK_0_FLAG
@@ -1256,8 +1256,8 @@ void main(void) {
                            global_pose.theta);
 
                     printf("SCAN_START\n");
-
                     
+
                     // for each valid point in the output buffer
                     for (k = 0; k < valid_point_count; k++)
                     {

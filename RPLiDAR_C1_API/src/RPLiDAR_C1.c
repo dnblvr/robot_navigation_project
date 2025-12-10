@@ -1,33 +1,16 @@
 /**
  * @file    RPLiDAR_C1.c
- * @brief   higher-level functions that would be used to work regardless of
- *  the
+ * @brief   higher-level functions that are used to interface with the C1 regardless of
+ *  the microcontroller involved
  */
 
 #include "./inc/RPLiDAR_C1.h"
-#include "../inc/Project_Config.h"
-
 
 
 /**
- * @note local definition of RPLiDAR cfg struct
+ * @note local definition of RPLiDAR `cfg` struct
  */
 RPLiDAR_Config cfg = {.skip_factor = 2};
-
-
-// Single-Request, No-Response
-//const uint16_t     STOP[3] = {0x25,  0,  10},
-//                  RESET[3] = {0x40,  0, 500};
-
-// Single-Request, Single-Response
-//const uint8_t  GET_INFO[2] = {0x50, 20},
-//             GET_HEALTH[2] = {0x52,  8},
-//         GET_SAMPLERATE[2] = {0x59,  0},
-//         GET_LIDAR_CONF[2] = {0x84,  0},
-//
-//// Single-Request, Multiple-Response
-//                   SCAN[2] = {0x20,  5},
-//           EXPRESS_SCAN[2] = {0x82,  5};
 
 
 // Single-Request, No-Response
@@ -95,12 +78,15 @@ void Initialize_RPLiDAR_C1(
 }
 
 
-
+/**
+ * @todo change this output array to a Point
+ */
 void Process_RPLiDAR_Data(
         const uint8_t   RX_DATA[RPLiDAR_UART_BUFFER_SIZE],
         float               out[OUTPUT_BUFFER][3],
         uint32_t*       point_count)
 {
+
     // counter
     int i = 0;
 
@@ -414,7 +400,7 @@ static uint8_t to_distance_angle(
     uint32_t angle      = (( msg_ptr[2] << 7 ) | ( msg_ptr[1] & 0x7F ));
     uint32_t distance   = (( msg_ptr[4] << 8 ) |   msg_ptr[3]         );
 
-    // early return if the distance is zero
+    // early return if `distance` is zero
     if (distance == 0)
         return 0;
 

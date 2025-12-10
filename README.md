@@ -31,11 +31,11 @@ Faculty Advisor: &emsp; **Dr. Shahnam Mirzaei**
 
 ![alt text](<./images/image 1.png>)
 
-&emsp;&emsp; The scope of this project is to explore the fundamentals of LiDAR-basd 2D mapping and autonomous navigation. In a world reliant on more autonomous systems, these systems need to navigate effectively as they can enable efficient and precise movements in complex environments without human intervention. Furthermore, the system needs to prioritize the safety of the human agents around it. In part, it should traverse dangerous places that humans cannot survive. Exploration of our oceans, disasters created from war, and planets can and do benefit from having autonomous systems. To do this, Autonomous Systems need to identify its environment. From there, motion planning algorithms are applied.
+&emsp;&emsp; The scope of this project is to explore the fundamentals of LiDAR-based 2D mapping and autonomous navigation. In a world reliant on more autonomous systems, these systems need to navigate effectively as they can enable efficient and precise movements in complex environments without human intervention. Furthermore, the system needs to prioritize the safety of the human agents around it. In part, it should traverse dangerous places that humans cannot survive. Exploration of our oceans, disasters created from war, and planets can and do benefit from having autonomous systems. To do this, Autonomous Systems need to identify its environment. From there, motion planning algorithms are applied.
 
 &emsp;&emsp; Whereas other work uses other autonomous systems like humanoids, which will have to adopt different mathematical models to describe their states, our project is different. To see if this plan is feasible, we will simplify the scope to make a two-wheeled robot navigator from the TI-RSLK chassis. This navigator is to be equipped with a LiDAR scanner, the RPLiDAR C1. The goal of this research project is to make an autonomous system that:
 
-1. scans its environment through two different modes
+1. scan its environment through two different modes
    1. GraphSLAM method
    2. EKF-SLAM method
 <!-- 2. navigates from one user-defined coordinate to another all while avoiding obstacles. -->
@@ -46,9 +46,9 @@ Here is how we achieve our goals:
 
 - We will recreate its pose and its environment in-memory using the graph-based Simultaneous Localization and Mapping (GraphSLAM) algorithm and Kalman filter based using the multiple LiDAR ICs mentioned before.
 
-- We sensor fusion via the extended Kalman Filter (EKF) which will hopefully gather a better estimate of its state without the expected drift from GraphSLAM alone. We intend to use additional sensors like a MARG sensor and a GPS receiver.
+- We perform sensor fusion via the extended Kalman Filter (EKF) which will hopefully gather a better estimate of its state without the expected drift from GraphSLAM alone. We intend to use additional sensors like a MARG sensor and a GPS receiver.
 
-- for methods, we will consider using new methods involved. for me, I was considering looking toto scan matching methods (ICP) or as a second point of measurement for EKF-SLAM
+- For methods, we will consider using new approaches. I was considering investigating scan matching methods (ICP) as a second point of measurement for EKF-SLAM.
 
 <!-- - We will also write a motion planning algorithm called the Rapidly-Exploring Random Trees (RRT*) or some equivalent. -->
 
@@ -101,7 +101,7 @@ The materials involved include:
 
 ---
 
-- these collection of links might be a very interesting use of firmware optimization using the alreaedy-existing ARM-v4 optimized CMSIS libraries
+- This collection of links might be a very interesting use of firmware optimization using the already-existing ARM-v4 optimized CMSIS libraries
 - [PowerPoint Presentation - msp432.pdf][]
 - [SIMPLELINK-MSP432-SDK Software development kit \(SDK\) | TI.com][]
 - [using CMSIS-DSP for msp432 system - Google Search][]
@@ -110,7 +110,7 @@ The materials involved include:
 
 ---
 
-- these collection of links is in the event that I *did* want to transition to my own boards instead of the (kindly provided) CSUN-supplied `MSP432P401R`
+- This collection of links is in the event that I *did* want to transition to my own boards instead of the (kindly provided) CSUN-supplied `MSP432P401R`
 - [RainerKuemmerle/g2o: g2o: A General Framework for Graph Optimization][]
   - [g2o: A General Framework for Graph Optimization - paper.pdf][]
     - [G2o: A general framework for graph optimization | IEEE Conference Publication | IEEE Xplore][]

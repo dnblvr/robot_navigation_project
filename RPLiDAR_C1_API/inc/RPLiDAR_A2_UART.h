@@ -21,12 +21,13 @@
 #include "GPIO_Utilities.h"
 
 
-#include "Project_Config.h"
 
 
 #include "msp.h"
 #include "Clock.h"
 #include "coordinate_transform.h"
+#include "Project_Config.h"
+#include "Timer_A1_Interrupt.h"
 
 #include <stdint.h>
 #include <string.h>
@@ -59,7 +60,7 @@ typedef enum {
 } Record_States;
 
 /**
- * @brief states of the RPLiDAR C1 system itself
+ * @brief state of the RPLiDAR C1 system itself
  */
 typedef enum {
 
@@ -82,13 +83,13 @@ typedef enum {
  *
  * @details     status
  */
-typedef volatile struct {
+typedef struct {
 
     // --------------------------------------
 
-    uint8_t     skip_factor;
+    uint8_t             skip_factor;
 
-    Record_States   limit_status;
+    Record_States       limit_status;
     volatile uint8_t    limit;
 
     // --------------------------------------

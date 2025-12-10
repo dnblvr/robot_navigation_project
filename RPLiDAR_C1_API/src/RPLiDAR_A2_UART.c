@@ -22,17 +22,16 @@
  */
 
 #include "../inc/RPLiDAR_A2_UART.h"
-#include "../inc/Timer_A1_Interrupt.h"
 
 
 /**
- * @brief local variable
+ * @brief local variables to be used in this file
  */
-static volatile RPLiDAR_Config* config = NULL;
+static RPLiDAR_Config* config = NULL;
 
-static uint32_t wait_index,
-                find_index,
-                skip_index;
+static uint32_t wait_index = 0,
+                find_index = 0,
+                skip_index = 0;
 static uint8_t* RX_POINTER = NULL;
 
 
@@ -56,15 +55,14 @@ void configure_RPLiDAR_struct(
     RX_POINTER              = (uint8_t*)RX_Data;
 
 
-    // Generate the counter variables
-    config->    isr_counter = 0;
+    // Generate the reset state
+    config->current_state   = IDLING;
+    config->  limit_status  = HOLD;         // Initialize to HOLD state
+    config->  limit         = wait_index;
     config-> buffer_counter = 0;
     config-> buffer_pointer = RX_POINTER;
 
-    config->  limit_status  = HOLD;
-    config->current_state   = IDLING;
-    config->  limit         = wait_index;   // Initialize to HOLD state
-
+    config->    isr_counter = 0;
 
 #ifdef DEBUG_OUTPUT
     // printf(" 0 -> %2d -> %2d\n", skip_index, skip_index + MSG_LENGTH);
@@ -398,8 +396,6 @@ void EUSCIA2_IRQHandler(void) {
                     config-> buffer_pointer = RX_POINTER;
                     config-> buffer_counter = 0;
 
-//                    printf("a\n");
-
                 }
 
                 break;
@@ -409,12 +405,10 @@ void EUSCIA2_IRQHandler(void) {
 
             case FIND_PATTERN: {  // ------------------------------------------
 
-                // printf("b");
-
                 uint32_t    offset;
                 uint32_t    found   = 0;
 
-                // check which `offset` his most aligned
+                // check which `offset` is most aligned
                 for (offset = 0; offset < MSG_LENGTH; offset++) {
 
                     found =    pattern(RX_POINTER + MSG_LENGTH*0 + offset)
@@ -436,8 +430,6 @@ void EUSCIA2_IRQHandler(void) {
                             config->limit           = offset;
                         }
 
-                        // printf("1");
-
                         break;
 
                     }
@@ -451,8 +443,6 @@ void EUSCIA2_IRQHandler(void) {
                 config->buffer_pointer  = RX_POINTER;
                 config->buffer_counter  = 0;
 
-                // printf("2");
-
                 break;
 
             }
@@ -461,8 +451,8 @@ void EUSCIA2_IRQHandler(void) {
             case ADD_OFFSET: {  // --------------------------------------------
 
                 config-> limit_status   = SKIP;
+                config-> limit          = skip_index;
                 config->buffer_pointer  = RX_POINTER;
-                config->limit           = skip_index;
                 config->buffer_counter  = 0;
 
                 break;
@@ -476,8 +466,6 @@ void EUSCIA2_IRQHandler(void) {
              *      RPLiDAR_UART_BUFFER_SIZE
              *
              * @todo switch it with RECORD and then SKIP
-             *
-             *      process_data_flag
              */
 
             case SKIP: {  // --------------------------------------------------
@@ -490,9 +478,9 @@ void EUSCIA2_IRQHandler(void) {
                     config->buffer_pointer  = RX_POINTER;
                     config->buffer_counter  = 0;
 
-//                    Stop_Timer();
+                    Timer_A1_Acknowledge();
 
-//                    printf("e1\n");
+//                    Stop_Timer();
 
                 } else {
 
@@ -500,8 +488,6 @@ void EUSCIA2_IRQHandler(void) {
                     // config->limit_status    = RECORD;
                     config->limit_status   += 1;
                     config->limit           = MSG_LENGTH;
-
-//                    printf("d1\n");
 
                 }
 
@@ -520,11 +506,9 @@ void EUSCIA2_IRQHandler(void) {
                     config->buffer_pointer  = RX_POINTER;
                     config->buffer_counter  = 0;
 
-//                    Timer_A1_Acknowledge();
+                    Timer_A1_Acknowledge();
 
 //                    Stop_Timer();
-
-//                    printf("e2\n");
 
                 } else {
 
@@ -532,8 +516,6 @@ void EUSCIA2_IRQHandler(void) {
                     // config->limit_status    = SKIP;
                     config->limit_status   -= 1;
                     config->limit           = skip_index;
-
-//                    printf("d2\n");
                 }
 
                 break;
@@ -585,7 +567,7 @@ uint8_t confirm_aligned(
     uint32_t i;
     uint32_t aligned;
 
-    // Check all MSGS until proven otherwise
+    // Check all MSGs until proven otherwise
     aligned     = 1;
     for (i = 0; i < RPLiDAR_UART_BUFFER_SIZE; i += MSG_LENGTH)
     {

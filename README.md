@@ -24,6 +24,9 @@ Faculty Advisor: &emsp; **Dr. Shahnam Mirzaei**
   - [4.7. EKF-SLAM](#47-ekf-slam)
   - [4.8. RRT\*](#48-rrt)
 - [5. Checklist](#5-checklist)
+  - [Task 1: 12 Dec 2025 (3 weeks)](#task-1-12-dec-2025-3-weeks)
+  - [Task 2](#task-2)
+  - [Ongoing Task](#ongoing-task)
 
 ---
 
@@ -220,3 +223,26 @@ In general, for all tasks, they should follow the same guidelines:
 - [ ] simulate it in normal C code in Visual Studio Code, MATLAB, or any other IDE, if possible
   - [ ] if simulating in MATLAB, use its C-code converter
 - [ ] optimize the functions once done, if applicable
+
+### Task 1: 12 Dec 2025 (3 weeks)
+
+- [ ] improve motor control and motor tachometer functions
+  - [ ] perhaps incorporate the `ICM-20948` (exclusively I^2^C) to supplement the tachometer-only motion model
+- [ ] improve GraphSLAM
+  - [ ] loop closure detection
+    - [ ] develop auto-steering/local planning using the Dynamic Window Approach (DWA) to prevent direct steering
+  - [ ] perhaps explore other methods like HECTOR SLAM (will provide links)
+
+### Task 2
+
+- [ ] explore EKF-SLAM
+
+### Ongoing Task
+
+- [ ] meet every Monday to check on our weekly progress
+
+| Monday |                                Task                                 |
+|-------:|:--------------------------------------------------------------------|
+| 14 Dec | <input type="checkbox"> 1^st^ progress report                       |
+| 21 Dec | <input type="checkbox"> 2^nd^ progress report    <br><input type="checkbox"> give time to decide to stick by the project |
+| 28 Dec | <input type="checkbox"> 3^rd^ progress report                       |

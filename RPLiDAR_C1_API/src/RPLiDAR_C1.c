@@ -30,6 +30,12 @@ const Single_Response \
            EXPRESS_SCAN = {0x82,  5};
 
 
+/**
+ * @brief
+ */
+//typedef void (*Timer_Command)(void);
+
+
 // -------------------------------------------------------------------------------------
 //
 //  INITIALIZATION
@@ -39,17 +45,24 @@ const Single_Response \
 
 void Initialize_RPLiDAR_C1(
         const RPLiDAR_Config*   config,
-        uint8_t*                RPLiDAR_RX_Data)
+              uint8_t*          RPLiDAR_RX_Data
+//        ,
+//        Timer_Command*  ignore_cmd,
+//        Timer_Command*  acknowledge_cmd
+        )
 {
 
     // @details The process for using SCAN command:
     //  1. turn on the UART TX/RX interrupt enable
-    //  2. record our out-characters onto an array until it fills up?
-    //  3. turn off the UART TX/RX interrupt enable
-    //  4. process the data
+    //  2. set up C1 using the RESET, GET_HEALTH, and SCAN commands for
+    //      continuous scan
+    //  3. read characters at a set time determined by an external timer
+    //  4. record our out-characters onto an array until it fills up
+    //  5. process the data
+    //  6. go to step 3
 
     // configure the structure
-    configure_RPLiDAR_struct(config, RPLiDAR_RX_Data);
+    Configure_RPLiDAR_Struct(config, RPLiDAR_RX_Data);
 
 
     // Initialize UART communications
@@ -193,7 +206,7 @@ void Single_Request_No_Response(
         const No_Response* cmd)
 {
 
-    EUSCI_A2_UART_OutChar(       0xA5 );    // start flag
+    EUSCI_A2_UART_OutChar(         0xA5 );    // start flag
     EUSCI_A2_UART_OutChar( cmd->command );
 
 
@@ -411,18 +424,18 @@ static uint8_t to_distance_angle(
 #ifdef DEBUG_OUTPUT
     // Debug: Show raw bytes, distance and angle
     // Only print if distance is 0 (invalid) or for first few points
-    static int debug_count = 0;
-    if (distance == 0 || debug_count < 5) {
-
-        printf("RAW[%02X %02X %02X %02X %02X] -> dist=%lu ang=%.1f deg\n",
-               msg_ptr[0], msg_ptr[1], msg_ptr[2], msg_ptr[3],
-               msg_ptr[4], distance, (float)angle / 64.f);
-
-        debug_count++;
-
-        if (debug_count >= 100)
-            debug_count = 0;  // Reset periodically
-    }
+//    static int debug_count = 0;
+//    if (distance == 0 || debug_count < 5) {
+//
+//        printf("RAW[%02X %02X %02X %02X %02X] -> dist=%lu ang=%.1f deg\n",
+//               msg_ptr[0], msg_ptr[1], msg_ptr[2], msg_ptr[3],
+//               msg_ptr[4], distance, (float)angle / 64.f);
+//
+//        debug_count++;
+//
+//        if (debug_count >= 100)
+//            debug_count = 0;  // Reset periodically
+//    }
 #endif
 
     return 1;

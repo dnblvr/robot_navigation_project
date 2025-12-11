@@ -32,10 +32,20 @@ static RPLiDAR_Config* config = NULL;
 static uint32_t wait_index = 0,
                 find_index = 0,
                 skip_index = 0;
+
 static uint8_t* RX_POINTER = NULL;
 
 
-void configure_RPLiDAR_struct(
+uint32_t process_data_flag;
+
+
+// ----------------------------------------------------------------------------
+//
+//  CONFIGURATION FUNCTIONS
+//
+// ----------------------------------------------------------------------------
+
+void Configure_RPLiDAR_Struct(
         const RPLiDAR_Config*   input_config,
         const uint8_t*          RX_Data)
 {
@@ -56,13 +66,14 @@ void configure_RPLiDAR_struct(
 
 
     // Generate the reset state
-    config->current_state   = IDLING;
-    config->  limit_status  = HOLD;         // Initialize to HOLD state
-    config->  limit         = wait_index;
-    config-> buffer_counter = 0;
-    config-> buffer_pointer = RX_POINTER;
+    Reset_State();
 
-    config->    isr_counter = 0;
+    config->isr_counter = 0;
+
+
+    // set up flag for in-motion processing
+    process_data_flag = 0;
+
 
 #ifdef DEBUG_OUTPUT
     // printf(" 0 -> %2d -> %2d\n", skip_index, skip_index + MSG_LENGTH);
@@ -184,7 +195,7 @@ void EUSCI_A2_UART_Init()
     // set priority to n
     // IP[4] = 0x02 << 21
     // NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00000000;  // 0
-     NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00200000;  // 1
+    NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00200000;  // 1
 //    NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00400000;  // 2
     // NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00600000;  // 3
 
@@ -269,28 +280,22 @@ void EUSCI_A2_UART_OutChar(uint8_t data)
 }
 
 
+#ifndef FUNCTION_TABLES
+
 void EUSCIA2_IRQHandler(void) {
 
-
-
     /**
-     * @todo: figure out what to do in the HOLD state:
-     *  If the counting system is a trustless system (has to find the RPLiDAR C1
+     * @todo: currently this ISR a trustless system (has to find the C1
      *      message pattern for every single iteration), then to make it a
      *      trusted system I have to prioritize a few things:
      * 
-     *  1. minimize the overhead in the UART ISR by:
-     *      a. using memcpy() to copy the intended struct properties
-     *          at each stage...
-     *      b. ... or just plainly assign struct to struct...
-     * 
-     *      because the states are also likely to be *very* predictable.
+     *  1. minimize the overhead in the UART ISR
      * 
      *  2. and take the hold state to SKIP (?).
-     *  3. make sure that isr_counter counts in multiples of MSG_LENGTH
+     *  3. make sure that `isr_counter` counts in multiples of MSG_LENGTH
      *
      * @todo: there is another problem with the distance measurements. Some data
-     *  is literally zero-distance. here's a sample of the data I collected:
+     *  are zero-distance. here's a sample of the data I collected:
      *      RAW[02 75 0D 00 00] -> dist=0 ang=27.8 deg
      *      RAW[02 2B 0E 00 00] -> dist=0 ang=28.7 deg
      *      RAW[02 DF 0E 00 00] -> dist=0 ang=29.5 deg
@@ -305,8 +310,7 @@ void EUSCIA2_IRQHandler(void) {
      *      RAW[02 99 16 00 00] -> dist=0 ang=44.4 deg
      *      RAW[02 F3 16 00 00] -> dist=0 ang=45.8 deg
      *
-     *      the ISR should be the first point-of-entry and queue handler to check
-     *          if the buffer is full!
+     *      the ISR should be the first point-of-entry to filter out these things.
      */
 
     /**
@@ -315,7 +319,6 @@ void EUSCIA2_IRQHandler(void) {
      *  only 8 bits wide.
      */
     uint32_t data;
-//    uint32_t process_data_flag;
 
 
     // if EUSCI_A2 RXIFG flag is read, then do the following commands
@@ -330,216 +333,433 @@ void EUSCIA2_IRQHandler(void) {
         data = (uint8_t)EUSCI_A2->RXBUF;
 
 
-        // TASKS to perform while counting -----------------------------
+        /** ------------------------------------------------------------
+         * tasks to perform while counting
+         */
 
         /**
          * Add to the buffer if in the desired states, and increment
          *  buffer_counter.
-         *  - FIND_PATTERN: 0b001
-         *  - RECORD:       0b100
+         *  - FIND_PATTERN: 0b001   - RECORD: 0b100
          */
         if (config->limit_status & (FIND_PATTERN | RECORD)) {
 
             // assign `data` and increment pointer afterwards
-          *(config->buffer_pointer++)   = (uint8_t)data;
-            config->buffer_counter++;
-
+            *(config->buffer_pointer++)   = (uint8_t)data;
+              config->buffer_counter++;
         }
 
         /**
          * @todo    In the future, after recording the five-char message,
-         *  sort it for zero-distance and convert it to angle and distance
+         *  filter for zero-distance and convert it to angle and distance
          *  *immediately*.
+         *
          * @note Because of the 48 MHz clock and a message is recorded
          *      every half-MHz, quite a lot of tasks can be done!
          *      just use `Profiler.h` to make sure the sorting method
          *      is up-to-spec.
-         *
          */
-//        if (config->limit_status & (SKIP)) {
-//
-//
-//        }
+        if (    config->limit_status & (SKIP)
+             && process_data_flag)
+        {
+            // clear the flag
+            process_data_flag = 0;
 
-        // TASKS to perform while counting end -------------------------
+            // perform binary insertion
+//            to_distance_angle();
+        }
 
 
-        // increment isr_counter
+        /** ------------------------------------------------------------------
+         * increment `isr_counter`
+         */
+
         config->isr_counter++;
+
+        // if within the current counting limit, return early -->
+        if (config->isr_counter < config->limit)
+            return;
+
+
+        /** ------------------------------------------------------------------
+         * If `isr_counter` does arrive at the limit, achieve the following:
+         *  1. transition to the next `limit_status`
+         *  2. change limits based on `limit_status`
+         */
+
+        // reset the counter
+        config->isr_counter = 0;
+
+
+        // switch statement uses jump tables which take up the least
+        // overhead which is perfect for this application
+        switch(config->limit_status) {
+
+
+        case HOLD: {  // -----------------------------------------------------
+
+            if (config->current_state == READY) {
+
+                Timer_A1_Ignore();
+
+                config->current_state   = RECORDING;
+                config->  limit_status  = FIND_PATTERN;
+                config->  limit         = find_index;
+                config-> buffer_pointer = RX_POINTER;
+                config-> buffer_counter = 0;
+
+            }
+
+            break;
+
+        }
+
+        case FIND_PATTERN: {  // ---------------------------------------------
+
+            uint32_t    offset;
+            uint32_t    found   = 0;
+
+            /**
+             * @brief When in `FIND_PATTERN`, we have `n+1` cols of data. We're
+             *  sweeping this data with `n` cols of pattern-checking slides
+             *  with an `offset` at each iteration. When found, `offset` is the
+             *  amount left to re-align to the correct index when done.
+             */
+            for (offset = 0; offset < MSG_LENGTH; offset++) {
+
+                found =    pattern(RX_POINTER + MSG_LENGTH*0 + offset)
+                        && pattern(RX_POINTER + MSG_LENGTH*1 + offset)
+                        && pattern(RX_POINTER + MSG_LENGTH*2 + offset);
+
+                if (found) {
+
+                    // if already aligned, go directly to `SKIP`
+                    if (offset == 0) {
+
+                        config->limit_status    = SKIP;
+                        config->limit           = skip_index;
+
+                    // if not yet aligned, go to `ADD_OFFSET`
+                    } else {
+                        
+                        config->limit_status    = ADD_OFFSET;
+                        config->limit           = offset;
+                    }
+
+                    break;
+
+                }
+
+            }
+
+            // regardless of the state of pattern-match, start buffer over
+            config->buffer_pointer  = RX_POINTER;
+            config->buffer_counter  = 0;
+
+            break;
+
+        }
+
+
+        case ADD_OFFSET: {  // -----------------------------------------------
+
+            config-> limit_status   = SKIP;
+            config-> limit          = skip_index;
+
+            break;
+
+        }
 
 
         /**
-         * If isr_counter does arrive at the limit, achieve the following:
-         *  1. transition to the next limit_status
-         *  2. change limits based on limit_status
+         * @note after the ADD_OFFSET stage, it trades between SKIP and
+         *      RECORD until `config->buffer_counter` exceeds
+         *      RPLiDAR_UART_BUFFER_SIZE
+         *
+         * @todo switch it with RECORD and then SKIP
          */
-        if (config->isr_counter >= config->limit) {
 
-            // reset the counter
-            config->isr_counter = 0;
+        case SKIP: {  // -----------------------------------------------------
 
+            if (config->buffer_counter > RPLiDAR_UART_BUFFER_SIZE) {
 
-            // switch statement uses jump tables which take up the least
-            // overhead which is perfect for this application
-            switch(config->limit_status) {
-
-
-            case HOLD: {  // --------------------------------------------------
-
-                if (config->current_state == READY) {
-
-                    Timer_A1_Ignore();
-
-                    config->current_state   = RECORDING;
-                    config->  limit_status  = FIND_PATTERN;
-                    config->  limit         = find_index;
-                    config-> buffer_pointer = RX_POINTER;
-                    config-> buffer_counter = 0;
-
-                }
-
-                break;
-
-            }
-
-
-            case FIND_PATTERN: {  // ------------------------------------------
-
-                uint32_t    offset;
-                uint32_t    found   = 0;
-
-                // check which `offset` is most aligned
-                for (offset = 0; offset < MSG_LENGTH; offset++) {
-
-                    found =    pattern(RX_POINTER + MSG_LENGTH*0 + offset)
-                            && pattern(RX_POINTER + MSG_LENGTH*1 + offset)
-                            && pattern(RX_POINTER + MSG_LENGTH*2 + offset);
-
-                    if (found) {
-
-                        // if already aligned, go directly to SKIP
-                        if (offset == 0) {
-                            
-                            config->limit_status    = SKIP;
-                            config->limit           = skip_index;
-                        
-                        // if not yet aligned go to ADD_OFFSET
-                        } else {
-                            
-                            config->limit_status    = ADD_OFFSET;
-                            config->limit           = offset;
-                        }
-
-                        break;
-
-                    }
-
-                }
+                End_Record();
 
                 Timer_A1_Acknowledge();
 
-                // regardless of if pattern is found or not found, reset the
-                // pointer and counter for the full data record
-                config->buffer_pointer  = RX_POINTER;
-                config->buffer_counter  = 0;
+                // Stop_Timer();
 
-                break;
+            } else {
 
-            }
-
-
-            case ADD_OFFSET: {  // --------------------------------------------
-
-                config-> limit_status   = SKIP;
-                config-> limit          = skip_index;
-                config->buffer_pointer  = RX_POINTER;
-                config->buffer_counter  = 0;
-
-                break;
+                // up-/left-shift to RECORD
+                // config->limit_status    = RECORD;
+                config->limit_status   += 1;
+                config->limit           = MSG_LENGTH;
 
             }
 
+            break;
 
-            /**
-             * @note after the ADD_OFFSET stage, it trades between SKIP and
-             *      RECORD until `config->buffer_counter` exceeds
-             *      RPLiDAR_UART_BUFFER_SIZE
-             *
-             * @todo switch it with RECORD and then SKIP
-             */
+        }
 
-            case SKIP: {  // --------------------------------------------------
 
-                if (config->buffer_counter > RPLiDAR_UART_BUFFER_SIZE) {
+        case RECORD: {  // ---------------------------------------------------
 
-                    config->current_state   = PROCESSING;
-                    config->limit_status    = HOLD;
-                    config->limit           = wait_index;
-                    config->buffer_pointer  = RX_POINTER;
-                    config->buffer_counter  = 0;
+            if (config->buffer_counter > RPLiDAR_UART_BUFFER_SIZE) {
 
-                    Timer_A1_Acknowledge();
+                End_Record();
 
-//                    Stop_Timer();
+                Timer_A1_Acknowledge();
 
-                } else {
+                // Stop_Timer();
 
-                    // up-/left-shift to RECORD
-                    // config->limit_status    = RECORD;
-                    config->limit_status   += 1;
-                    config->limit           = MSG_LENGTH;
+            } else {
 
-                }
+                // down-/right-shift to SKIP
+                // config->limit_status    = SKIP;
+                config->limit_status   -= 1;
+                config->limit           = skip_index;
 
-                break;
-
+                // @todo mark the flag every skip for in-motion processing
+                process_data_flag       = 1;
             }
 
+            break;
 
-            case RECORD: {  // ------------------------------------------------
+        }
 
-                if (config->buffer_counter > RPLiDAR_UART_BUFFER_SIZE) {
 
-                    config->current_state   = PROCESSING;
-                    config->limit_status    = HOLD;
-                    config->limit           = wait_index;
-                    config->buffer_pointer  = RX_POINTER;
-                    config->buffer_counter  = 0;
+        default: {  // -------------------------------------------------------
 
-                    Timer_A1_Acknowledge();
+            Reset_State();
 
-//                    Stop_Timer();
+            break;
 
-                } else {
+        }
 
-                    // down-/right-shift to SKIP
-                    // config->limit_status    = SKIP;
-                    config->limit_status   -= 1;
-                    config->limit           = skip_index;
-                }
+        } // end switch(config->limit_status)  // -----------------------------
 
-                break;
+    }
 
+} // end void EUSCIA2_IRQHandler(void) {
+
+#else  // #ifndef FUNCTION_TABLES
+
+
+uint32_t data;
+
+void Hold_Action(void) {
+
+    config->isr_counter++;
+
+    // if within the current counting limit, return early -->
+    if (config->isr_counter < config->limit)
+        return;
+
+    // reset the counter
+    config->isr_counter = 0;
+
+    if (config->current_state == READY) {
+
+        Timer_A1_Ignore();
+
+        config->current_state   = RECORDING;
+        config->  limit_status  = FIND_PATTERN;
+        config->  limit         = find_index;
+        config-> buffer_pointer = RX_POINTER;
+        config-> buffer_counter = 0;
+
+    }
+}
+
+void Find_Pattern_Action(void) {
+
+    // assign `data` and increment pointer afterwards
+    *(config->buffer_pointer++)   = (uint8_t)data;
+    config->buffer_counter++;
+
+    config->isr_counter++;
+
+    // if within the current counting limit, return early -->
+    if (config->isr_counter < config->limit)
+        return;
+
+    // reset the counter
+    config->isr_counter = 0;
+
+    uint32_t    offset;
+    uint32_t    found   = 0;
+
+    /**
+     * @brief When in `FIND_PATTERN`, we have `n+1` cols of data. We're
+     *  sweeping this data with `n` cols of pattern-checking slides
+     *  with an `offset` at each iteration. When found, `offset` is the
+     *  amount left to re-align to the correct index when done.
+     */
+    for (offset = 0; offset < MSG_LENGTH; offset++) {
+
+        found =    pattern(RX_POINTER + MSG_LENGTH*0 + offset)
+                && pattern(RX_POINTER + MSG_LENGTH*1 + offset)
+                && pattern(RX_POINTER + MSG_LENGTH*2 + offset);
+
+        if (found) {
+
+            // if already aligned, go directly to `SKIP`
+            if (offset == 0) {
+
+                config->limit_status    = SKIP;
+                config->limit           = skip_index;
+
+            // if not yet aligned, go to `ADD_OFFSET`
+            } else {
+                
+                config->limit_status    = ADD_OFFSET;
+                config->limit           = offset;
             }
 
-
-            default: {  // ----------------------------------------------------
-
-                config->limit_status    = HOLD;
-                config->limit           = wait_index;
-                break;
-
-            }
-
-
-            } // end switch(config->limit_status)  // -------------------------
+            break;
 
         }
 
     }
 
+    // regardless of the state of pattern-match, start buffer over
+    config->buffer_pointer  = RX_POINTER;
+    config->buffer_counter  = 0;
+
 }
 
+void Add_Offset_Action(void) {
+
+    config->isr_counter++;
+
+    // if within the current counting limit, return early -->
+    if (config->isr_counter < config->limit)
+        return;
+
+    // reset the counter
+    config->isr_counter = 0;
+
+
+    config-> limit_status   = SKIP;
+    config-> limit          = skip_index;
+}
+
+void Skip_Action(void) {
+
+    config->isr_counter++;
+
+    // if within the current counting limit, return early -->
+    if (config->isr_counter < config->limit)
+        return;
+
+    // reset the counter
+    config->isr_counter = 0;
+
+    if (config->buffer_counter > RPLiDAR_UART_BUFFER_SIZE) {
+
+        End_Record();
+
+        Timer_A1_Acknowledge();
+
+        // Stop_Timer();
+
+    } else {
+
+        // up-/left-shift to RECORD
+        // config->limit_status    = RECORD;
+        config->limit_status   += 1;
+        config->limit           = MSG_LENGTH;
+
+    }
+    
+}
+
+void Record_Action(void) {
+
+    // assign `data` and increment pointer afterwards
+    *(config->buffer_pointer++) = (uint8_t)data;
+    config->buffer_counter++;
+
+    config->isr_counter++;
+
+    // if within the current counting limit, return early -->
+    if (config->isr_counter < config->limit)
+        return;
+
+    // reset the counter
+    config->isr_counter = 0;
+
+    if (config->buffer_counter > RPLiDAR_UART_BUFFER_SIZE) {
+
+        End_Record();
+
+        Timer_A1_Acknowledge();
+
+        // Stop_Timer();
+
+    } else {
+
+        // down-/right-shift to SKIP
+        // config->limit_status    = SKIP;
+        config->limit_status   -= 1;
+        config->limit           = skip_index;
+
+        // @todo mark the flag every skip for in-motion processing
+        process_data_flag       = 1;
+    }
+    
+}
+
+struct RPLiDAR_State {
+    
+    void (*const   action)(void);
+    const uint8_t  next_state;
+
+};
+
+typedef const struct RPLiDAR_State RPLiDAR_State_t;
+
+RPLiDAR_State_t FSM_Table[5] = {
+
+    /* HOLD */ 
+    {.action    = &Hold_Action,         .next_state = HOLD},
+
+    /* FIND_PATTERN */
+    {.action    = &Find_Pattern_Action, .next_state = FIND_PATTERN},
+
+    // ADD_OFFSET
+    {.action    = &Add_Offset_Action,   .next_state = ADD_OFFSET},
+
+    // SKIP
+    {.action    = &Skip_Action,         .next_state = SKIP},
+
+    // RECORD
+    {.action    = &Record_Action,       .next_state = RECORD}
+
+};
+
+
+void EUSCIA2_IRQHandler(void) {
+
+    // if EUSCI_A2 RXIFG flag is read, then do the following commands
+    if (EUSCI_A2->IFG & 0x01) {
+
+        /**
+         *  the code is made such that it ignores recording certain messages
+         *  above a skip point
+         *  @note this should be recorded first and foremost!
+         */
+        data = (uint8_t)EUSCI_A2->RXBUF;
+
+        // call the action function based on the current state
+        FSM_Table[config->limit_status].action();
+
+    }
+
+} // end void EUSCIA2_IRQHandler(void) {
+
+#endif  // #ifndef FUNCTION_TABLES
 
 
 // ----------------------------------------------------------------------------
@@ -556,35 +776,59 @@ static inline uint8_t pattern(const uint8_t*   msg_ptr) {
     // Valid values are 0x01 or 0x02, invalid are 0x00 or 0x03
     uint8_t start_bits  = msg_ptr[0] & 0x03;
     
-    return     (start_bits == 0x01 || start_bits == 0x02)
+    return      (start_bits == 0x01 || start_bits == 0x02)
             && ((msg_ptr[1] & BYTE_1_CHECK) == BYTE_1_CHECK);
 }
 
 
-uint8_t confirm_aligned(
+uint8_t Confirm_Aligned(
         const uint8_t RPLiDAR_RX_Data[RPLiDAR_UART_BUFFER_SIZE])
 {
     uint32_t i;
-    uint32_t aligned;
 
-    // Check all MSGs until proven otherwise
-    aligned     = 1;
+    // Check all messages until proven otherwise
     for (i = 0; i < RPLiDAR_UART_BUFFER_SIZE; i += MSG_LENGTH)
     {
         // return early if mis-aligned packet is found
-        if ( !pattern(RPLiDAR_RX_Data + i) ) {
-         	aligned = 0;
-         	break;
-//            return 0;
-        }
-
+        if ( !pattern(RPLiDAR_RX_Data + i) )
+            return 0;
     }
 
-//    printf("aligned = %d\n", aligned);
-    return aligned;
-//    return 1;
+    return 1;
 }
 
+
+static void Reset_State(void) {
+
+    config->current_state   = IDLING;
+    config->  limit_status  = HOLD;
+    config->  limit         = wait_index;
+    config-> buffer_pointer = RX_POINTER;
+    config-> buffer_counter = 0;
+
+}
+
+
+void Start_Record(void) {
+
+    // only when idling and invoking this function makes it ready
+    if (config->current_state == IDLING) {
+
+        config->current_state   = READY;
+    }
+
+}
+
+
+static void End_Record(void) {
+
+    config->current_state   = PROCESSING;
+    config->  limit_status  = HOLD;
+    config->  limit         = wait_index;
+    config-> buffer_pointer = RX_POINTER;
+    config-> buffer_counter = 0;
+
+}
 
 
 // ----------------------------------------------------------------------------

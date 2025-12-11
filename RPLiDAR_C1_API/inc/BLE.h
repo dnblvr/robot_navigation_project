@@ -8,6 +8,7 @@
 
 
 #include <stdio.h>
+#include <string.h>
 #include "GPIO.h"
 #include "Motor.h"
 #include "BLE_A3_UART.h"

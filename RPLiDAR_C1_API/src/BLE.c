@@ -3,7 +3,6 @@
  *
  */
 
-#include <string.h>
 #include "../inc/BLE.h"
 
 

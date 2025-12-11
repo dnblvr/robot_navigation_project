@@ -12,19 +12,20 @@
  *      terface (eUSCI), refer to the MSP432Pxx Microcontrollers Technical Reference
  *      Manual
  *
+ * @note This code formulation features a hierarchical state machine with a `Record_States`
+ *      tracker to track the ISR and what
+ *
  * @author Gian Fajardo
  */
 
 #ifndef __INC_RPLIDAR_A2_UART_H__
 #define __INC_RPLIDAR_A2_UART_H__
 
-#include "GPIO_Utilities.h"
-
-
-
 
 #include "msp.h"
 #include "Clock.h"
+
+#include "GPIO_Utilities.h"
 #include "coordinate_transform.h"
 #include "Project_Config.h"
 #include "Timer_A1_Interrupt.h"
@@ -39,15 +40,17 @@
 #endif
 
 
-
 //#define RPLIDAR_DEBUG 1
 //#define TX_RX_CHECKS 1
 //#define ERROR_CHECKING 1
 
-
+#define FUNCTION_TABLES 1
 
 /**
  * @brief states of the UART record system
+ *
+ * @details smaller tier in the hierarchical state machine. For the rest to
+ *      succeed, this must be infallible.
  */
 typedef enum {
 
@@ -59,8 +62,11 @@ typedef enum {
 
 } Record_States;
 
+
 /**
  * @brief state of the RPLiDAR C1 system itself
+ * @details higher tier in the hierarchical state machine. Without this one
+ *      looping, the `Record_State` machine will never activate.
  */
 typedef enum {
 
@@ -76,16 +82,19 @@ typedef enum {
  * @brief configuration struct of the RPLiDAR C1
  *
  * @param   skip_factor     how many 5-byte messages to skip before recording the
- *              nth one
- * @param   RX_POINTER      address of input
- * @param   offset
+ *                            nth one
  * @param   limit_status    indicates where in the counting stage we are at
+ * @param   limit           counting limit
  *
- * @details     status
+ * @param   isr_counter     persistent counter that counts all bytes
+ * @param   buffer_pointer  pointer to the current buffer position
+ * @param   buffer_counter  counter that counts all *recorded* bytes
+ *
+ * @param   current_state   records the state of the RPLiDAR C1 data processing
+ *
+ * @details
  */
 typedef struct {
-
-    // --------------------------------------
 
     uint8_t             skip_factor;
 
@@ -94,20 +103,23 @@ typedef struct {
 
     // --------------------------------------
 
-    volatile uint8_t*   buffer_pointer;
-
     volatile uint32_t   isr_counter;
+
+    volatile uint8_t*   buffer_pointer;
     volatile uint32_t   buffer_counter;
 
     // --------------------------------------
 
     volatile RPLiDAR_States current_state;
 
-    // --------------------------------------
-
 } RPLiDAR_Config;
 
 
+// ----------------------------------------------------------------------------
+//
+//  CONFIGURATION FUNCTIONS
+//
+// ----------------------------------------------------------------------------
 
 /**
  * @brief
@@ -116,7 +128,7 @@ typedef struct {
  *
  * @param[in] RX_Data   pointer to the array
  */
-void configure_RPLiDAR_struct(
+void Configure_RPLiDAR_Struct(
         const RPLiDAR_Config*   input_config,
         const uint8_t*          RX_Data);
 
@@ -148,6 +160,7 @@ void configure_RPLiDAR_struct(
  */
 void EUSCI_A2_UART_Init();
 
+
 /**
  * @brief Stops the EUSCI_A2 module.
  *
@@ -155,6 +168,7 @@ void EUSCI_A2_UART_Init();
  * disabling the necessary interrupts, and then releasing it from the reset state.
  */
 void EUSCI_A2_UART_Stop();
+
 
 /**
  * @brief Restarts the EUSCI_A2 module.
@@ -246,8 +260,26 @@ static inline uint8_t pattern(const uint8_t*   msg_ptr);
  * @return uint8_t
  * @retval 1 if aligned, 0 otherwise
  */
-uint8_t confirm_aligned(
+uint8_t Confirm_Aligned(
         const uint8_t RPLiDAR_RX_Data[RPLiDAR_UART_BUFFER_SIZE]);
+
+
+/**
+ * @brief helper function that resets the ISR to a predefined recording state
+ */
+static void Reset_State(void);
+
+
+/**
+ * @brief public function that, upon calling, enables the record state
+ */
+void Start_Record(void);
+
+
+/**
+ * @brief helper function that replicates the end conditions for the next stage
+ */
+static void End_Record(void);
 
 
 

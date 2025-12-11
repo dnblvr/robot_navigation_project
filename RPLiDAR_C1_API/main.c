@@ -631,7 +631,7 @@ void Perform_SLAM(
 
 /**
  * @brief declaration of an `RPLiDAR_Config` struct instance
- * @note will be declared in RPLiDAR_C1.c source file
+ * @note this is originally declared in the `RPLiDAR_C1.c` source file
  */
 extern RPLiDAR_Config cfg;
 
@@ -1121,11 +1121,7 @@ void main(void) {
             // data collection profiling! --------------------------------
             // Start_Timer();
 
-            if (cfg.current_state == IDLING) {
-
-                // memset(RPLiDAR_RX_Data, 0, RPLiDAR_UART_BUFFER_SIZE);
-                cfg.current_state   = READY;
-            }
+            Start_Record();
 
         }
 #endif
@@ -1167,7 +1163,7 @@ void main(void) {
                 // int first_5;
     #endif
 
-                aligned = confirm_aligned(RPLiDAR_RX_Data);
+                aligned = Confirm_Aligned(RPLiDAR_RX_Data);
 
     #ifdef DEBUG_OUTPUT
                 // Second test: Check first few packets specifically

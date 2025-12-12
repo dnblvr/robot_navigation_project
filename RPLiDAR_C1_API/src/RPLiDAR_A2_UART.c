@@ -714,12 +714,13 @@ static void Record_Action(void) {
     config->limit_status   -= 1;
     config->limit           = skip_index;
 
-    // @todo mark the flag every skip for in-motion processing
+    // @todo fix this code lol
+    // mark the flag for in-motion processing, assuming it passes the filter
 //    if (    !(*(config->buffer_pointer - 1))
 //         && !(*(config->buffer_pointer - 2))) {
         process_data_flag   = 1;
 
-    // if it does not pass the zero-distance filtering...
+    // if it does not pass the zero-distance filter...
 //    } else {
 
 //        config->buffer_pointer -= MSG_LENGTH;

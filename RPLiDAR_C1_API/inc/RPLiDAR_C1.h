@@ -19,6 +19,8 @@
 
 
 
+
+
 /**
  * @brief Command definitions for the RPLiDAR C1
  * @details These commands are used to control the RPLiDAR C1 and retrieve
@@ -152,14 +154,14 @@ void insertion(float polar_data[][2], int point_count);
 /**
  * @brief Partition function for quicksort
  */
-int partition(float polar_data[][2], int low, int high);
+int partition_float(float polar_data[][2], int low, int high);
 
 
 /**
  * @brief Quick sort algorithm
  *
  * Efficient for large datasets with O(n log n) average time complexity.
- * Best choice for sorting 300 LiDAR points.
+ * Best choice for sorting hundreds of LiDAR points.
  *
  * @param polar_data Array of [distance, angle] pairs
  * @param low Starting index
@@ -167,7 +169,34 @@ int partition(float polar_data[][2], int low, int high);
  *
  * @note requires that partition() is active
  */
-void quicksort(float polar_data[][2], int low, int high);
+void quicksort_float(float polar_data[][2], int low, int high);
+
+
+/**
+ * @brief function to partition an array of unsigned integers
+ * 
+ * @param polar_data 
+ * @param low 
+ * @param high 
+ * @return uint32_t 
+ */
+uint32_t partition_uint(
+        uint32_t    polar_data[],
+        uint32_t    low,
+        uint32_t    high);
+
+
+/**
+ * @brief Quick sort algorithm for unsigned integers
+ * 
+ * @param polar_data 
+ * @param low 
+ * @param high 
+ */
+void quicksort_uint(
+        uint32_t    polar_data[],
+        uint32_t    low,
+        uint32_t    high);
 
 
 #endif /* __INC_RPLIDAR_C1_H__ */

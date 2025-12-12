@@ -1119,7 +1119,7 @@ void main(void) {
             task_flag  &= ~TASK_3_FLAG;
 
             // data collection profiling! --------------------------------
-            // Start_Timer();
+            // Start_Timer_1ms();
 
             Start_Record();
 
@@ -1150,7 +1150,7 @@ void main(void) {
             // profiling start! -----------------------------------------------
 
     #ifdef DEBUG_OUTPUT
-//            Start_Timer();
+//            Start_Timer_1ms();
     #endif
             /**
              * @brief If in PROCESSING state, process the recorded data

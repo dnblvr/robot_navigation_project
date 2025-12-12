@@ -40,11 +40,42 @@
 #endif
 
 
+
+
+
 //#define RPLIDAR_DEBUG 1
 //#define TX_RX_CHECKS 1
 //#define ERROR_CHECKING 1
 
+
+/**
+ * @brief setting which enables using the function tables vs the single-
+ *  function structs
+ */
 #define FUNCTION_TABLES 1
+
+//#ifdef FUNCTION_TABLES
+
+uint32_t container[INTERMEDIARY_BUFFER];
+
+//#endif
+
+
+
+/**
+ * @brief state of the RPLiDAR C1 system itself
+ * @details higher tier in the hierarchical state machine. Without this one
+ *      looping, the `Record_State` machine will never activate.
+ */
+typedef enum {
+
+    IDLING      =  0,
+    READY,      // 1
+    RECORDING,  // 2
+    PROCESSING  // 3
+
+} RPLiDAR_States;
+
 
 /**
  * @brief states of the UART record system
@@ -64,22 +95,7 @@ typedef enum {
 
 
 /**
- * @brief state of the RPLiDAR C1 system itself
- * @details higher tier in the hierarchical state machine. Without this one
- *      looping, the `Record_State` machine will never activate.
- */
-typedef enum {
-
-    IDLING      =  0,
-    READY,      // 1
-    RECORDING,  // 2
-    PROCESSING  // 3
-
-} RPLiDAR_States;
-
-
-/**
- * @brief configuration struct of the RPLiDAR C1
+ * @brief   configuration struct of the RPLiDAR C1
  *
  * @param   skip_factor     how many 5-byte messages to skip before recording the
  *                            nth one
@@ -107,6 +123,9 @@ typedef struct {
 
     volatile uint8_t*   buffer_pointer;
     volatile uint32_t   buffer_counter;
+
+    volatile uint32_t*  interm_buffer_pointer;
+    volatile uint32_t   interm_buffer_counter;
 
     // --------------------------------------
 
@@ -220,6 +239,49 @@ uint8_t EUSCI_A2_UART_InChar();
 void EUSCI_A2_UART_OutChar(uint8_t data);
 
 
+// ----------------------------------------------------------------------------
+//
+//  INTERRUPT HANDLER FUNCTIONS
+//
+// ----------------------------------------------------------------------------
+
+
+#ifdef FUNCTION_TABLES
+
+
+uint32_t data;
+
+/**
+ * @brief functions associated with the C1's `Record_States`
+ *
+ * @note these are declared in the source file
+ */
+static void Hold_Action(void);
+static void Find_Pattern_Action(void);
+static void Add_Offset_Action(void);
+static void Skip_Action(void);
+static void Record_Action(void);
+
+
+/**
+ * @brief function table element
+ */
+struct RPLiDAR_State {
+
+    void (*const   action)(void);
+    const uint8_t  next_state;
+
+};
+
+/**
+ * @brief a type definition that prevents changes via the `const` keyword
+ */
+typedef const struct RPLiDAR_State RPLiDAR_State_t;
+
+
+#endif  // #ifdef FUNCTION_TABLES
+
+
 
 // ----------------------------------------------------------------------------
 //
@@ -262,6 +324,9 @@ static inline uint8_t pattern(const uint8_t*   msg_ptr);
  */
 uint8_t Confirm_Aligned(
         const uint8_t RPLiDAR_RX_Data[RPLiDAR_UART_BUFFER_SIZE]);
+
+
+static inline uint32_t Perform_Tasks(volatile uint8_t* MSG_START);
 
 
 /**

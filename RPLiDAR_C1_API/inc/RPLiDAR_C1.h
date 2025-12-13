@@ -151,6 +151,11 @@ static uint8_t to_distance_angle(
 void insertion(float polar_data[][2], int point_count);
 
 
+void binary_insertion_uint(
+        uint32_t    polar_data[],
+        uint32_t    point_count);
+
+
 /**
  * @brief Partition function for quicksort
  */

@@ -215,22 +215,27 @@ void Process_RPLiDAR_Data(
         float               out[OUTPUT_BUFFER][3],
         uint32_t*       point_count)
 {
-    // counter
-    uint32_t i;
 
     static uint32_t j = 0;
 
-    uint32_t limits = config->interm_buffer_counter - 2;
+    // counter
+    uint32_t i;
+    uint32_t limits = config->interm_buffer_counter - 1;
 
     printf("%5u\n", limits);
+
+//    printf("ptr: %p\n", INTERM_POINTER);
+
+    // this works now!
+    binary_insertion_uint(INTERM_POINTER, limits);
+//    printf("\n");
+
 
     if (j == 0) {
         for (i = 0; i <= limits; i++) {
             printf("  0x%.8X\n", INTERM_POINTER[i]);
         }
     }
-
-    quicksort_uint(INTERM_POINTER, 0, limits - 1);
 
     j++;
 
@@ -270,8 +275,8 @@ void Process_RPLiDAR_Data(
 //            continue;
 
         // Store in temporary array
-        polar_data[polar_count][0] = distance_angle[0];  // distance
-        polar_data[polar_count][1] = distance_angle[1];  // angle
+        polar_data[polar_count][0]  = distance_angle[0];  // distance
+        polar_data[polar_count][1]  = distance_angle[1];  // angle
         polar_count++;
     }
 
@@ -611,6 +616,39 @@ void insertion(
 
 
 
+void binary_insertion_uint(
+        uint32_t    polar_data[],
+        uint32_t    point_count)
+{
+    uint32_t i, j, left, right, mid;
+    uint32_t key;
+
+    for (i = 1; i < point_count; i++) {
+        key = polar_data[i];
+        left = 0;
+        right = i;
+
+        // Binary search for insertion position
+        while (left < right) {
+            mid = left + (right - left) / 2;
+            if (polar_data[mid] <= key)
+                left = mid + 1;
+            else
+                right = mid;
+        }
+
+        // Shift elements to make room
+        for (j = i; j > left; j--) {
+            polar_data[j] = polar_data[j - 1];
+        }
+
+        // Insert key at correct position
+        polar_data[left] = key;
+    }
+}
+
+
+
 int partition_float(
         float   polar_data[][2],
         int     low,
@@ -711,6 +749,8 @@ void quicksort_uint(
         uint32_t    high)
 {
     if (low < high) {
+        printf("1");
+
         uint32_t pi = partition_uint(polar_data, low, high);
 
         // Recursively sort elements before and after partition

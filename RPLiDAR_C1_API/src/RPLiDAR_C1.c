@@ -10,7 +10,7 @@
 /**
  * @note local definition of RPLiDAR `cfg` struct
  */
-RPLiDAR_Config cfg = {.skip_factor = 2};
+RPLiDAR_Config cfg = {.skip_factor = UART_SKIP_FACTOR};
 
 
 // Single-Request, No-Response
@@ -232,7 +232,7 @@ void Process_RPLiDAR_Data(
 
 
     if (j == 0) {
-        for (i = 0; i <= limits; i++) {
+        for (i = 0; i < limits; i++) {
             printf("  0x%.8X\n", INTERM_POINTER[i]);
         }
     }

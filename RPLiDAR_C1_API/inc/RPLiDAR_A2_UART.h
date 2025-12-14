@@ -4,16 +4,16 @@
  *
  * This file contains the function definitions for the EUSCI_A2_UART driver.
  *
- * @note Assumes that the necessary pin configurations for UART communication have been
- *      performed on the corresponding pins. P3.2 is used for UART RX while P3.3 is used
- *      for UART TX. Meanwhile, the configuration expects
+ * @note Assumes that the necessary pin configurations for UART communication
+ *  have been performed on the corresponding pins. P3.2 is used for UART RX
+ *  while P3.3 is used for UART TX.
  *
- * @note For more information regarding the Enhanced Universal Serial Communication In-
- *      terface (eUSCI), refer to the MSP432Pxx Microcontrollers Technical Reference
- *      Manual
+ * @note For more information regarding the Enhanced Universal Serial
+ *  Communication Interface (eUSCI), refer to the MSP432Pxx Microcontrollers
+ *  Technical Reference Manual
  *
- * @note This code formulation features a hierarchical state machine with a `Record_States`
- *      tracker to track the ISR and what
+ * @note This code formulation features a hierarchical state machine with a
+ *  `Record_States` tracker to track the ISR and what
  *
  * @author Gian Fajardo
  */
@@ -40,7 +40,11 @@
 #endif
 
 
-
+/**
+ * @brief setting which enables using the function tables vs the single-
+ *  function structs
+ */
+#define FUNCTION_TABLES 1
 
 
 //#define RPLIDAR_DEBUG 1
@@ -48,13 +52,17 @@
 //#define ERROR_CHECKING 1
 
 
-/**
- * @brief setting which enables using the function tables vs the single-
- *  function structs
- */
-#define FUNCTION_TABLES 1
+
+#define UART_SKIP_FACTOR 2
+
+// calculate the indices based on the skip factor
+#define WAIT_INDEX  MSG_LENGTH*8
+#define FIND_INDEX  MSG_LENGTH*4
+#define SKIP_INDEX  MSG_LENGTH*UART_SKIP_FACTOR
 
 //#ifdef FUNCTION_TABLES
+
+uint8_t     uart_container[FIND_INDEX];
 
 uint32_t container[INTERMEDIARY_BUFFER];
 
@@ -97,8 +105,8 @@ typedef enum {
 /**
  * @brief   configuration struct of the RPLiDAR C1
  *
- * @param   skip_factor     how many 5-byte messages to skip before recording the
- *                            nth one
+ * @param   skip_factor     how many 5-byte messages to skip before recording
+ *                              the nth one
  * @param   limit_status    indicates where in the counting stage we are at
  * @param   limit           counting limit
  *
@@ -153,8 +161,8 @@ void Configure_RPLiDAR_Struct(
 
 
 /**
- * @brief The EUSCI_A2_UART_Init function initializes the EUSCI_A2 module to use UART
- *      mode.
+ * @brief The EUSCI_A2_UART_Init function initializes the EUSCI_A2 module to
+ *      use UART mode.
  *
  * @details This function configures the EUSCI_A2 module to enable UART mode
  *          with the following configuration:
@@ -167,13 +175,13 @@ void Configure_RPLiDAR_Struct(
  *      - Clock Source: SMCLK
  *      - Baud Rate:    460800
  *
- * For more information regarding the registers used, refer to the eUSCI_A UART Regi-
- *      sters section (24.4) of the MSP432Pxx Microcontrollers Technical Reference
- *      Manual
+ * For more information regarding the registers used, refer to the eUSCI_A
+ *      UART Registers section (24.4) of the MSP432Pxx Microcontrollers
+ *      Technical Reference Manual
  *
- * @note This function assumes that the necessary pin configurations for UART communi-
- *      cation have been performed on the corresponding pins. P2.2 is used for UART RX
- *      while P2.3 is used for UART TX.
+ * @note This function assumes that the necessary pin configurations for UART
+ *      communication have been performed on the corresponding pins. P2.2 is
+ *      used for UART RX while P2.3 is used for UART TX.
  *
  * @return None
  */
@@ -184,7 +192,8 @@ void EUSCI_A2_UART_Init();
  * @brief Stops the EUSCI_A2 module.
  *
  * This function stops the EUSCI_A2 module by holding it in the reset state,
- * disabling the necessary interrupts, and then releasing it from the reset state.
+ * disabling the necessary interrupts, and then releasing it from the reset
+ * state.
  */
 void EUSCI_A2_UART_Stop();
 
@@ -193,7 +202,8 @@ void EUSCI_A2_UART_Stop();
  * @brief Restarts the EUSCI_A2 module.
  *
  * This function restarts the EUSCI_A2 module by holding it in the reset state,
- * enabling the necessary interrupts, and then releasing it from the reset state.
+ *  enabling the necessary interrupts, and then releasing it from the reset
+ *  state.
  */
 void EUSCI_A2_UART_Restart();
 
@@ -207,9 +217,10 @@ void EUSCI_A2_UART_Restart();
 /**
  * @brief Receives a single character over UART using the EUSCI_A2 module.
  *
- * This function receives a single character over UART using the EUSCI_A2 module.
- * It waits until a character is available in the UART receive buffer and then reads
- * the received data. A character consists of the following bits:
+ * This function receives a single character over UART using the EUSCI_A2
+ *  module.
+ * It waits until a character is available in the UART receive buffer and then
+ *  reads the received data. A character consists of the following bits:
  *
  * - 1 Start Bit
  * - 8 Data Bits
@@ -223,10 +234,10 @@ uint8_t EUSCI_A2_UART_InChar();
 /**
  * @brief Transmits a single character over UART using the EUSCI_A2 module.
  *
- * This function transmits a single character over UART using the EUSCI_A2 module. It
- *      waits until the UART transmit buffer is ready to accept new data and then writes
- *      the provided data to the transmit buffer for transmission. A character consists
- *      of the following bits:
+ * This function transmits a single character over UART using the EUSCI_A2
+ *  module. It waits until the UART transmit buffer is ready to accept new data
+ *  and then writes the provided data to the transmit buffer for transmission.
+ *  A character consists of the following bits:
  *
  * - 1 Start Bit
  * - 8 Data Bits
@@ -248,8 +259,17 @@ void EUSCI_A2_UART_OutChar(uint8_t data);
 
 #ifdef FUNCTION_TABLES
 
+/**
+ * @brief raw 1-byte UART data container
+ */
+static uint32_t data;
 
-uint32_t data;
+
+/**
+ * @brief this is needed to determine the alignment value the offset value
+ */
+static uint32_t offset;
+
 
 /**
  * @brief functions associated with the C1's `Record_States`
@@ -269,14 +289,15 @@ static void Record_Action(void);
 struct RPLiDAR_State {
 
     void (*const   action)(void);
-    const uint8_t  next_state;
+//    const Record_States  next_state;
 
 };
+
 
 /**
  * @brief a type definition that prevents changes via the `const` keyword
  */
-typedef const struct RPLiDAR_State RPLiDAR_State_t;
+typedef const struct RPLiDAR_State  RPLiDAR_State_t;
 
 
 #endif  // #ifdef FUNCTION_TABLES
@@ -360,9 +381,9 @@ static void End_Record(void);
  * @brief The Transmit_UART_Data function transmits data over UART based on the
  *      status of the user buttons.
  *
- * This function transmits different data values over UART based on the status of Button
- *      1 and Button 2. The data transmitted corresponds to the button status according
- *      to the following mapping:
+ * This function transmits different data values over UART based on the status
+ *  of Button 1 and Button 2. The data transmitted corresponds to the button
+ *  status according to the following mapping:
  *
  *  button_status      Transmitted Data
  *  -------------      ----------------
@@ -376,31 +397,40 @@ static void End_Record(void);
 uint8_t EUSCI_A2_UART_Transmit_Data();
 
 /**
- * @brief The EUSCI_A2_UART_Ramp_Data function transmits the values 0 to 255 to the UART Transmit Buffer.
+ * @brief The EUSCI_A2_UART_Ramp_Data function transmits the values 0 to 255 to
+ *  the UART Transmit Buffer.
  *
- * The EUSCI_A2_UART_Ramp_Data function tests the EUSCI_A2_UART module using a loopback test. A loopback test can be done by
- * connecting the P3.3 pin (UART TX) to the P3.2 pin (UART RX). The EUSCI_A2_UART_OutChar function will transmit the values 0 to 255 and write
- * the values to TX_Buffer. Then, the EUSCI_A2_UART_InChar function will read the value from the UART Receive Buffer and the received
- * data will be written to RX_Buffer.
+ * The EUSCI_A2_UART_Ramp_Data function tests the EUSCI_A2_UART module using a
+ *  loopback test. A loopback test can be done by connecting the P3.3 pin (UART
+ *  TX) to the P3.2 pin (UART RX). The EUSCI_A2_UART_OutChar function will 
+ *  transmit the values 0 to 255 and write the values to TX_Buffer. Then, the 
+ *  EUSCI_A2_UART_InChar function will read the value from the UART Receive 
+ *  Buffer and the received data will be written to RX_Buffer.
  *
- * @param uint8_t TX_Buffer[] The transmit buffer that is used to store the values transmitted on the UART TX line.
+ * @param uint8_t TX_Buffer[] The transmit buffer that is used to store the 
+ *  values transmitted on the UART TX line.
  *
- * @param uint8_t RX_Buffer[] The receive buffer that is used to store the values received from the UART RX line.
+ * @param uint8_t RX_Buffer[] The receive buffer that is used to store the
+ *  values received from the UART RX line.
  *
  * @return None
  */
 void EUSCI_A2_UART_Ramp_Data(uint8_t TX_Buffer[], uint8_t RX_Buffer[]);
 
 /**
- * @brief The EUSCI_A2_UART_Validate_Data function verifies if the data sent and the data received are the same.
+ * @brief The EUSCI_A2_UART_Validate_Data function verifies if the data sent
+ *  and the data received are the same.
  *
- * The EUSCI_A2_UART_Validate_Data function is used to verify whether or not the loopback test was successful by comparing
- * the transmitted data stored in TX_Buffer and the received data stored in RX_Buffer. It prints the contents
- * of both buffers and outputs a warning if they do not match.
+ * The EUSCI_A2_UART_Validate_Data function is used to verify whether or not
+ *  the loopback test was successful by comparing the transmitted data stored
+ *  in TX_Buffer and the received data stored in RX_Buffer. It prints the
+ *  contents of both buffers and outputs a warning if they do not match.
  *
- * @param uint8_t TX_Buffer[] The transmit buffer that is used to store the values transmitted on the UART TX line.
+ * @param uint8_t TX_Buffer[] The transmit buffer that is used to store the
+ *  values transmitted on the UART TX line.
  *
- * @param uint8_t RX_Buffer[] The receive buffer that is used to store the values received from the UART RX line.
+ * @param uint8_t RX_Buffer[] The receive buffer that is used to store the
+ *  values received from the UART RX line.
  *
  * @return None
  */

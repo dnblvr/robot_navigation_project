@@ -23,10 +23,11 @@ Faculty Advisor: &emsp; **Dr. Shahnam Mirzaei**
   - [4.6. GraphSLAM](#46-graphslam)
   - [4.7. EKF-SLAM](#47-ekf-slam)
   - [4.8. RRT\*](#48-rrt)
-- [5. Checklist](#5-checklist)
-  - [5.1. Task 1: 12 Dec 2025 (3 weeks)](#51-task-1-12-dec-2025-3-weeks)
-  - [5.2. Task 2](#52-task-2)
-  - [5.3. Ongoing Task](#53-ongoing-task)
+- [5. Dynamic Window Approach (DWA) Algorithm](#5-dynamic-window-approach-dwa-algorithm)
+- [6. Checklist](#6-checklist)
+  - [6.1. Task 1: 12 Dec 2025 (3 weeks)](#61-task-1-12-dec-2025-3-weeks)
+  - [6.2. Task 2](#62-task-2)
+  - [6.3. Ongoing Task](#63-ongoing-task)
 
 ---
 
@@ -215,7 +216,39 @@ The materials involved include:
 
 [An application of Numerical Solution to Maximum Likelihood Estimation in GraphSLAM \| by Shiva Chandrachary \| Medium]: https://shivachandrachary.medium.com/an-application-of-numerical-solutions-to-maximum-likelihood-estimation-in-graphslam-31a7284721e3 "An application of Numerical Solution to Maximum Likelihood Estimation in GraphSLAM | by Shiva Chandrachary | Medium"
 
-## 5. Checklist
+## 5. Dynamic Window Approach (DWA) Algorithm
+
+- [ ] [An Improved Dynamic Window Approach for Mobile Robot Dynamic Path Planning | IEEE Conference Publication | IEEE Xplore][]
+- [ ] [I built a visual and interactive DWA path planner in 2D with Pygame – supports obstacle avoidance, real-time replanning, and click-to-set goals : r/robotics][]
+  - [ ] [DWA_Algorithm_PYTHON/DWA.py at master · EricChen0104/DWA_Algorithm_PYTHON][]
+- [ ] [AtsushiSakai/PythonRobotics: Python sample codes and textbook for robotics algorithms.][]
+  - [ ] [Welcome to PythonRobotics’s documentation! — PythonRobotics documentation][]
+- [ ] [PythonRobotics/PathPlanning/DynamicWindowApproach at master · AtsushiSakai/PythonRobotics][]
+  - [ ] [PythonRobotics/PathPlanning/DynamicWindowApproach/dynamic_window_approach.py at master · AtsushiSakai/PythonRobotics][]
+    - [ ] [PythonRobotics/PathPlanning/ClosedLoopRRTStar at master · AtsushiSakai/PythonRobotics][]
+- [ ] [A Hybrid DWA-MPC Framework for Coordinated Path Planning and Collision Avoidance in Articulated Steering Vehicles | MDPI][]
+
+<!-- **Sources**: -->
+
+[An Improved Dynamic Window Approach for Mobile Robot Dynamic Path Planning | IEEE Conference Publication | IEEE Xplore]: https://ieeexplore.ieee.org/document/9907305 "An Improved Dynamic Window Approach for Mobile Robot Dynamic Path Planning | IEEE Conference Publication | IEEE Xplore"
+
+[I built a visual and interactive DWA path planner in 2D with Pygame – supports obstacle avoidance, real-time replanning, and click-to-set goals : r/robotics]: https://www.reddit.com/r/robotics/comments/1m30k62/i_built_a_visual_and_interactive_dwa_path_planner/ "I built a visual and interactive DWA path planner in 2D with Pygame – supports obstacle avoidance, real-time replanning, and click-to-set goals : r/robotics"
+
+[DWA_Algorithm_PYTHON/DWA.py at master · EricChen0104/DWA_Algorithm_PYTHON]: https://github.com/EricChen0104/DWA_Algorithm_PYTHON/blob/master/DWA.py "DWA_Algorithm_PYTHON/DWA.py at master · EricChen0104/DWA_Algorithm_PYTHON"
+
+[AtsushiSakai/PythonRobotics: Python sample codes and textbook for robotics algorithms.]: https://github.com/AtsushiSakai/PythonRobotics/tree/master "AtsushiSakai/PythonRobotics: Python sample codes and textbook for robotics algorithms."
+
+[Welcome to PythonRobotics’s documentation! — PythonRobotics documentation]: https://atsushisakai.github.io/PythonRobotics/index.html "Welcome to PythonRobotics’s documentation! — PythonRobotics documentation"
+
+[PythonRobotics/PathPlanning/DynamicWindowApproach at master · AtsushiSakai/PythonRobotics]: https://github.com/AtsushiSakai/PythonRobotics/tree/master/PathPlanning/DynamicWindowApproach "PythonRobotics/PathPlanning/DynamicWindowApproach at master · AtsushiSakai/PythonRobotics"
+
+[PythonRobotics/PathPlanning/DynamicWindowApproach/dynamic_window_approach.py at master · AtsushiSakai/PythonRobotics]: https://github.com/AtsushiSakai/PythonRobotics/blob/master/PathPlanning/DynamicWindowApproach/dynamic_window_approach.py "PythonRobotics/PathPlanning/DynamicWindowApproach/dynamic_window_approach.py at master · AtsushiSakai/PythonRobotics"
+
+[PythonRobotics/PathPlanning/ClosedLoopRRTStar at master · AtsushiSakai/PythonRobotics]: https://github.com/AtsushiSakai/PythonRobotics/tree/master/PathPlanning/ClosedLoopRRTStar "PythonRobotics/PathPlanning/ClosedLoopRRTStar at master · AtsushiSakai/PythonRobotics"
+
+[A Hybrid DWA-MPC Framework for Coordinated Path Planning and Collision Avoidance in Articulated Steering Vehicles | MDPI]: https://www.mdpi.com/2075-1702/12/12/939 "A Hybrid DWA-MPC Framework for Coordinated Path Planning and Collision Avoidance in Articulated Steering Vehicles | MDPI"
+
+## 6. Checklist
 
 In general, for all tasks, they should follow the same guidelines:
 
@@ -224,7 +257,7 @@ In general, for all tasks, they should follow the same guidelines:
   - [ ] if simulating in MATLAB, use its C-code converter
 - [ ] optimize the functions once done, if applicable
 
-### 5.1. Task 1: 12 Dec 2025 (3 weeks)
+### 6.1. Task 1: 12 Dec 2025 (3 weeks)
 
 - [ ] improve motor control and motor tachometer functions
   - [ ] perhaps incorporate the `ICM-20948` (exclusively I^2^C) to supplement the tachometer-only motion model
@@ -233,11 +266,11 @@ In general, for all tasks, they should follow the same guidelines:
     - [ ] develop auto-steering/local planning using the Dynamic Window Approach (DWA) to prevent direct steering
   - [ ] perhaps explore other methods like HECTOR SLAM (will provide links)
 
-### 5.2. Task 2
+### 6.2. Task 2
 
 - [ ] explore EKF-SLAM
 
-### 5.3. Ongoing Task
+### 6.3. Ongoing Task
 
 - [ ] meet every Monday to check on our weekly progress
 

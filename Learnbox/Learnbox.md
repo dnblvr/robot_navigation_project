@@ -2,7 +2,7 @@
 <!-- omit in toc -->
 # Learnbox Notes
 
-This is primarily for Nabin on how to run this python script so that he has an easier time
+This is primarily for Nabin on how to run this python script so that he has an easier time installing everything.
 
 <!-- markdownlint-disable MD033 -->
 
@@ -29,10 +29,10 @@ This is primarily for Nabin on how to run this python script so that he has an e
 
 GitHub Copilot: To work with virtual environments (venv) in Python:
 
-first, pick a path to the directory where the .venv will live:
+first, clone this whole project onto a directory of your choosing. Then, find  the path to the `.\Learnbox\` directory where the `.venv` will live and change it to this using `cd` (change directory).
 
 ```powershell
-cd .\Learnbox\
+cd .\path\to\Learnbox\
 ```
 
 ### 1.1. Create a virtual environment

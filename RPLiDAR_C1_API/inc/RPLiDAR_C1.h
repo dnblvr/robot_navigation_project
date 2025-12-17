@@ -9,6 +9,7 @@
 #include "Project_Config.h"
 #include "RPLiDAR_A2_UART.h"
 #include "coordinate_transform.h"
+#include "data_structures.h"
 
 #include <stdint.h>
 
@@ -18,8 +19,7 @@
 #endif
 
 
-
-
+#define PROCESS_IMPROVEMENTS 1
 
 /**
  * @brief Command definitions for the RPLiDAR C1
@@ -67,11 +67,16 @@ void Initialize_RPLiDAR_C1(
 /**
  * @brief processes all the raw 5-byte messages incoming from the RPLiDAR data
  */
+#ifndef PROCESS_IMPROVEMENTS
 void Process_RPLiDAR_Data(
         const uint8_t   RX_DATA[RPLiDAR_UART_BUFFER_SIZE],
         float           out[OUTPUT_BUFFER][3],
         uint32_t*       point_count);
-
+#else
+void Process_RPLiDAR_Data(
+        float           out[OUTPUT_BUFFER][2],
+        uint32_t*       point_count);
+#endif // #ifndef PROCESS_IMPROVEMENTS
 
 
 // ----------------------------------------------------------------------------
@@ -177,31 +182,6 @@ int partition_float(float polar_data[][2], int low, int high);
 void quicksort_float(float polar_data[][2], int low, int high);
 
 
-/**
- * @brief function to partition an array of unsigned integers
- * 
- * @param polar_data 
- * @param low 
- * @param high 
- * @return uint32_t 
- */
-uint32_t partition_uint(
-        uint32_t    polar_data[],
-        uint32_t    low,
-        uint32_t    high);
-
-
-/**
- * @brief Quick sort algorithm for unsigned integers
- * 
- * @param polar_data 
- * @param low 
- * @param high 
- */
-void quicksort_uint(
-        uint32_t    polar_data[],
-        uint32_t    low,
-        uint32_t    high);
 
 
 #endif /* __INC_RPLIDAR_C1_H__ */

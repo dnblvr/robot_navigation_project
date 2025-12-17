@@ -90,11 +90,10 @@ void Initialize_RPLiDAR_C1(
 
 }
 
-#define PROCESS_IMPROVEMENTS 1
+
 
 #ifndef PROCESS_IMPROVEMENTS
 
-//#define
 
 /**
  * @todo change this output array to a Point
@@ -148,7 +147,7 @@ void Process_RPLiDAR_Data(
     
 
     // sort by angle
-    quicksort(polar_data, 0, polar_count - 1);
+    quicksort_float(polar_data, 0, polar_count - 1);
     // insertion(polar_data, polar_count);
     
 
@@ -202,6 +201,7 @@ void Process_RPLiDAR_Data(
 
 #else // #ifndef IMPROVEMENTS
 
+
 extern RPLiDAR_Config* config;
 
 extern uint32_t* INTERM_POINTER;
@@ -211,126 +211,63 @@ extern uint32_t* INTERM_POINTER;
  * @todo change this output array to a Point
  */
 void Process_RPLiDAR_Data(
-        const uint8_t   RX_DATA[RPLiDAR_UART_BUFFER_SIZE],
-        float               out[OUTPUT_BUFFER][3],
+        float               out[OUTPUT_BUFFER][2],
         uint32_t*       point_count)
 {
+#ifdef DEBUG_OUTPUT
+    printf("\n");
+#endif // #ifdef DEBUG_OUTPUT
 
+    // persistent counter
     static uint32_t j = 0;
 
-    // counter
-    uint32_t i;
+    // counters
+    uint32_t i, k;
     uint32_t limits = config->interm_buffer_counter - 1;
+
+
+    // sort packed data by angle; expects angle as most MS 2 bytes
+    binary_insertion_uint(INTERM_POINTER, limits);
+
+
+#ifdef DEBUG_OUTPUT
+
+#define STATEMENT (j == 2 || j == 4)
 
     printf("%5u\n", limits);
 
-//    printf("ptr: %p\n", INTERM_POINTER);
-
-    // this works now!
-    binary_insertion_uint(INTERM_POINTER, limits);
-//    printf("\n");
-
-
-    if (j == 0) {
-        for (i = 0; i < limits; i++) {
+    if (STATEMENT)
+        for (i = 0; i < limits; i++)
             printf("  0x%.8X\n", INTERM_POINTER[i]);
-        }
+
+    printf("\n");
+
+#endif // #ifdef DEBUG_OUTPUT
+
+
+    k = 0;
+    for (i = 0; i < limits; i += SKIP_FACTOR) {
+
+        float angle_r   = (DTR/64.f) * (INTERM_POINTER[i] >>     16);
+        float distance  = (1.f/ 4.f) * (INTERM_POINTER[i] &  0xFFFF);
+
+#ifdef DEBUG_OUTPUT
+//        if (STATEMENT) {
+//            printf("  %i\t%3.2f rad. @ %5.2f mm\n",
+//                   i, angle_r, distance);
+//        }
+#endif // #ifdef DEBUG_OUTPUT
+
+        out[k][0] = distance * cosf(angle_r);
+        out[k][1] = distance * sinf(angle_r);
+
+        k++;
     }
+
+    *point_count    = k;
+
 
     j++;
-
-    return; // -----------------------------------------------------------------
-
-
-    float distance_angle[2] = {0};
-
-    // Temporary array to hold all polar coordinates before sorting and skipping
-    float polar_data[INTERMEDIARY_BUFFER][2];  // [distance, angle]
-    int polar_count = 0;  // Number of valid polar points before skipping
-
-
-    // Conversion index
-    int output_index;
-
-
-#ifdef DEBUG_OUTPUT
-
-    float       min_angle =  INFINITY,
-                max_angle = -INFINITY;
-#endif
-
-    // Extract all distance-angle pairs
-    for (i = 0; i < RPLiDAR_UART_BUFFER_SIZE; i+= MSG_LENGTH) {
-
-        // valid until proven otherwise
-        uint8_t is_valid = 1;
-
-        // convert the data to distance and angle
-        is_valid    = to_distance_angle(RX_DATA + i,
-                                        distance_angle);
-
-        // Test condition 1: comment this out so there is no error-checking.
-        // This way, the error checking is printed rather than filtered out.
-//        if (!is_valid)
-//            continue;
-
-        // Store in temporary array
-        polar_data[polar_count][0]  = distance_angle[0];  // distance
-        polar_data[polar_count][1]  = distance_angle[1];  // angle
-        polar_count++;
-    }
-
-
-    // sort by angle
-    quicksort_float(polar_data, 0, polar_count - 1);
-    // insertion(polar_data, polar_count);
-
-
-    // Convert sorted polar coordinates to Cartesian with skipping
-    output_index = 0;
-    for (   i = 0;
-            i < polar_count && output_index < OUTPUT_BUFFER;
-            i += SKIP_FACTOR)
-    {
-
-        // Retrieve sorted distance and angle
-        distance_angle[0] = polar_data[i][0];
-        distance_angle[1] = polar_data[i][1];
-
-#ifdef DEBUG_OUTPUT
-
-        // Track min and max angles
-        if (distance_angle[1] < min_angle)
-            min_angle = distance_angle[1];
-        if (distance_angle[1] > max_angle)
-            max_angle = distance_angle[1];
-
-#endif
-
-        // convert the polar coordinates to Cartesian coordinates
-        polar_to_cartesian( distance_angle, out[output_index] );
-
-#ifdef RPLIDAR_DEBUG
-        // print the distance and angle
-        fprintf(stdout, "%i\t%3.2f rad. @ %5.2f mm\n",
-                output_index, distance_angle[1], distance_angle[0]);
-
-#endif
-
-        output_index++;
-    }
-
-    // Return valid number of points written to output buffer
-    *point_count = output_index;
-
-#ifdef DEBUG_OUTPUT
-
-    // printf("Scan angles: min=%.2f max=%.2f rad (%.1f to %.1f deg), %d points sorted, %d output\n",
-    //        min_angle, max_angle,
-    //        min_angle * 57.2958f, max_angle * 57.2958f,
-    //        point_count, output_index);
-
-#endif
 
 }
 
@@ -559,7 +496,7 @@ static uint8_t to_distance_angle(
         return 0;
 
     distance_angle[0]   = (float)(distance / 4.f);
-    distance_angle[1]   = (float)((DEG_TO_RAD * angle) / 64.f);
+    distance_angle[1]   = (float)((DTR * angle) / 64.f);
 
 
 #ifdef DEBUG_OUTPUT
@@ -580,38 +517,6 @@ static uint8_t to_distance_angle(
 #endif
 
     return 1;
-}
-
-
-
-void insertion(
-        float   polar_data[][2],
-        int     point_count)
-{
-    int i, j;
-    float key_dist, key_angle;
-
-    for (i = 1; i < point_count; i++) {
-        // Store the current element
-        key_dist    = polar_data[i][0];
-        key_angle   = polar_data[i][1];
-
-        j = i - 1;
-
-        // Move elements greater than key one position ahead
-        while (     j >= 0
-                &&  polar_data[j][1] > key_angle)
-        {
-            polar_data[j + 1][0] = polar_data[j][0];
-            polar_data[j + 1][1] = polar_data[j][1];
-            j--;
-        }
-
-        // Insert key at correct position
-        polar_data[j + 1][0] = key_dist;
-        polar_data[j + 1][1] = key_angle;
-    }
-
 }
 
 
@@ -645,6 +550,38 @@ void binary_insertion_uint(
         // Insert key at correct position
         polar_data[left] = key;
     }
+}
+
+
+
+void insertion(
+        float   polar_data[][2],
+        int     point_count)
+{
+    int i, j;
+    float key_dist, key_angle;
+
+    for (i = 1; i < point_count; i++) {
+        // Store the current element
+        key_dist    = polar_data[i][0];
+        key_angle   = polar_data[i][1];
+
+        j = i - 1;
+
+        // Move elements greater than key one position ahead
+        while (     j >= 0
+                &&  polar_data[j][1] > key_angle)
+        {
+            polar_data[j + 1][0] = polar_data[j][0];
+            polar_data[j + 1][1] = polar_data[j][1];
+            j--;
+        }
+
+        // Insert key at correct position
+        polar_data[j + 1][0] = key_dist;
+        polar_data[j + 1][1] = key_angle;
+    }
+
 }
 
 
@@ -706,55 +643,3 @@ void quicksort_float(float polar_data[][2], int low, int high)
     }
 }
 
-
-uint32_t partition_uint(
-        uint32_t    polar_data[],
-        uint32_t    low,
-        uint32_t    high)
-{
-    // counter
-    uint32_t j;
-
-    uint32_t i = low - 1;
-    uint32_t temp_polar_data;
-
-
-    // Use last element as pivot
-    uint32_t pivot_angle   = polar_data[high];
-
-
-    for (j = low; j < high; j++) {
-
-        if (polar_data[j] <= pivot_angle) {
-            i++;
-
-            // Swap `polar_data`
-            temp_polar_data = polar_data[i];
-            polar_data[i]   = polar_data[j];
-            polar_data[j]   = temp_polar_data;
-        }
-    }
-
-    // Swap pivot into correct position
-    temp_polar_data     = polar_data[i + 1];
-    polar_data[i + 1]   = polar_data[high];
-    polar_data[high ]   = temp_polar_data;
-
-    return i + 1;
-}
-
-void quicksort_uint(
-        uint32_t    polar_data[],
-        uint32_t    low,
-        uint32_t    high)
-{
-    if (low < high) {
-        printf("1");
-
-        uint32_t pi = partition_uint(polar_data, low, high);
-
-        // Recursively sort elements before and after partition
-        quicksort_uint(polar_data, low, pi - 1);
-        quicksort_uint(polar_data, pi + 1, high);
-    }
-}

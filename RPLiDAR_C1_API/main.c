@@ -643,7 +643,7 @@ uint8_t RPLiDAR_RX_Data[RPLiDAR_UART_BUFFER_SIZE] = {0};
 /**
  * @brief RPLiDAR C1 output data buffer.
  */
-float output[OUTPUT_BUFFER][3] = {0};
+float output[OUTPUT_BUFFER][2] = {0};
 
 
 
@@ -1163,7 +1163,8 @@ void main(void) {
                 // int first_5;
     #endif
 
-                aligned = Confirm_Aligned(RPLiDAR_RX_Data);
+//                aligned = Confirm_Aligned(RPLiDAR_RX_Data);
+                aligned = 1;
 
     #ifdef DEBUG_OUTPUT
                 // Second test: Check first few packets specifically
@@ -1232,9 +1233,10 @@ void main(void) {
                      *  transform it with the global pose for visualization. 
                      */
                     valid_point_count = 0;
-                    Process_RPLiDAR_Data(RPLiDAR_RX_Data,
-                                         output,
-                                         &valid_point_count);
+                    Process_RPLiDAR_Data(
+//                            RPLiDAR_RX_Data,
+                            output,
+                            &valid_point_count);
 
                     // Use global_pose for visualization transform
                     Make_Transformation_Matrix_Pose(&global_pose,

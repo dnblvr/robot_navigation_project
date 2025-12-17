@@ -13,8 +13,8 @@
 
 #define M_PI_F 3.1415927f
 
-#define DEG_TO_RAD M_PI_F/180.f
-#define RAD_TO_DEG 180.f/M_PI_F
+#define DTR M_PI_F/180.f
+#define RTD 180.f/M_PI_F
 
 
 

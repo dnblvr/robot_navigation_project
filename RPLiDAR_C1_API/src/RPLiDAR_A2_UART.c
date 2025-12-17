@@ -26,11 +26,11 @@
 /**
  * @brief local variables to be used in this file
  */
-RPLiDAR_Config* config = NULL;
+RPLiDAR_Config* config      = NULL;
 
-static uint8_t*  RX_POINTER     = NULL;
+static uint8_t*  RX_POINTER = NULL;
 
-uint32_t* INTERM_POINTER = NULL;
+uint32_t* INTERM_POINTER    = NULL;
 
 
 uint32_t process_data_flag;
@@ -552,7 +552,6 @@ static void Hold_Action(void) {
         config->current_state   = RECORDING;
         config->  limit_status  = FIND_PATTERN;
         config-> buffer_pointer = RX_POINTER;
-        config-> buffer_counter = 0;
 
     }
 }
@@ -561,16 +560,18 @@ static void Find_Pattern_Action(void) {
 
     // assign `data` and increment pointer afterwards
     *(config->buffer_pointer++)   = (uint8_t)data;
-    config->buffer_counter++;
 
     config->isr_counter++;
 
-    // if within the current counting limit, return early -->
+    // if within `FIND_INDEX`, return early -->
     if (config->isr_counter < FIND_INDEX)   return;
 
     // reset the counter
     config->isr_counter = 0;
+
     uint32_t    found   = 0;
+
+//    printf("fp\n");
 
     /**
      * @brief When in `FIND_PATTERN`, we have `n+1` cols of data. We're
@@ -584,27 +585,25 @@ static void Find_Pattern_Action(void) {
                 && pattern(RX_POINTER + MSG_LENGTH*1 + offset)
                 && pattern(RX_POINTER + MSG_LENGTH*2 + offset);
 
-        if (found) {
+        if (!found)
+            continue;
 
-            // if already aligned, go directly to `SKIP`
-            if (offset == 0) {
+        // if already aligned, go directly to `SKIP`
+        if (offset == 0) {
 
-                config->limit_status    = RECORD;
+            config->limit_status    = RECORD;
 
-            // if not yet aligned, go to `ADD_OFFSET`
-            } else {
-                
-                config->limit_status    = ADD_OFFSET;
-            }
+        // if not yet aligned, go to `ADD_OFFSET`
+        } else {
 
-            break;
+            config->limit_status    = ADD_OFFSET;
         }
+
+        break;
     }
 
     // regardless of the state of pattern-match, start buffer over
     config->buffer_pointer  = RX_POINTER;
-    config->buffer_counter  = 0;
-
 
     config->interm_buffer_pointer   = INTERM_POINTER;
     config->interm_buffer_counter   = 0;
@@ -615,7 +614,7 @@ static void Add_Offset_Action(void) {
 
     config->isr_counter++;
 
-    // if within the `offset` limit, return early -->
+    // if within the variable `offset` limit, return early -->
     if (config->isr_counter < offset)       return;
 
     // reset the counter
@@ -634,16 +633,16 @@ static void Skip_Action(void) {
 
         // perform tasks
         *(config->interm_buffer_pointer++) \
-                = Perform_Tasks(config->buffer_pointer - MSG_LENGTH);
+                = Perform_Tasks(config->buffer_pointer);
         config->interm_buffer_counter++;
 
-//        config->buffer_pointer  = RX_POINTER;
+//       printf("a");
 
     }
 
     config->isr_counter++;
 
-    // if within the current counting limit, return early -->
+    // if within `SKIP_INDEX`, return early -->
     if (config->isr_counter < SKIP_INDEX)   return;
 
     // reset the counter
@@ -651,20 +650,22 @@ static void Skip_Action(void) {
 
 
     // if `buffer_counter` exceeds `RPLiDAR_UART_BUFFER_SIZE`
-//    if (config->buffer_counter > RPLiDAR_UART_BUFFER_SIZE) {
     if (config->interm_buffer_counter > INTERMEDIARY_BUFFER) {
 
         End_Record();
 
         Timer_A1_Acknowledge();
 
+#ifdef DEBUG_OUTPUT
+//        printf("b\n");
+#endif
+
         // Stop_Timer();
 
     } else {
 
         // up-/left-shift to RECORD
-        // config->limit_status    = RECORD;
-        config->limit_status   += 1;
+         config->limit_status    = RECORD;
     }
     
 }
@@ -673,42 +674,37 @@ static void Record_Action(void) {
 
     // assign `data` and increment pointer afterwards
     *(config->buffer_pointer++) = (uint8_t)data;
-    config->buffer_counter++;
 
     config->isr_counter++;
 
-    // if within the current counting limit, return early -->
+    // if within `MSG_LENGTH`, return early -->
     if (config->isr_counter < MSG_LENGTH)   return;
 
     // reset the counter
-    config->isr_counter = 0;
+    config->isr_counter     = 0;
+    config->buffer_pointer  = RX_POINTER;
 
-    // down-/right-shift to SKIP
-    // config->limit_status    = SKIP;
-    config->limit_status   -= 1;
+    // down-/right-shift to `SKIP`
+    config->limit_status    = SKIP;
 
 
     // if it passes the zero-distance filter...
-    // (lmao somehow this works)
-    if (    config->buffer_pointer[-1]    // buffer[4]
-         && config->buffer_pointer[-2]) { // buffer[3]
+    // (lmao this syntax works somehow)
+    if (    config->buffer_pointer[4]    // buffer[4]
+         && config->buffer_pointer[3]) { // buffer[3]
 
         // ...mark the flag for in-motion processing
         process_data_flag   = 1;
 
-    // otherwise, allow overwrite
-    } else {
-
-        config->buffer_pointer -= MSG_LENGTH;
-        config->buffer_counter -= MSG_LENGTH;
+//        printf("f");
 
     }
-    
+
 }
 
 
 /**
- * @brief array definition of the smaller FSM table
+ * @brief array definition of the FSM table
  */
 RPLiDAR_State_t FSM_Table[5] = {
 
@@ -732,6 +728,17 @@ void EUSCIA2_IRQHandler(void) {
 
         // data should be recorded
         data    = (uint8_t)EUSCI_A2->RXBUF;
+
+#ifdef DEBUG_OUTPUT
+//        switch (config->buffer_counter) {
+//        case 5: printf("a"); break;
+//        case 6: printf("b"); break;
+//        case 7: printf("c"); break;
+//        case 8: printf("d"); break;
+//        case 9: printf("e\n"); break;
+//        default: break;
+//        }
+#endif
 
         // call the action function based on the current state
         FSM_Table[config->limit_status].action();
@@ -758,7 +765,7 @@ static inline uint8_t pattern(const uint8_t*   msg_ptr) {
     // Valid values are 0x01 or 0x02, invalid are 0x00 or 0x03
     uint8_t start_bits  = msg_ptr[0] & 0x03;
     
-    return      (start_bits == 0x01 || start_bits == 0x02)
+    return     ((start_bits == 0x01) || (start_bits == 0x02))
             && ((msg_ptr[1] & BYTE_1_CHECK) == BYTE_1_CHECK);
 }
 

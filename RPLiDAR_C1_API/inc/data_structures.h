@@ -19,7 +19,7 @@
  * @brief intra-buffer properties
  */
 #define MSG_LENGTH                  5
-#define SKIP_FACTOR                 5
+#define SKIP_FACTOR                 2
 
 
 /**

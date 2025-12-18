@@ -40,11 +40,6 @@
 #endif
 
 
-/**
- * @brief setting which enables using the function tables vs the single-
- *  function structs
- */
-#define FUNCTION_TABLES 1
 
 
 //#define RPLIDAR_DEBUG 1
@@ -52,21 +47,42 @@
 //#define ERROR_CHECKING 1
 
 
+// ----------------------------------------------------------------------------
+//
+//  DATA STRUCTURES & CONSTANTS
+//
+// ----------------------------------------------------------------------------
 
-#define UART_SKIP_FACTOR 2
 
-// calculate the indices based on the skip factor
+/**
+ * @brief this parameter determines the  onboard filter
+ */
+#define DECIMATION_FACTOR 3
+
+/**
+ * @brief calculated indices based on the `DECIMATION_FACTOR`
+ */
 #define WAIT_INDEX  MSG_LENGTH*8
 #define FIND_INDEX  MSG_LENGTH*4
-#define SKIP_INDEX  MSG_LENGTH*UART_SKIP_FACTOR
+#define SKIP_INDEX  MSG_LENGTH*(DECIMATION_FACTOR - 1)
 
-//#ifdef FUNCTION_TABLES
 
-uint8_t     uart_container[FIND_INDEX];
+static uint8_t     uart_container[FIND_INDEX];
 
-uint32_t container[INTERMEDIARY_BUFFER];
+static uint32_t container[INTERMEDIARY_BUFFER];
 
-//#endif
+
+
+/**
+ * @brief function pointer type for angle filtering
+ */
+typedef uint8_t (*Angle_Filter)(uint32_t data);
+
+/**
+ * @brief default function that scans all points
+ * @details This is going to be real difficult to understand
+ */
+uint8_t Scan_All(uint32_t data);
 
 
 
@@ -105,14 +121,13 @@ typedef enum {
 /**
  * @brief   configuration struct of the RPLiDAR C1
  *
- * @param   skip_factor     how many 5-byte messages to skip before recording
- *                              the nth one
  * @param   limit_status    indicates where in the counting stage we are at
- * @param   limit           counting limit
  *
  * @param   isr_counter     persistent counter that counts all bytes
  * @param   buffer_pointer  pointer to the current buffer position
- * @param   buffer_counter  counter that counts all *recorded* bytes
+ *
+ * @param   interm_buffer_pointer   asfsdahf
+ * @param   interm_buffer_counter   asdfsda
  *
  * @param   current_state   records the state of the RPLiDAR C1 data processing
  *
@@ -120,17 +135,15 @@ typedef enum {
  */
 typedef struct {
 
-    uint8_t             skip_factor;
-
     Record_States       limit_status;
-    volatile uint8_t    limit;
+
+    Angle_Filter        angle_filter;
 
     // --------------------------------------
 
     volatile uint32_t   isr_counter;
 
     volatile uint8_t*   buffer_pointer;
-    volatile uint32_t   buffer_counter;
 
     volatile uint32_t*  interm_buffer_pointer;
     volatile uint32_t   interm_buffer_counter;
@@ -149,6 +162,12 @@ typedef struct {
 // ----------------------------------------------------------------------------
 
 /**
+ * @brief public function that, upon calling, enables the record state
+ */
+void Start_Record(Angle_Filter filter);
+
+
+/**
  * @brief
  *
  * @oaram[in] config    pointer to the RPLiDAR_Config struct for configuration
@@ -156,8 +175,7 @@ typedef struct {
  * @param[in] RX_Data   pointer to the array
  */
 void Configure_RPLiDAR_Struct(
-        const RPLiDAR_Config*   input_config,
-        const uint8_t*          RX_Data);
+        const RPLiDAR_Config*   input_config);
 
 
 /**
@@ -257,8 +275,6 @@ void EUSCI_A2_UART_OutChar(uint8_t data);
 // ----------------------------------------------------------------------------
 
 
-#ifdef FUNCTION_TABLES
-
 /**
  * @brief raw 1-byte UART data container
  */
@@ -287,12 +303,8 @@ static void Record_Action(void);
  * @brief function table element
  */
 struct RPLiDAR_State {
-
     void (*const   action)(void);
-//    const Record_States  next_state;
-
 };
-
 
 /**
  * @brief a type definition that prevents changes via the `const` keyword
@@ -300,7 +312,6 @@ struct RPLiDAR_State {
 typedef const struct RPLiDAR_State  RPLiDAR_State_t;
 
 
-#endif  // #ifdef FUNCTION_TABLES
 
 
 
@@ -309,6 +320,8 @@ typedef const struct RPLiDAR_State  RPLiDAR_State_t;
 //  HELPER FUNCTIONS
 //
 // ----------------------------------------------------------------------------
+
+
 
 /**
  * @brief Checks if the given data response packet index matches the expected
@@ -337,29 +350,15 @@ static inline uint8_t pattern(const uint8_t*   msg_ptr);
 
 
 /**
- * @brief helper function that confirms if the RPLiDAR data is aligned
- * 
- * @param RX_Data 
- * @return uint8_t
- * @retval 1 if aligned, 0 otherwise
+ * @brief
  */
-uint8_t Confirm_Aligned(
-        const uint8_t RPLiDAR_RX_Data[RPLiDAR_UART_BUFFER_SIZE]);
-
-
-static inline uint32_t Perform_Tasks(volatile uint8_t* MSG_START);
+static inline uint32_t Compact_Data(volatile uint8_t* MSG_START);
 
 
 /**
  * @brief helper function that resets the ISR to a predefined recording state
  */
 static void Reset_State(void);
-
-
-/**
- * @brief public function that, upon calling, enables the record state
- */
-void Start_Record(void);
 
 
 /**

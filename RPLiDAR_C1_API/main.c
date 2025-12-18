@@ -647,6 +647,28 @@ float output[OUTPUT_BUFFER][2] = {0};
 
 
 
+/**
+ * @details To convert from `angle_d` to `raw_angle`:
+ *      angle_d            = (1/64.f) * (raw_angle >> 16);
+ *      angle_d * 64 << 16 = raw_angle
+ *      angle_d      << 22 = raw_angle
+ */
+#define SHIFT_FACTOR 22
+
+/**
+ * @brief Angle_Filter function that verifies +/- 60 degrees to the front
+ */
+uint8_t Front_Scan(uint32_t data) {
+
+#define LIM_1 (60 << SHIFT_FACTOR)
+#define LIM_2 (300 << SHIFT_FACTOR)
+
+    return (data < LIM_1) || (data > LIM_2);
+
+}
+
+
+
 // ----------------------------------------------------------------------------
 //
 //  TACHOMETER FUNCTIONS
@@ -1121,7 +1143,8 @@ void main(void) {
             // data collection profiling! --------------------------------
             // Start_Timer_1ms();
 
-            Start_Record();
+            Start_Record(NULL);
+//            Start_Record(Front_Scan);
 
         }
 #endif

@@ -10,7 +10,7 @@
 /**
  * @note local definition of RPLiDAR `cfg` struct
  */
-RPLiDAR_Config cfg = {.skip_factor = UART_SKIP_FACTOR};
+RPLiDAR_Config cfg;
 
 
 // Single-Request, No-Response
@@ -62,7 +62,7 @@ void Initialize_RPLiDAR_C1(
     //  6. go to step 3
 
     // configure the structure
-    Configure_RPLiDAR_Struct(config, RPLiDAR_RX_Data);
+    Configure_RPLiDAR_Struct(config);
 
 
     // Initialize UART communications
@@ -91,121 +91,11 @@ void Initialize_RPLiDAR_C1(
 }
 
 
-
-#ifndef PROCESS_IMPROVEMENTS
-
-
-/**
- * @todo change this output array to a Point
- */
-void Process_RPLiDAR_Data(
-        const uint8_t   RX_DATA[RPLiDAR_UART_BUFFER_SIZE],
-        float               out[OUTPUT_BUFFER][3],
-        uint32_t*       point_count)
-{
-
-    // counter
-    int i = 0;
-
-    float distance_angle[2] = {0};
-    
-    // Temporary array to hold all polar coordinates before sorting and skipping
-    float polar_data[INTERMEDIARY_BUFFER][2];  // [distance, angle]
-    int polar_count = 0;  // Number of valid polar points before skipping
-
-
-    // Conversion index
-    int output_index;
-
-
-#ifdef DEBUG_OUTPUT
-
-    float       min_angle =  INFINITY,
-                max_angle = -INFINITY;
-#endif
-
-    // Extract all distance-angle pairs
-    for (i = 0; i < RPLiDAR_UART_BUFFER_SIZE; i+= MSG_LENGTH) {
-
-        // valid until proven otherwise
-        uint8_t is_valid = 1;
-
-        // convert the data to distance and angle
-        is_valid    = to_distance_angle(RX_DATA + i,
-                                        distance_angle);
-
-        // Test condition 1: comment this out so there is no error-checking.
-        // This way, the error checking is printed rather than filtered out.
-//        if (!is_valid)
-//            continue;
-        
-        // Store in temporary array
-        polar_data[polar_count][0] = distance_angle[0];  // distance
-        polar_data[polar_count][1] = distance_angle[1];  // angle
-        polar_count++;
-    }
-    
-
-    // sort by angle
-    quicksort_float(polar_data, 0, polar_count - 1);
-    // insertion(polar_data, polar_count);
-    
-
-    // Convert sorted polar coordinates to Cartesian with skipping
-    output_index = 0;
-    for (   i = 0;
-            i < polar_count && output_index < OUTPUT_BUFFER;
-            i += SKIP_FACTOR)
-    {
-        
-        // Retrieve sorted distance and angle
-        distance_angle[0] = polar_data[i][0];
-        distance_angle[1] = polar_data[i][1];
-
-#ifdef DEBUG_OUTPUT
-
-        // Track min and max angles
-        if (distance_angle[1] < min_angle)
-            min_angle = distance_angle[1];
-        if (distance_angle[1] > max_angle)
-            max_angle = distance_angle[1];
-
-#endif
-
-        // convert the polar coordinates to Cartesian coordinates
-        polar_to_cartesian( distance_angle, out[output_index] );
-
-#ifdef RPLIDAR_DEBUG
-        // print the distance and angle
-        fprintf(stdout, "%i\t%3.2f rad. @ %5.2f mm\n",
-                output_index, distance_angle[1], distance_angle[0]);
-
-#endif
-
-        output_index++;
-    }
-
-    // Return valid number of points written to output buffer
-    *point_count = output_index;
-
-#ifdef DEBUG_OUTPUT
-
-    // printf("Scan angles: min=%.2f max=%.2f rad (%.1f to %.1f deg), %d points sorted, %d output\n",
-    //        min_angle, max_angle,
-    //        min_angle * 57.2958f, max_angle * 57.2958f,
-    //        point_count, output_index);
-
-#endif
-
-}
-
-#else // #ifndef IMPROVEMENTS
-
+#ifdef PROCESS_IMPROVEMENTS
 
 extern RPLiDAR_Config* config;
 
 extern uint32_t* INTERM_POINTER;
-
 
 /**
  * @todo change this output array to a Point
@@ -216,7 +106,7 @@ void Process_RPLiDAR_Data(
 {
 #ifdef DEBUG_OUTPUT
     printf("\n");
-#endif // #ifdef DEBUG_OUTPUT
+#endif
 
     // persistent counter
     static uint32_t j = 0;
@@ -226,23 +116,25 @@ void Process_RPLiDAR_Data(
     uint32_t limits = config->interm_buffer_counter - 1;
 
 
-    // sort packed data by angle; expects angle as most MS 2 bytes
-    binary_insertion_uint(INTERM_POINTER, limits);
-
-
 #ifdef DEBUG_OUTPUT
 
 #define STATEMENT (j == 2 || j == 4)
 
     printf("%5u\n", limits);
 
-    if (STATEMENT)
-        for (i = 0; i < limits; i++)
+    if (STATEMENT) {
+        for (i = 0; i < limits; i++) {
             printf("  0x%.8X\n", INTERM_POINTER[i]);
+        }
+    }
 
     printf("\n");
 
 #endif // #ifdef DEBUG_OUTPUT
+
+
+    // sort packed data by angle; expects angle as most MS 2 bytes
+    binary_insertion_uint(INTERM_POINTER, limits);
 
 
     k = 0;
@@ -256,7 +148,7 @@ void Process_RPLiDAR_Data(
 //            printf("  %i\t%3.2f rad. @ %5.2f mm\n",
 //                   i, angle_r, distance);
 //        }
-#endif // #ifdef DEBUG_OUTPUT
+#endif
 
         out[k][0] = distance * cosf(angle_r);
         out[k][1] = distance * sinf(angle_r);

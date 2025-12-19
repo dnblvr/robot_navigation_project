@@ -12,6 +12,12 @@
  */
 RPLiDAR_Config cfg;
 
+extern RPLiDAR_Config* config;
+
+extern uint8_t*  RX_POINTER;
+
+extern uint32_t* INTERM_POINTER;
+
 
 // Single-Request, No-Response
 const No_Response  STOP = {0x25,  0,  10},
@@ -43,9 +49,16 @@ const Single_Response \
 // -------------------------------------------------------------------------------------
 
 
+//void Initialize_RPLiDAR_C1(
+//        const RPLiDAR_Config*   config
+//        ,
+//              uint8_t*          RPLiDAR_RX_Data
+//        ,
+//        Timer_Command*  ignore_cmd,
+//        Timer_Command*  acknowledge_cmd
+//        )
 void Initialize_RPLiDAR_C1(
-        const RPLiDAR_Config*   config,
-              uint8_t*          RPLiDAR_RX_Data
+        const RPLiDAR_Config*   config
 //        ,
 //        Timer_Command*  ignore_cmd,
 //        Timer_Command*  acknowledge_cmd
@@ -80,22 +93,18 @@ void Initialize_RPLiDAR_C1(
 
 
     // printf("SRSR: GET_HEALTH\n");
-    Single_Request_Single_Response(&GET_HEALTH, RPLiDAR_RX_Data);
+    Single_Request_Single_Response(&GET_HEALTH, RX_POINTER);
     Clock_Delay1ms(1);
 
 
     // printf("SRMR: SCAN\n");
-    Single_Request_Single_Response(&SCAN, RPLiDAR_RX_Data);
+    Single_Request_Single_Response(&SCAN, RX_POINTER);
     Clock_Delay1ms(200);
 
 }
 
 
-#ifdef PROCESS_IMPROVEMENTS
 
-extern RPLiDAR_Config* config;
-
-extern uint32_t* INTERM_POINTER;
 
 /**
  * @todo change this output array to a Point
@@ -104,9 +113,6 @@ void Process_RPLiDAR_Data(
         float               out[OUTPUT_BUFFER][2],
         uint32_t*       point_count)
 {
-#ifdef DEBUG_OUTPUT
-    printf("\n");
-#endif
 
     // persistent counter
     static uint32_t j = 0;
@@ -150,8 +156,8 @@ void Process_RPLiDAR_Data(
 //        }
 #endif
 
-        out[k][0] = distance * cosf(angle_r);
-        out[k][1] = distance * sinf(angle_r);
+        out[k][0]   = distance * cosf(angle_r);
+        out[k][1]   = distance * sinf(angle_r);
 
         k++;
     }
@@ -162,8 +168,6 @@ void Process_RPLiDAR_Data(
     j++;
 
 }
-
-#endif // #ifndef IMPROVEMENTS
 
 
 // ----------------------------------------------------------------------------
@@ -188,7 +192,7 @@ void Single_Request_No_Response(
 
 uint8_t Single_Request_Single_Response(
         const Single_Response*   cmd,
-        uint8_t RX_DATA_BUFFER[RPLiDAR_UART_BUFFER_SIZE])
+        uint8_t RX_DATA_BUFFER[])
 {
 
     char start_flag_1, start_flag_2;
@@ -256,162 +260,11 @@ uint8_t Single_Request_Single_Response(
 }
 
 
-
-//void Gather_LiDAR_Data(
-//        RPLiDAR_Config       *cfg,
-//
-//        uint8_t scan_confirmation,
-//        uint8_t           RX_Data[BUFFER_LENGTH],
-//
-//        float                 out[FLOAT_BUFFER][3])
-//{
-//
-//    uint16_t i, j, start, end, data_len = 5;
-//
-//    float distance_angle[2] = {0};
-//
-////    EUSCI_A2_UART_Restart();
-//
-//    // Gathering data from the RPLiDAR C1. At this point, it
-//    // should stop recording data as soon as the data stops
-//    // recording.
-//    for (i = 0; i < BUFFER_LENGTH; i++) {
-//
-//        RX_Data[i]  = EUSCI_A2_UART_InChar();
-//    }
-//
-////    EUSCI_A2_UART_Stop();
-//    l
-//
-//    // find the pattern in the data using pattern() function
-//    for (i = 0; i < (data_len + 1); i++) {
-//
-//        // if the increment is found
-//        if (   pattern(RX_Data + data_len*0 + i)
-//            && pattern(RX_Data + data_len*1 + i)
-//            && pattern(RX_Data + data_len*2 + i)
-//            && pattern(RX_Data + data_len*3 + i))
-//        {
-//            start = i;
-//
-//#ifdef RPLIDAR_DEBUG
-//            printf("i = %d\n", start);
-//#endif
-//
-//            break;
-//        }
-//
-//        // If the increment passes the critical range
-//        //  from "0" to "data_len - 1"
-//        if (i == data_len) {
-//
-//#ifdef RPLIDAR_DEBUG
-//            printf("pattern not found\n");
-//#endif
-//            return;
-//        }
-//    }
-//
-//    end = start + BUFFER_LENGTH - data_len*cfg->skip; // cfg->
-//
-//#ifdef RPLIDAR_DEBUG
-//
-//    // print data
-//    for (i = start; i < end; i++) {
-//
-//        if (i % 20 == 0) {
-//            printf("\n");
-//        }
-//
-//        printf("%02X\n", RX_Data[i]);
-//
-//    }
-//
-//#endif
-//
-//    // Then, fill up the FLOAT_BUFFER
-//
-//    j = 0;
-//    for (i = start; i < end; i += data_len*cfg->skip) {
-//
-//        uint8_t is_nonzero;
-//
-//        if (j >= FLOAT_BUFFER)
-//            break;
-//
-//        // convert the data to distance and angle
-//        is_nonzero = to_angle_distance( &RX_Data[i], distance_angle );
-//
-//        // if zero radius, then disregard the data
-//        if (!is_nonzero)
-//            continue;
-//
-//        // convert the polar coordinates to Cartesian coordinates
-//        polar_to_cartesian( distance_angle, out[j] );
-//
-//
-//#ifdef RPLIDAR_DEBUG
-//        // print the distance and angle
-//        fprintf(stdout, "%i\t%3.2f rad. @ %5.2f mm\n",
-//                j, distance_angle[1], distance_angle[0]);
-//
-//#endif
-//
-//        // print the position
-//        fprintf(stdout, "%i\t%10.2f %10.2f\n",
-//                j, out[j][0], out[j][1]);
-//
-//        ++j;
-//
-//    }
-//
-//}
-
-
 // ----------------------------------------------------------------------------
 //
 //  HELPER FUNCTIONS
 //
 // ----------------------------------------------------------------------------
-
-
-static uint8_t to_distance_angle(
-        const uint8_t*  msg_ptr,
-        float           distance_angle[2])
-{
-
-    uint32_t angle      = (( msg_ptr[2] << 7 ) | ( msg_ptr[1] & 0x7F ));
-    uint32_t distance   = (( msg_ptr[4] << 8 ) |   msg_ptr[3]         );
-
-    // early return if `distance` is zero
-    if (distance == 0)
-        return 0;
-
-    distance_angle[0]   = (float)(distance / 4.f);
-    distance_angle[1]   = (float)((DTR * angle) / 64.f);
-
-
-#ifdef DEBUG_OUTPUT
-    // Debug: Show raw bytes, distance and angle
-    // Only print if distance is 0 (invalid) or for first few points
-//    static int debug_count = 0;
-//    if (distance == 0 || debug_count < 5) {
-//
-//        printf("RAW[%02X %02X %02X %02X %02X] -> dist=%lu ang=%.1f deg\n",
-//               msg_ptr[0], msg_ptr[1], msg_ptr[2], msg_ptr[3],
-//               msg_ptr[4], distance, (float)angle / 64.f);
-//
-//        debug_count++;
-//
-//        if (debug_count >= 100)
-//            debug_count = 0;  // Reset periodically
-//    }
-#endif
-
-    return 1;
-}
-
-
 
 void binary_insertion_uint(
         uint32_t    polar_data[],
@@ -443,95 +296,3 @@ void binary_insertion_uint(
         polar_data[left] = key;
     }
 }
-
-
-
-void insertion(
-        float   polar_data[][2],
-        int     point_count)
-{
-    int i, j;
-    float key_dist, key_angle;
-
-    for (i = 1; i < point_count; i++) {
-        // Store the current element
-        key_dist    = polar_data[i][0];
-        key_angle   = polar_data[i][1];
-
-        j = i - 1;
-
-        // Move elements greater than key one position ahead
-        while (     j >= 0
-                &&  polar_data[j][1] > key_angle)
-        {
-            polar_data[j + 1][0] = polar_data[j][0];
-            polar_data[j + 1][1] = polar_data[j][1];
-            j--;
-        }
-
-        // Insert key at correct position
-        polar_data[j + 1][0] = key_dist;
-        polar_data[j + 1][1] = key_angle;
-    }
-
-}
-
-
-
-int partition_float(
-        float   polar_data[][2],
-        int     low,
-        int     high)
-{
-    // counter
-    int j;
-
-    int i = low - 1;
-    float temp_dist, temp_angle;
-
-
-    // Use last element as pivot
-    float pivot_angle   = polar_data[high][1];
-
-
-    for (j = low; j < high; j++) {
-
-        if (polar_data[j][1] <= pivot_angle) {
-            i++;
-
-            // Swap distance
-            temp_dist = polar_data[i][0];
-            polar_data[i][0] = polar_data[j][0];
-            polar_data[j][0] = temp_dist;
-
-            // Swap angle
-            temp_angle = polar_data[i][1];
-            polar_data[i][1] = polar_data[j][1];
-            polar_data[j][1] = temp_angle;
-        }
-    }
-
-    // Swap pivot into correct position
-    temp_dist   = polar_data[i + 1][0];
-    polar_data[i + 1][0]    = polar_data[high][0];
-    polar_data[high ][0]    = temp_dist;
-
-    temp_angle  = polar_data[i + 1][1];
-    polar_data[i + 1][1]    = polar_data[high][1];
-    polar_data[high ][1]    = temp_angle;
-
-    return i + 1;
-}
-
-
-void quicksort_float(float polar_data[][2], int low, int high)
-{
-    if (low < high) {
-        int pi = partition_float(polar_data, low, high);
-
-        // Recursively sort elements before and after partition
-        quicksort_float(polar_data, low, pi - 1);
-        quicksort_float(polar_data, pi + 1, high);
-    }
-}
-

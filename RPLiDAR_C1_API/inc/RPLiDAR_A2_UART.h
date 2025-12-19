@@ -40,8 +40,6 @@
 #endif
 
 
-
-
 //#define RPLIDAR_DEBUG 1
 //#define TX_RX_CHECKS 1
 //#define ERROR_CHECKING 1
@@ -49,13 +47,13 @@
 
 // ----------------------------------------------------------------------------
 //
-//  DATA STRUCTURES & CONSTANTS
+//  CONSTANTS
 //
 // ----------------------------------------------------------------------------
 
 
 /**
- * @brief this parameter determines the  onboard filter
+ * @brief this parameter determines the onboard decimation filter
  */
 #define DECIMATION_FACTOR 3
 
@@ -67,10 +65,26 @@
 #define SKIP_INDEX  MSG_LENGTH*(DECIMATION_FACTOR - 1)
 
 
+/**
+ * @brief default storage containers of the
+ */
 static uint8_t     uart_container[FIND_INDEX];
-
 static uint32_t container[INTERMEDIARY_BUFFER];
 
+
+/**
+ * @details To convert from `angle_degrees` to `raw_angle`:
+ *      angle_d            = (1/64) * (raw_angle >> 16);
+ *      angle_d * 64 << 16 =           raw_angle
+ *      angle_d      << 22 =           raw_angle
+ */
+#define SHIFT_FACTOR    22
+
+
+/**
+ * @brief bitmask that only shows the angle of the concatenated message
+ */
+#define ANGLE_ONLY      0xFFFF0000
 
 
 /**
@@ -78,11 +92,19 @@ static uint32_t container[INTERMEDIARY_BUFFER];
  */
 typedef uint8_t (*Angle_Filter)(uint32_t data);
 
+
 /**
- * @brief default function that scans all points
- * @details This is going to be real difficult to understand
+ * @brief default `Angle_Filter` function that scans all points
+ * @details This is going to be real difficult to understand.
  */
 uint8_t Scan_All(uint32_t data);
+
+
+// ----------------------------------------------------------------------------
+//
+//  DATA STRUCTURES
+//
+// ----------------------------------------------------------------------------
 
 
 
@@ -119,9 +141,11 @@ typedef enum {
 
 
 /**
- * @brief   configuration struct of the RPLiDAR C1
+ * @brief   UART struct of the RPLiDAR C1 at each scan
  *
- * @param   limit_status    indicates where in the counting stage we are at
+ * @param   angle_filter    angle-rejection filter to be used at each scan
+ *
+ * @param   limit_status    indicates the current state of the decimation filter
  *
  * @param   isr_counter     persistent counter that counts all bytes
  * @param   buffer_pointer  pointer to the current buffer position
@@ -135,9 +159,9 @@ typedef enum {
  */
 typedef struct {
 
-    Record_States       limit_status;
-
     Angle_Filter        angle_filter;
+
+    Record_States       limit_status;
 
     // --------------------------------------
 
@@ -157,15 +181,9 @@ typedef struct {
 
 // ----------------------------------------------------------------------------
 //
-//  CONFIGURATION FUNCTIONS
+//  PUBLIC CONFIGURATION FUNCTIONS
 //
 // ----------------------------------------------------------------------------
-
-/**
- * @brief public function that, upon calling, enables the record state
- */
-void Start_Record(Angle_Filter filter);
-
 
 /**
  * @brief
@@ -176,6 +194,12 @@ void Start_Record(Angle_Filter filter);
  */
 void Configure_RPLiDAR_Struct(
         const RPLiDAR_Config*   input_config);
+
+
+/**
+ * @brief public function that, upon calling, enables the record state
+ */
+void Start_Record(Angle_Filter filter);
 
 
 /**
@@ -317,7 +341,7 @@ typedef const struct RPLiDAR_State  RPLiDAR_State_t;
 
 // ----------------------------------------------------------------------------
 //
-//  HELPER FUNCTIONS
+//  PRIVATE HELPER FUNCTIONS
 //
 // ----------------------------------------------------------------------------
 

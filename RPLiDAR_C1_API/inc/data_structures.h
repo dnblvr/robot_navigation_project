@@ -15,6 +15,13 @@
 #include <assert.h> // for stati_assert()
 
 
+// ----------------------------------------------------------------------------
+//
+//  CONSTANTS
+//
+// ----------------------------------------------------------------------------
+
+
 /**
  * @brief intra-buffer properties
  */
@@ -30,7 +37,7 @@
 #define OUTPUT_BUFFER               100
 
 // float buffer after sorting
-#define INTERMEDIARY_BUFFER         SKIP_FACTOR*OUTPUT_BUFFER // 500
+#define INTERMEDIARY_BUFFER         SKIP_FACTOR*OUTPUT_BUFFER // 200
 
 // data filtered for
 #define RPLiDAR_UART_BUFFER_SIZE    INTERMEDIARY_BUFFER*MSG_LENGTH
@@ -39,6 +46,12 @@
 // check at compile-time to see if buffer size is a multiple of MSG_LENGTH
 static_assert(RPLiDAR_UART_BUFFER_SIZE % MSG_LENGTH == 0, 
     "RPLiDAR_UART_BUFFER_SIZE must be a multiple of MSG_LENGTH");
+
+// ----------------------------------------------------------------------------
+//
+//  DATA STRUCTURES
+//
+// ----------------------------------------------------------------------------
 
 
 /**

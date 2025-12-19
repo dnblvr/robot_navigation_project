@@ -636,35 +636,20 @@ void Perform_SLAM(
 extern RPLiDAR_Config cfg;
 
 /**
- * @brief RPLiDAR C1 RX data buffer.
- */
-uint8_t RPLiDAR_RX_Data[RPLiDAR_UART_BUFFER_SIZE] = {0};
-
-/**
  * @brief RPLiDAR C1 output data buffer.
  */
 float output[OUTPUT_BUFFER][2] = {0};
 
-
-
-/**
- * @details To convert from `angle_d` to `raw_angle`:
- *      angle_d            = (1/64.f) * (raw_angle >> 16);
- *      angle_d * 64 << 16 = raw_angle
- *      angle_d      << 22 = raw_angle
- */
-#define SHIFT_FACTOR 22
 
 /**
  * @brief Angle_Filter function that verifies +/- 60 degrees to the front
  */
 uint8_t Front_Scan(uint32_t data) {
 
-#define LIM_1 (60 << SHIFT_FACTOR)
-#define LIM_2 (300 << SHIFT_FACTOR)
+#define FS_LIM_1    ( 60 << SHIFT_FACTOR)
+#define FS_LIM_2    (300 << SHIFT_FACTOR)
 
-    return (data < LIM_1) || (data > LIM_2);
-
+    return (data < FS_LIM_1) || (data > FS_LIM_2);
 }
 
 
@@ -1018,7 +1003,7 @@ void main(void) {
     /** ----------------------------------------------------------------------
      * Initialize RPLiDAR C1 configuration struct instance 
      */
-    Initialize_RPLiDAR_C1(&cfg, RPLiDAR_RX_Data);
+    Initialize_RPLiDAR_C1(&cfg);
 
 #ifdef DEBUG_OUTPUT
     // printf("C1 initialized\n\n");
@@ -1180,24 +1165,6 @@ void main(void) {
              */
             if (cfg.current_state == PROCESSING)
             {
-                uint32_t aligned;
-
-    #ifdef DEBUG_OUTPUT
-                // int first_5;
-    #endif
-
-//                aligned = Confirm_Aligned(RPLiDAR_RX_Data);
-                aligned = 1;
-
-    #ifdef DEBUG_OUTPUT
-                // Second test: Check first few packets specifically
-                // first_5 =    pattern(RPLiDAR_RX_Data + 0*MSG_LENGTH) \
-                //           && pattern(RPLiDAR_RX_Data + 1*MSG_LENGTH) \
-                //           && pattern(RPLiDAR_RX_Data + 2*MSG_LENGTH) \
-                //           && pattern(RPLiDAR_RX_Data + 3*MSG_LENGTH);
-
-                // printf("Alignment: %d, %d\n", aligned, first_5);
-    #endif                
 
                 /**
                  * @brief If data is aligned, process it and run SLAM
@@ -1211,110 +1178,108 @@ void main(void) {
                  *   ...
                  *   SCAN_END
                  */
-                if (aligned)
+//                if (1)
+//                {
+                // counter variables
+                int k;
+
+                uint32_t valid_point_count;
+
+                float T_matrix[3][3] = {0};
+                PointCloud transformed_cloud;
+                PointCloud local_cloud;  // Local scan in sensor frame
+
+
+                // visually indicate if aligned
+                LED2_Output(RGB_LED_WHITE);
+
+
+                /**
+                 * Collate all intermediate poses into single composite
+                 *      transformation, and then reset the accumulator.
+                 */
+    #ifdef DEBUG_OUTPUT
+//                uint32_t num_samples = pose_ptr->num_elements;  // Save before reset
+    #endif
+                // Get incremental motion since last scan
+                Accumulate_Poses(pose_ptr, &incremental_pose);
+                incremental_pose.timestamp = tick_counter;
+
+                // NOTE: We do NOT update global_pose here anymore!
+                // Perform_SLAM() will refine incremental_pose with ICP and update global_pose
+                // This ensures state and constraints are consistent
+                    
+                Reset_Pose_Accumulator(pose_ptr);
+                    
+    #ifdef DEBUG_OUTPUT
+//                printf("Composite pose from %lu samples: "
+//                       "x=%.2f y=%.2f theta=%.3f\n",
+//                       num_samples,
+//                       incremental_pose.x, incremental_pose.y, incremental_pose.theta);
+    #endif
+                    
+                /**
+                 * Process RPLiDAR C1 data into buffer `output`, and
+                 *  transform it with the global pose for visualization.
+                 */
+                valid_point_count = 0;
+                Process_RPLiDAR_Data(output,
+                                     &valid_point_count);
+
+                // Use global_pose for visualization transform
+                Make_Transformation_Matrix_Pose(&global_pose,
+                                                T_matrix);
+
+
+                // Populate local and transformed point clouds
+                transformed_cloud.num_pts    = 0;
+                local_cloud.num_pts          = 0;
+
+
+                printf("POSE,%5.2f,%5.2f,%5.2f\n",
+                       global_pose.x,
+                       global_pose.y,
+                       global_pose.theta);
+
+                printf("SCAN_START\n");
+                    
+
+                // for each valid point in the output buffer
+                for (k = 0; k < valid_point_count; k++)
                 {
-                    // counter variables
-                    int k;
-                    
-                    uint32_t valid_point_count;
 
-                    float T_matrix[3][3] = {0};
-                    PointCloud transformed_cloud;
-                    PointCloud local_cloud;  // Local scan in sensor frame
+                    // Store local scan point (in sensor frame)
+                    local_cloud.points[local_cloud.num_pts].x \
+                        = output[k][0];
+                    local_cloud.points[local_cloud.num_pts].y \
+                        = output[k][1];
+                    local_cloud.num_pts++;
 
+                    // Each point as homogeneous coordinates [x, y, 1]
+                    float point[3] = {output[k][0], output[k][1], 1.0f};
 
-                    // visually indicate if aligned
-                    LED2_Output(RGB_LED_WHITE);
+                    // Transformed point = T_matrix * point
+                    transformed_cloud.points[transformed_cloud.num_pts].x \
+                        =    T_matrix[0][0]*point[0] \
+                           + T_matrix[0][1]*point[1] \
+                           + T_matrix[0][2]*point[2];
+                    transformed_cloud.points[transformed_cloud.num_pts].y \
+                        =    T_matrix[1][0]*point[0] \
+                           + T_matrix[1][1]*point[1] \
+                           + T_matrix[1][2]*point[2];
 
-
-                    /**
-                     * Collate all intermediate poses into single composite 
-                     *      transformation, and then reset the accumulator.
-                     */
-    #ifdef DEBUG_OUTPUT
-//                    uint32_t num_samples = pose_ptr->num_elements;  // Save before reset
-    #endif
-                    // Get incremental motion since last scan
-                    Accumulate_Poses(pose_ptr, &incremental_pose);
-                    incremental_pose.timestamp = tick_counter;
-                    
-                    // NOTE: We do NOT update global_pose here anymore!
-                    // Perform_SLAM() will refine incremental_pose with ICP and update global_pose
-                    // This ensures state and constraints are consistent
-                    
-                    Reset_Pose_Accumulator(pose_ptr);
-                    
-    #ifdef DEBUG_OUTPUT
-                //    printf("Composite pose from %lu samples: "
-                //           "x=%.2f y=%.2f theta=%.3f\n",
-                //           num_samples,
-                //           incremental_pose.x, incremental_pose.y, incremental_pose.theta);
-    #endif
-                    
-                    /**
-                     * Process RPLiDAR C1 data into buffer `output`, and 
-                     *  transform it with the global pose for visualization. 
-                     */
-                    valid_point_count = 0;
-                    Process_RPLiDAR_Data(
-//                            RPLiDAR_RX_Data,
-                            output,
-                            &valid_point_count);
-
-                    // Use global_pose for visualization transform
-                    Make_Transformation_Matrix_Pose(&global_pose,
-                                                    T_matrix);
-                    
-
-                    // Populate local and transformed point clouds
-                    transformed_cloud.num_pts    = 0;
-                    local_cloud.num_pts          = 0;
-
-
-                    printf("POSE,%5.2f,%5.2f,%5.2f\n",
-                           global_pose.x,
-                           global_pose.y,
-                           global_pose.theta);
-
-                    printf("SCAN_START\n");
-                    
-
-                    // for each valid point in the output buffer
-                    for (k = 0; k < valid_point_count; k++)
-                    {
-                        
-                        // Store local scan point (in sensor frame)
-                        local_cloud.points[local_cloud.num_pts].x \
-                            = output[k][0];
-                        local_cloud.points[local_cloud.num_pts].y \
-                            = output[k][1];
-                        local_cloud.num_pts++;
-                        
-                        // Each point as homogeneous coordinates [x, y, 1]
-                        float point[3] = {output[k][0], output[k][1], 1.0f};
-                        
-                        // Transformed point = T_matrix * point
-                        transformed_cloud.points[transformed_cloud.num_pts].x \
-                            =    T_matrix[0][0]*point[0] \
-                               + T_matrix[0][1]*point[1] \
-                               + T_matrix[0][2]*point[2];
-                        transformed_cloud.points[transformed_cloud.num_pts].y \
-                            =    T_matrix[1][0]*point[0] \
-                               + T_matrix[1][1]*point[1] \
-                               + T_matrix[1][2]*point[2];
-                        
-                        transformed_cloud.num_pts++;
+                    transformed_cloud.num_pts++;
 
     #ifdef PROCESSING4_OUTPUT
-                        printf("P,%5.2f,%5.2f\n",
-                               transformed_cloud.points[transformed_cloud.num_pts].x,
-                               transformed_cloud.points[transformed_cloud.num_pts].y);
+                    printf("P,%5.2f,%5.2f\n",
+                           transformed_cloud.points[transformed_cloud.num_pts].x,
+                           transformed_cloud.points[transformed_cloud.num_pts].y);
     #endif
-                    }
+                }
 
     #ifdef PROCESSING4_OUTPUT
-                    printf("SCAN_END\n");
-                    // printf("SAVE\n");
+                printf("SCAN_END\n");
+                // printf("SAVE\n");
     #endif
 
                     
@@ -1322,20 +1287,18 @@ void main(void) {
 
         #define DATA_PT 5
 
-                    // printf("Transformed cloud: %d points"
-                    //        " | Sample %3i: local(%7.2f, %7.2f)"
-                    //        " -> global(%7.2f, %7.2f)\n",
-                    //         transformed_cloud.num_pts,
-                    //         DATA_PT,
-                    //         output[DATA_PT][0],
-                    //         output[DATA_PT][1],
-                    //         transformed_cloud.points[DATA_PT].x,
-                    //         transformed_cloud.points[DATA_PT].y);
+                // printf("Transformed cloud: %d points"
+                //        " | Sample %3i: local(%7.2f, %7.2f)"
+                //        " -> global(%7.2f, %7.2f)\n",
+                //         transformed_cloud.num_pts,
+                //         DATA_PT,
+                //         output[DATA_PT][0],
+                //         output[DATA_PT][1],
+                //         transformed_cloud.points[DATA_PT].x,
+                //         transformed_cloud.points[DATA_PT].y);
     #endif
 
-//                    Perform_SLAM(&local_cloud, &transformed_cloud);
-                    
-                }
+//                Perform_SLAM(&local_cloud, &transformed_cloud);
 
                 LED2_Output(RGB_LED_OFF);
 

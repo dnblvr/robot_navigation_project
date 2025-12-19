@@ -25,27 +25,56 @@
 #include "../inc/RPLiDAR_A2_UART.h"
 
 
+// ----------------------------------------------------------------------------
+//
+//  DATA STRUCTURES & CONSTANTS
+//
+// ----------------------------------------------------------------------------
+
 /**
- * @brief local variables to be used in this file
+ * @brief pointers to the storage containers to be used in the UART ISR
  */
 RPLiDAR_Config* config      = NULL;
 
-static uint8_t*  RX_POINTER = NULL;
+uint8_t*  RX_POINTER        = NULL;
 
 uint32_t* INTERM_POINTER    = NULL;
 
 
+/**
+ * @brief flag for in-motion processing
+ */
 uint32_t process_data_flag;
 
 
+
+//#define SCAN_ANGLE_FIX 1
+
+/**
+ * @details Requires a doctorate in computer sciengineering to understand this
+ */
+#ifndef SCAN_ANGLE_FIX
+
+uint8_t Scan_All(uint32_t data) {   return 1; }
+
+#else   // #ifndef SCAN_ANGLE_FIX
+
 uint8_t Scan_All(uint32_t data) {
-    return 1;
+
+#define SA_LIM_1    ( 90 << SHIFT_FACTOR)
+#define SA_LIM_2    (270 << SHIFT_FACTOR)
+
+    uint32_t angle = data & ANGLE_ONLY;
+
+    return (angle != SA_LIM_1) || (angle != SA_LIM_2);
 }
+
+#endif  // #ifndef SCAN_ANGLE_FIX
 
 
 // ----------------------------------------------------------------------------
 //
-//  CONFIGURATION FUNCTIONS
+//  PUBLIC CONFIGURATION FUNCTIONS
 //
 // ----------------------------------------------------------------------------
 
@@ -78,6 +107,19 @@ void Configure_RPLiDAR_Struct(
 #endif
 
 }
+
+
+void Start_Record(Angle_Filter filter) {
+
+    // assign the filter function
+    config->angle_filter    = (filter == NULL) ? &Scan_All : filter;
+
+
+    // only when idling and invoking this function makes it ready
+    if (config->current_state == IDLING)
+        config->current_state   = READY;
+}
+
 
 
 void EUSCI_A2_UART_Init()
@@ -287,13 +329,14 @@ void EUSCI_A2_UART_OutChar(uint8_t data)
 
 static void Hold_Action(void) {
 
+    // if within `WAIT_INDEX`, return early ------------------------------->
+    // if over this limit, reset the counter
     config->isr_counter++;
 
-    // if within the current counting limit, return early -->
     if (config->isr_counter < WAIT_INDEX)   return;
 
-    // reset the counter
     config->isr_counter = 0;
+
 
     /**
      * @note
@@ -316,19 +359,18 @@ static void Find_Pattern_Action(void) {
 
     // assign `data` and increment pointer afterwards
     *(config->buffer_pointer++)   = (uint8_t)data;
+    
 
+    // if within `FIND_INDEX`, return early ------------------------------->
+    // if over this limit, reset the counter
     config->isr_counter++;
 
-    // if within `FIND_INDEX`, return early -->
     if (config->isr_counter < FIND_INDEX)   return;
 
-    // reset the counter
     config->isr_counter = 0;
 
 //    printf("fp\n");
 
-
-    uint32_t    found   = 0;
 
     /**
      * @brief When in `FIND_PATTERN`, we have `n+1` cols of data. We're
@@ -336,18 +378,18 @@ static void Find_Pattern_Action(void) {
      *      with an `offset` at each byte. When found, `offset` is the
      *      amount left to re-align to the correct index.
      */
+    uint32_t    found   = 0;
     for (offset = 0; offset < MSG_LENGTH; offset++) {
 
         // if the pattern is found on the first 5-bytes, find the rest
-        if ( pattern(RX_POINTER + MSG_LENGTH*0 + offset) ) {
-            found =     pattern(RX_POINTER + MSG_LENGTH*1 + offset)
+        if ( pattern(RX_POINTER + MSG_LENGTH*0 + offset) )
+            found =     pattern(RX_POINTER + MSG_LENGTH*1 + offset) \
                      && pattern(RX_POINTER + MSG_LENGTH*2 + offset);
-        }
 
         if (!found)
             continue;
         
-        // `RECORD` if already aligned; else `ADD_OFFSET`
+        // `RECORD` if already aligned, else `ADD_OFFSET`
         config->limit_status    = (offset == 0) ? RECORD : ADD_OFFSET;
 
         break;
@@ -363,26 +405,29 @@ static void Find_Pattern_Action(void) {
 
 static void Add_Offset_Action(void) {
 
+    // if within the variable `offset` limit, return early -->
+    // if over this limit, reset the counter
     config->isr_counter++;
 
-    // if within the variable `offset` limit, return early -->
     if (config->isr_counter < offset)       return;
 
-    // reset the counter
     config->isr_counter = 0;
 
+
+    // transition to next
     config->limit_status    = RECORD;
 
 }
 
 static void Skip_Action(void) {
 
+    // in-motion processing: min- and max-angle rejection
     if (process_data_flag) {
 
         // clear the flag
         process_data_flag = 0;
 
-        // @todo min and max angle rejection
+        // if it passes, then add to
         if ( config->angle_filter(*config->interm_buffer_pointer) ) {
             config->interm_buffer_pointer++;
             config->interm_buffer_counter++;
@@ -390,12 +435,12 @@ static void Skip_Action(void) {
 
     }
 
+    // if within `SKIP_INDEX`, return early ------------------------------->
+    // if over this limit, reset the counter
     config->isr_counter++;
 
-    // if within `SKIP_INDEX`, return early -->
     if (config->isr_counter < SKIP_INDEX)   return;
 
-    // reset the counter
     config->isr_counter = 0;
 
 
@@ -408,14 +453,14 @@ static void Skip_Action(void) {
 
 #ifdef DEBUG_OUTPUT
 //        printf("b\n");
-#endif
 
         // Stop_Timer();
+#endif
 
     } else {
 
         // up-/left-shift to RECORD
-         config->limit_status    = RECORD;
+        config->limit_status    = RECORD;
     }
     
 }
@@ -425,14 +470,17 @@ static void Record_Action(void) {
     // assign `data` and increment pointer afterwards
     *(config->buffer_pointer++) = (uint8_t)data;
 
+
+    // if within `MSG_LENGTH`, return early ------------------------------->
+    // if over this limit, reset the counter
+    // & `buffer_pointer`
     config->isr_counter++;
 
-    // if within `MSG_LENGTH`, return early -->
     if (config->isr_counter < MSG_LENGTH)   return;
 
-    // reset the counter
     config->isr_counter     = 0;
     config->buffer_pointer  = RX_POINTER;
+
 
     // down-/right-shift to `SKIP`
     config->limit_status    = SKIP;
@@ -442,23 +490,20 @@ static void Record_Action(void) {
     if (    config->buffer_pointer[4]
          && config->buffer_pointer[3]) {
 
-        // perform tasks
+        // compact the data to one variable
         *(config->interm_buffer_pointer) \
-//        *(config->interm_buffer_pointer++)
                 = Compact_Data(config->buffer_pointer);
-
 
         // ...mark the flag for in-motion processing
         process_data_flag   = 1;
 
 //        printf("f");
     }
-
 }
 
 
 /**
- * @brief array definition of the FSM table
+ * @brief global definition of the FSM table
  */
 RPLiDAR_State_t FSM_Table[5] = {
 
@@ -476,14 +521,13 @@ void EUSCIA2_IRQHandler(void) {
     /**
      * if EUSCI_A2 RXIFG flag is read, then do the following commands:
      *  - record data
-     *  - perform the tasks associated by `limit_status` of the function table
+     *  - perform the tasks according to the `limit_status` of the function
+     *      table
      */
     if (EUSCI_A2->IFG & 0x01) {
 
-        // data should be recorded
         data    = (uint8_t)EUSCI_A2->RXBUF;
 
-        // call the action function based on the current state
         FSM_Table[config->limit_status].action();
     }
 
@@ -492,24 +536,13 @@ void EUSCIA2_IRQHandler(void) {
 
 // ----------------------------------------------------------------------------
 //
-//  HELPER FUNCTIONS
+//  PRIVATE HELPER FUNCTIONS
 // 
 // ----------------------------------------------------------------------------
 
-void Start_Record(Angle_Filter filter) {
-
-    // assign the filter function
-    config->angle_filter    = (filter == NULL) ? &Scan_All : filter;
-
-
-    // only when idling and invoking this function makes it ready
-    if (config->current_state == IDLING)
-        config->current_state   = READY;
-}
-
 static inline uint8_t pattern(const uint8_t*   msg_ptr) {
 
-#define BYTE_1_CHECK 0x01
+    #define BYTE_1_CHECK 0x01
 
     // Check byte 0: bits 0 and 1 should be complements (01 or 10)
     // Valid values are 0x01 or 0x02, invalid are 0x00 or 0x03
@@ -522,14 +555,14 @@ static inline uint8_t pattern(const uint8_t*   msg_ptr) {
 
 static inline uint32_t Compact_Data(volatile uint8_t* msg_ptr) {
 
-    uint32_t angle_dist =   (  msg_ptr[2]         << 23 ) \
-                          | ( (msg_ptr[1] & 0x7F) << 16 ) \
-                          | (  msg_ptr[4]         <<  8 ) \
-                          | (  msg_ptr[3]         <<  0 ) ;
+    // return a concatenation of two datapoints: Q9.6 angle...
+    return    (  msg_ptr[2]         << 23 ) \
+            | ( (msg_ptr[1] & 0x7F) << 16 ) \
 
-    return angle_dist;
+            // ... & Q14.2 distance.
+            | (  msg_ptr[4]         <<  8 ) \
+            | (  msg_ptr[3]         <<  0 );
 }
-
 
 
 static void Reset_State(void) {
@@ -549,9 +582,7 @@ static void End_Record(void) {
 
     config->current_state   = PROCESSING;
     config->  limit_status  = HOLD;
-//    config->  limit         = WAIT_INDEX;
     config-> buffer_pointer = RX_POINTER;
-//    config-> buffer_counter = 0;
 
 }
 
@@ -620,10 +651,12 @@ uint8_t EUSCI_A2_UART_Transmit_Data()
 void EUSCI_A2_UART_Ramp_Data(uint8_t TX_Buffer[], uint8_t RX_Buffer[])
 {
     int i;
-    // Create a for-loop that starts from index 0 to index 255 (use BUFFER_LENGTH)
+    // Create a for-loop that starts from index 0 to index 255 (use
+    //  BUFFER_LENGTH)
     for (i = 0; i < BUFFER_LENGTH; i++)
     {
-        // Make a function call to EUSCI_A2_UART_OutChar and pass the index value
+        // Make a function call to EUSCI_A2_UART_OutChar and pass the index
+        // value
         EUSCI_A2_UART_OutChar( (uint8_t)i );
 
         // Assign the value of the index to TX_Buffer[i]
@@ -638,17 +671,19 @@ void EUSCI_A2_UART_Validate_Data(uint8_t TX_Buffer[], uint8_t RX_Buffer[])
 {
     int i;
 
-    // Create a for-loop that starts from index 0 to index 255 (use BUFFER_LENGTH)
+    // Create a for-loop that starts from index 0 to index 255 (use
+    //  BUFFER_LENGTH)
     for (i = 0; i < BUFFER_LENGTH; i++)
     {
-        // Print the contents of TX_Buffer[i] and RX_Buffer[i] in one line. There should
-        // be a newline (i.e. \n) for each iteration
-        printf("i=%d:\tTX: 0x%02X -->\tRX: 0x%02X\n", i, TX_Buffer[i], RX_Buffer[i]);
+        // Print the contents of TX_Buffer[i] and RX_Buffer[i] in one line.
+        // There should be a newline (i.e. \n) for each iteration
+        printf("i=%d:\tTX: 0x%02X -->\tRX: 0x%02X\n",
+               i, TX_Buffer[i], RX_Buffer[i]);
 
-        // Include a condition that checks if TX_Buffer[i] != RX_Buffer[i]. If there is
-        // a data mismatch between TX_Buffer[i] and RX_Buffer[i], then indicate in a
-        // printf message that there is a mismatch and specify which set of data is not
-        // the same
+        // Include a condition that checks if TX_Buffer[i] != RX_Buffer[i]. If
+        // there is a data mismatch between TX_Buffer[i] and RX_Buffer[i], then
+        // indicate in a printf message that there is a mismatch and specify
+        // which set of data is not the same
         if ( TX_Buffer[i] != RX_Buffer[i] ) {
             printf("\ti=%d is not equal!\n");
         }

@@ -50,15 +50,20 @@ uint32_t process_data_flag;
 
 //#define SCAN_ANGLE_FIX 1
 
+#ifndef SCAN_ANGLE_FIX
+
+
 /**
  * @details Requires a doctorate in computer sciengineering to understand this
  */
-#ifndef SCAN_ANGLE_FIX
-
 uint8_t Scan_All(uint32_t data) {   return 1; }
 
 #else   // #ifndef SCAN_ANGLE_FIX
 
+
+/**
+ * @details Requires a doctorate in computer sciengineering to understand this
+ */
 uint8_t Scan_All(uint32_t data) {
 
 #define SA_LIM_1    ( 90 << SHIFT_FACTOR)

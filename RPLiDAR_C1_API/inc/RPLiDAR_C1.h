@@ -58,9 +58,6 @@ typedef struct {
  *
  * @return None
  */
-//void Initialize_RPLiDAR_C1(
-//        const RPLiDAR_Config*   config,
-//        uint8_t*                RPLiDAR_RX_Data);
 
 void Initialize_RPLiDAR_C1(
         const RPLiDAR_Config*   config);
@@ -69,10 +66,7 @@ void Initialize_RPLiDAR_C1(
 /**
  * @brief processes all the raw 5-byte messages incoming from the RPLiDAR data
  */
-void Process_RPLiDAR_Data(
-        float           out[OUTPUT_BUFFER][2],
-        uint32_t*       point_count);
-
+void Process_RPLiDAR_Data(PointCloud*   output);
 
 // ----------------------------------------------------------------------------
 //

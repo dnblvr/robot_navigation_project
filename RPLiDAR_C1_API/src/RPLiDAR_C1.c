@@ -1,7 +1,7 @@
 /**
  * @file    RPLiDAR_C1.c
- * @brief   higher-level functions that are used to interface with the C1 regardless of
- *  the microcontroller involved
+ * @brief   higher-level functions that are used to interface with the C1
+ *              regardless of the microcontroller involved
  */
 
 #include "./inc/RPLiDAR_C1.h"
@@ -42,21 +42,14 @@ const Single_Response \
 //typedef void (*Timer_Command)(void);
 
 
-// -------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 //
 //  INITIALIZATION
 //
-// -------------------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
 
 
-//void Initialize_RPLiDAR_C1(
-//        const RPLiDAR_Config*   config
-//        ,
-//              uint8_t*          RPLiDAR_RX_Data
-//        ,
-//        Timer_Command*  ignore_cmd,
-//        Timer_Command*  acknowledge_cmd
-//        )
+
 void Initialize_RPLiDAR_C1(
         const RPLiDAR_Config*   config
 //        ,
@@ -104,20 +97,12 @@ void Initialize_RPLiDAR_C1(
 }
 
 
-
-
-/**
- * @todo change this output array to a Point
- */
-void Process_RPLiDAR_Data(
-        float               out[OUTPUT_BUFFER][2],
-        uint32_t*       point_count)
-{
+void Process_RPLiDAR_Data(PointCloud*   output) {
 
     // persistent counter
     static uint32_t j = 0;
 
-    // counters
+    // for-loop counters
     uint32_t i, k;
     uint32_t limits = config->interm_buffer_counter - 1;
 
@@ -156,13 +141,13 @@ void Process_RPLiDAR_Data(
 //        }
 #endif
 
-        out[k][0]   = distance * cosf(angle_r);
-        out[k][1]   = distance * sinf(angle_r);
-
+        output->points[k].x = distance * cosf(angle_r);
+        output->points[k].y = distance * sinf(angle_r);
+//
         k++;
     }
 
-    *point_count    = k;
+    output->num_pts = k;
 
 
     j++;

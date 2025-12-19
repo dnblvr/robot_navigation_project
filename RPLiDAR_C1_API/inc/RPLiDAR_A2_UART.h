@@ -145,7 +145,8 @@ typedef enum {
  *
  * @param   angle_filter    angle-rejection filter to be used at each scan
  *
- * @param   limit_status    indicates the current state of the decimation filter
+ * @param   limit_status    indicates the current state of the decimation
+ *                              filter
  *
  * @param   isr_counter     persistent counter that counts all bytes
  * @param   buffer_pointer  pointer to the current buffer position
@@ -153,7 +154,8 @@ typedef enum {
  * @param   interm_buffer_pointer   asfsdahf
  * @param   interm_buffer_counter   asdfsda
  *
- * @param   current_state   records the state of the RPLiDAR C1 data processing
+ * @param   current_state   records the state of the RPLiDAR C1 data pro-
+ *                              cessing
  *
  * @details
  */

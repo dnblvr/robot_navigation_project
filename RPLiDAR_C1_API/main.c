@@ -1128,8 +1128,8 @@ void main(void) {
             // data collection profiling! --------------------------------
             // Start_Timer_1ms();
 
-            Start_Record(NULL);
-//            Start_Record(Front_Scan);
+//            Start_Record(NULL);
+            Start_Record(Front_Scan);
 
         }
 #endif
@@ -1178,16 +1178,13 @@ void main(void) {
                  *   ...
                  *   SCAN_END
                  */
-//                if (1)
-//                {
-                // counter variables
-                int k;
 
-                uint32_t valid_point_count;
+                // counter variables
+                uint32_t k;
 
                 float T_matrix[3][3] = {0};
-                PointCloud transformed_cloud;
                 PointCloud local_cloud;  // Local scan in sensor frame
+                PointCloud transformed_cloud;
 
 
                 // visually indicate if aligned
@@ -1219,21 +1216,14 @@ void main(void) {
     #endif
                     
                 /**
-                 * Process RPLiDAR C1 data into buffer `output`, and
+                 * Process RPLiDAR C1 data into buffer `local_cloud`, and
                  *  transform it with the global pose for visualization.
                  */
-                valid_point_count = 0;
-                Process_RPLiDAR_Data(output,
-                                     &valid_point_count);
+                Process_RPLiDAR_Data(&local_cloud);
 
                 // Use global_pose for visualization transform
                 Make_Transformation_Matrix_Pose(&global_pose,
                                                 T_matrix);
-
-
-                // Populate local and transformed point clouds
-                transformed_cloud.num_pts    = 0;
-                local_cloud.num_pts          = 0;
 
 
                 printf("POSE,%5.2f,%5.2f,%5.2f\n",
@@ -1244,38 +1234,32 @@ void main(void) {
                 printf("SCAN_START\n");
                     
 
-                // for each valid point in the output buffer
-                for (k = 0; k < valid_point_count; k++)
+                // Transform local point cloud
+                transformed_cloud.num_pts    = 0;
+                for (k = 0; k < local_cloud.num_pts; k++)
                 {
 
-                    // Store local scan point (in sensor frame)
-                    local_cloud.points[local_cloud.num_pts].x \
-                        = output[k][0];
-                    local_cloud.points[local_cloud.num_pts].y \
-                        = output[k][1];
-                    local_cloud.num_pts++;
+                    float local_x = local_cloud.points[k].x;
+                    float local_y = local_cloud.points[k].y;
 
-                    // Each point as homogeneous coordinates [x, y, 1]
-                    float point[3] = {output[k][0], output[k][1], 1.0f};
-
-                    // Transformed point = T_matrix * point
-                    transformed_cloud.points[transformed_cloud.num_pts].x \
-                        =    T_matrix[0][0]*point[0] \
-                           + T_matrix[0][1]*point[1] \
-                           + T_matrix[0][2]*point[2];
-                    transformed_cloud.points[transformed_cloud.num_pts].y \
-                        =    T_matrix[1][0]*point[0] \
-                           + T_matrix[1][1]*point[1] \
-                           + T_matrix[1][2]*point[2];
-
-                    transformed_cloud.num_pts++;
+                    transformed_cloud.points[k].x \
+                            =    T_matrix[0][0]*local_x \
+                               + T_matrix[0][1]*local_y \
+                               + T_matrix[0][2];
+                    transformed_cloud.points[k].y \
+                            =    T_matrix[1][0]*local_x \
+                               + T_matrix[1][1]*local_y \
+                               + T_matrix[1][2];
 
     #ifdef PROCESSING4_OUTPUT
+
                     printf("P,%5.2f,%5.2f\n",
-                           transformed_cloud.points[transformed_cloud.num_pts].x,
-                           transformed_cloud.points[transformed_cloud.num_pts].y);
+                           transformed_cloud.points[k].x,
+                           transformed_cloud.points[k].y);
     #endif
                 }
+
+                transformed_cloud.num_pts = k;
 
     #ifdef PROCESSING4_OUTPUT
                 printf("SCAN_END\n");

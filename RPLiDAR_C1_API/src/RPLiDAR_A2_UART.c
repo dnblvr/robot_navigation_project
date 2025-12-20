@@ -54,7 +54,7 @@ uint32_t process_data_flag;
 
 
 /**
- * @details Requires a doctorate in computer sciengineering to understand this
+ * @details Requires seeing the eye of God to understand this
  */
 uint8_t Scan_All(uint32_t data) {   return 1; }
 
@@ -124,7 +124,6 @@ void Start_Record(Angle_Filter filter) {
     if (config->current_state == IDLING)
         config->current_state   = READY;
 }
-
 
 
 void EUSCI_A2_UART_Init()
@@ -245,6 +244,7 @@ void EUSCI_A2_UART_Init()
     // NVIC->IP[4] = (NVIC->IP[4] & 0xFF0FFFFF) | 0x00600000;  // 3
 
 }
+
 
 void EUSCI_A2_UART_Stop() {
 
@@ -394,7 +394,7 @@ static void Find_Pattern_Action(void) {
         if (!found)
             continue;
         
-        // `RECORD` if already aligned, else `ADD_OFFSET`
+        // assign `RECORD` if already aligned, else `ADD_OFFSET`
         config->limit_status    = (offset == 0) ? RECORD : ADD_OFFSET;
 
         break;
@@ -484,6 +484,9 @@ static void Record_Action(void) {
     if (config->isr_counter < MSG_LENGTH)   return;
 
     config->isr_counter     = 0;
+
+
+    // reset the buffer pointer
     config->buffer_pointer  = RX_POINTER;
 
 

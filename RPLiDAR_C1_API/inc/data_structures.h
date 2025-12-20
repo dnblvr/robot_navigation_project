@@ -12,7 +12,6 @@
 
 #include <stdbool.h>
 #include <stdint.h>
-#include <assert.h> // for stati_assert()
 
 
 // ----------------------------------------------------------------------------
@@ -21,31 +20,11 @@
 //
 // ----------------------------------------------------------------------------
 
-
 /**
- * @brief intra-buffer properties
+ * @brief final output buffer size for processing, etc
  */
-#define MSG_LENGTH                  5
-#define SKIP_FACTOR                 2
-
-
-/**
- * @brief Buffer lengths for UART communication, processing, etc
- */
-
-// final output buffer size
 #define OUTPUT_BUFFER               100
 
-// float buffer after sorting
-#define INTERMEDIARY_BUFFER         SKIP_FACTOR*OUTPUT_BUFFER // 200
-
-// data filtered for
-#define RPLiDAR_UART_BUFFER_SIZE    INTERMEDIARY_BUFFER*MSG_LENGTH
-
-
-// check at compile-time to see if buffer size is a multiple of MSG_LENGTH
-static_assert(RPLiDAR_UART_BUFFER_SIZE % MSG_LENGTH == 0, 
-    "RPLiDAR_UART_BUFFER_SIZE must be a multiple of MSG_LENGTH");
 
 // ----------------------------------------------------------------------------
 //

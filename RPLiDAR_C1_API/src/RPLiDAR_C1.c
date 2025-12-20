@@ -48,15 +48,7 @@ const Single_Response \
 //
 // ----------------------------------------------------------------------------
 
-
-
-void Initialize_RPLiDAR_C1(
-        const RPLiDAR_Config*   config
-//        ,
-//        Timer_Command*  ignore_cmd,
-//        Timer_Command*  acknowledge_cmd
-        )
-{
+void Initialize_RPLiDAR_C1(const RPLiDAR_Config*    config) {
 
     // @details The process for using SCAN command:
     //  1. turn on the UART TX/RX interrupt enable
@@ -99,6 +91,8 @@ void Initialize_RPLiDAR_C1(
 
 void Process_RPLiDAR_Data(PointCloud*   output) {
 
+#define STATEMENT (j == 2 || j == 4)
+
     // persistent counter
     static uint32_t j = 0;
 
@@ -108,25 +102,14 @@ void Process_RPLiDAR_Data(PointCloud*   output) {
 
 
 #ifdef DEBUG_OUTPUT
-
-#define STATEMENT (j == 2 || j == 4)
-
-    printf("%5u\n", limits);
-
-    if (STATEMENT) {
-        for (i = 0; i < limits; i++) {
-            printf("  0x%.8X\n", INTERM_POINTER[i]);
-        }
-    }
-
-    printf("\n");
-
+    print_buffer_u32(STATEMENT, limits);
 #endif // #ifdef DEBUG_OUTPUT
 
 
     // sort packed data by angle; expects angle as most MS 2 bytes
-    binary_insertion_uint(INTERM_POINTER, limits);
-
+#if (SKIP_FACTOR != 1)
+    binary_insertion_u32(INTERM_POINTER, limits);
+#endif
 
     k = 0;
     for (i = 0; i < limits; i += SKIP_FACTOR) {
@@ -141,14 +124,21 @@ void Process_RPLiDAR_Data(PointCloud*   output) {
 //        }
 #endif
 
-        output->points[k].x = distance * cosf(angle_r);
-        output->points[k].y = distance * sinf(angle_r);
-//
+        /**
+         * @note The angle is negated i.e....
+         *     > cosf(-angle_r) =>  cosf(angle_r)
+         *     > sinf(-angle_r) => -sinf(angle_r)
+         *  ... to correct the flipped output on `pointcloud_visualizer`
+         *
+         * @note if the scanner is mounted upside down, undo this modification
+         */
+        output->points[k].x = distance *  cosf(angle_r);
+        output->points[k].y = distance * -sinf(angle_r);
+
         k++;
     }
 
     output->num_pts = k;
-
 
     j++;
 
@@ -176,8 +166,8 @@ void Single_Request_No_Response(
 
 
 uint8_t Single_Request_Single_Response(
-        const Single_Response*   cmd,
-        uint8_t RX_DATA_BUFFER[])
+        const Single_Response*  cmd,
+              uint8_t           RX_DATA_BUFFER[])
 {
 
     char start_flag_1, start_flag_2;
@@ -187,7 +177,7 @@ uint8_t Single_Request_Single_Response(
 
 
     // send commands
-    EUSCI_A2_UART_OutChar(       0xA5 );    // start flag
+    EUSCI_A2_UART_OutChar(         0xA5 );    // start flag
     EUSCI_A2_UART_OutChar( cmd->command );
 
     // read the response descriptor from the RPLiDAR C1
@@ -251,10 +241,13 @@ uint8_t Single_Request_Single_Response(
 //
 // ----------------------------------------------------------------------------
 
-void binary_insertion_uint(
+#if (SKIP_FACTOR != 1)
+
+void binary_insertion_u32(
         uint32_t    polar_data[],
         uint32_t    point_count)
 {
+    // 4
     uint32_t i, j, left, right, mid;
     uint32_t key;
 
@@ -281,3 +274,25 @@ void binary_insertion_uint(
         polar_data[left] = key;
     }
 }
+
+#endif  // #if (SKIP_FACTOR != 1)
+
+
+
+#ifdef DEBUG_OUTPUT
+
+void print_buffer_u32(uint8_t boolean, uint32_t limits) {
+
+    uint32_t i;
+
+    if (boolean) {
+        for (i = 0; i < limits; i++)
+            printf("  0x%.8X\n", INTERM_POINTER[i]);
+
+        printf("\n\tlimits = %5u\n\n", limits);
+    }
+}
+
+#endif
+
+

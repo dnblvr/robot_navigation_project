@@ -29,9 +29,11 @@
 #include "coordinate_transform.h"
 #include "Project_Config.h"
 #include "Timer_A1_Interrupt.h"
+#include "data_structures.h"
 
 #include <stdint.h>
 #include <string.h>
+#include <assert.h>
 
 
 #ifdef DEBUG_OUTPUT
@@ -51,14 +53,42 @@
 //
 // ----------------------------------------------------------------------------
 
-
 /**
  * @brief this parameter determines the onboard decimation filter
+ *
+ * @note It's not recommended to set `DECIMATION_FACTOR` to 1. The decimation
+ *      filter state machine is only equipped for a `SKIP` --> `RECORD` loop.
+ *
+ * @note Testing has showed that `DECIMATION_FACTOR` of at least 2 gets you
+ *      full angle coverage when collecting 100 datapoints.
+ *
+ * @note what currently works:
+ *      - `DECIMATION_FACTOR` of 4 and
  */
-#define DECIMATION_FACTOR 3
+#define DECIMATION_FACTOR   4
+
+static_assert(DECIMATION_FACTOR != 1,
+              "`DECIMATION_FACTOR` must not be set to 1.");
+
 
 /**
- * @brief calculated indices based on the `DECIMATION_FACTOR`
+ * @brief transition factor for mapping the u32 buffer to float
+ */
+#define SKIP_FACTOR                 1
+
+
+/**
+ * @brief
+ */
+#define MSG_LENGTH                  5
+
+
+// float buffer after sorting
+#define INTERMEDIARY_BUFFER         SKIP_FACTOR*OUTPUT_BUFFER // 200
+
+
+/**
+ * @brief calculated indices, some based on the `DECIMATION_FACTOR`
  */
 #define WAIT_INDEX  MSG_LENGTH*8
 #define FIND_INDEX  MSG_LENGTH*4
@@ -66,7 +96,7 @@
 
 
 /**
- * @brief default storage containers of the
+ * @brief default storage containers of the intermediary buffer
  */
 static uint8_t     uart_container[FIND_INDEX];
 static uint32_t container[INTERMEDIARY_BUFFER];
@@ -141,7 +171,7 @@ typedef enum {
 
 
 /**
- * @brief   UART struct of the RPLiDAR C1 at each scan
+ * @brief   UART state tracker of the RPLiDAR C1 at each scan
  *
  * @param   angle_filter    angle-rejection filter to be used at each scan
  *

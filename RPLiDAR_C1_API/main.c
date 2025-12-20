@@ -1128,8 +1128,8 @@ void main(void) {
             // data collection profiling! --------------------------------
             // Start_Timer_1ms();
 
-//            Start_Record(NULL);
-            Start_Record(Front_Scan);
+            Start_Record(NULL);
+//            Start_Record(Front_Scan);
 
         }
 #endif

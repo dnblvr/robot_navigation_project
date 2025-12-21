@@ -34,7 +34,7 @@
 /**
  * @brief pointers to the storage containers to be used in the UART ISR
  */
-RPLiDAR_Config* config      = NULL;
+C1_States* config      = NULL;
 
 uint8_t*  RX_POINTER        = NULL;
 
@@ -84,11 +84,11 @@ uint8_t Scan_All(uint32_t data) {
 // ----------------------------------------------------------------------------
 
 void Configure_RPLiDAR_Struct(
-        const RPLiDAR_Config*   input_config)
+        const C1_States*   input_config)
 {
 
-    // link the `RPLiDAR_Config` struct to the outside
-    config  = (RPLiDAR_Config*)input_config;
+    // link the `C1_States` struct to the outside
+    config  = (C1_States*)input_config;
 
 
     // Assign current buffer position and the absolute position of the array

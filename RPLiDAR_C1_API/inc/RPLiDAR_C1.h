@@ -70,13 +70,17 @@ typedef struct {
  *
  * @return None
  */
-void Initialize_RPLiDAR_C1(const RPLiDAR_Config*    config);
+void Initialize_RPLiDAR_C1(const C1_States*    config);
 
 
 /**
  * @brief processes all the raw 5-byte messages incoming from the RPLiDAR data
+ *              stream into a usable point cloud.
+ * @param[out]  output  Pointer to the PointCloud struct to store the processed
+ *                      point cloud data.
  */
 void Process_RPLiDAR_Data(PointCloud*   output);
+
 
 // ----------------------------------------------------------------------------
 //
@@ -99,7 +103,7 @@ void Single_Request_No_Response(const No_Response*  cmd);
  * @param[in]   RX_DATA_BUFFER The buffer to store the received response.
  * @return uint8_t status
  */
-uint8_t Single_Request_Single_Response(
+uint8_t Single_Request_Multiple_Response(
         const Single_Response*   cmd,
               uint8_t RX_DATA_BUFFER[]);
 
@@ -128,6 +132,7 @@ void binary_insertion_u32(
 
 
 #ifdef DEBUG_OUTPUT
+
 /**
  * @brief print current u32 output from the intermediary buffer
  *

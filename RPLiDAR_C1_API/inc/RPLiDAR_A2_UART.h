@@ -191,11 +191,16 @@ typedef enum {
  */
 typedef struct {
 
+    /** -------------------------------------
+     *  true for every state
+     */
     Angle_Filter        angle_filter;
 
-    Record_States       limit_status;
+    volatile RPLiDAR_States current_state;
 
     // --------------------------------------
+
+    Record_States       limit_status;
 
     volatile uint32_t   isr_counter;
 
@@ -204,11 +209,7 @@ typedef struct {
     volatile uint32_t*  interm_buffer_pointer;
     volatile uint32_t   interm_buffer_counter;
 
-    // --------------------------------------
-
-    volatile RPLiDAR_States current_state;
-
-} RPLiDAR_Config;
+} C1_States;
 
 
 // ----------------------------------------------------------------------------
@@ -220,12 +221,12 @@ typedef struct {
 /**
  * @brief
  *
- * @oaram[in] config    pointer to the RPLiDAR_Config struct for configuration
+ * @oaram[in] config    `C1_States` struct pointer for configuration
  *
  * @param[in] RX_Data   pointer to the array
  */
 void Configure_RPLiDAR_Struct(
-        const RPLiDAR_Config*   input_config);
+        const C1_States*   input_config);
 
 
 /**

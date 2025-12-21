@@ -10,30 +10,13 @@
 /**
  * @note local definition of RPLiDAR `cfg` struct
  */
-RPLiDAR_Config cfg;
+C1_States cfg;
 
-extern RPLiDAR_Config* config;
+extern C1_States* config;
 
 extern uint8_t*  RX_POINTER;
 
 extern uint32_t* INTERM_POINTER;
-
-
-// Single-Request, No-Response
-const No_Response  STOP = {0x25,  0,  10},
-                  RESET = {0x40,  0, 500};
-
-
-const Single_Response \
-// Single-Request, Single-Response
-               GET_INFO = {0x50, 20},
-             GET_HEALTH = {0x52,  8},
-         GET_SAMPLERATE = {0x59,  0},
-         GET_LIDAR_CONF = {0x84,  0},
-
-// Single-Request, Multiple-Response
-                   SCAN = {0x20,  5},
-           EXPRESS_SCAN = {0x82,  5};
 
 
 /**
@@ -48,16 +31,31 @@ const Single_Response \
 //
 // ----------------------------------------------------------------------------
 
-void Initialize_RPLiDAR_C1(const RPLiDAR_Config*    config) {
+void Initialize_RPLiDAR_C1(const C1_States*    config) {
 
-    // @details The process for using SCAN command:
-    //  1. turn on the UART TX/RX interrupt enable
-    //  2. set up C1 using the RESET, GET_HEALTH, and SCAN commands for
-    //      continuous scan
-    //  3. read characters at a set time determined by an external timer
-    //  4. record our out-characters onto an array until it fills up
-    //  5. process the data
-    //  6. go to step 3
+    // Single-Request, No-Response
+    const No_Response  STOP = {0x25,  0,  10},
+                      RESET = {0x40,  0, 500};
+
+    const Single_Response \
+    // Single-Request, Single-Response
+                 GET_HEALTH = {0x52,  8},
+
+    // Single-Request, Multiple-Response
+                       SCAN = {0x20,  5};
+
+    // unused commands
+//    const Single_Response \
+    // Single-Request, Single-Response
+//                   GET_INFO = {0x50, 20},
+//                 GET_HEALTH = {0x52,  8},
+//             GET_SAMPLERATE = {0x59,  0},
+//             GET_LIDAR_CONF = {0x84,  0},
+
+    // Single-Request, Multiple-Response
+//                       SCAN = {0x20,  5},
+//               EXPRESS_SCAN = {0x82,  5};
+
 
     // configure the structure
     Configure_RPLiDAR_Struct(config);
@@ -78,12 +76,12 @@ void Initialize_RPLiDAR_C1(const RPLiDAR_Config*    config) {
 
 
     // printf("SRSR: GET_HEALTH\n");
-    Single_Request_Single_Response(&GET_HEALTH, RX_POINTER);
+    Single_Request_Multiple_Response(&GET_HEALTH, RX_POINTER);
     Clock_Delay1ms(1);
 
 
     // printf("SRMR: SCAN\n");
-    Single_Request_Single_Response(&SCAN, RX_POINTER);
+    Single_Request_Multiple_Response(&SCAN, RX_POINTER);
     Clock_Delay1ms(200);
 
 }
@@ -165,7 +163,7 @@ void Single_Request_No_Response(
 }
 
 
-uint8_t Single_Request_Single_Response(
+uint8_t Single_Request_Multiple_Response(
         const Single_Response*  cmd,
               uint8_t           RX_DATA_BUFFER[])
 {

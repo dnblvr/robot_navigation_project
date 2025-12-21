@@ -630,15 +630,10 @@ void Perform_SLAM(
 // ----------------------------------------------------------------------------
 
 /**
- * @brief declaration of an `RPLiDAR_Config` struct instance
+ * @brief declaration of an `C1_States` struct instance
  * @note this is originally declared in the `RPLiDAR_C1.c` source file
  */
-extern RPLiDAR_Config cfg;
-
-/**
- * @brief RPLiDAR C1 output data buffer.
- */
-float output[OUTPUT_BUFFER][2] = {0};
+extern C1_States cfg;
 
 
 /**
@@ -919,35 +914,6 @@ void Get_Pose(
 //            left_steps_mm, right_steps_mm,
 //            pose_at_time->x, pose_at_time->y, pose_at_time->theta);
 #endif
-
-}
-
-
-void Print_Results(void) {
-
-    static int  l   = 0;
-
-    // print the first n results
-    if (l < 35) {
-
-    // confirms that the bits are aligned
-        // for (k = 0; k < RPLiDAR_UART_BUFFER_SIZE; k += MSG_LENGTH) {
-
-        //     if ( (k % 4*MSG_LENGTH*MSG_LENGTH) == 0 )
-        //         printf("_");
-
-        //     printf("%i", pattern(RPLiDAR_RX_Data + k));
-        // }
-        // printf("\n\n");
-
-        // printf("output = \n");
-        // for (k = 0; k < OUTPUT_BUFFER; k+=5)
-        //     printf("%03.2f %03.2f\n", output[k][0], output[k][1]);
-
-        // printf("\n\n");
-
-        // l++;
-    }
 
 }
 
@@ -1238,7 +1204,6 @@ void main(void) {
                 transformed_cloud.num_pts    = 0;
                 for (k = 0; k < local_cloud.num_pts; k++)
                 {
-
                     float local_x = local_cloud.points[k].x;
                     float local_y = local_cloud.points[k].y;
 
@@ -1252,7 +1217,6 @@ void main(void) {
                                + T_matrix[1][2];
 
     #ifdef PROCESSING4_OUTPUT
-
                     printf("P,%5.2f,%5.2f\n",
                            transformed_cloud.points[k].x,
                            transformed_cloud.points[k].y);

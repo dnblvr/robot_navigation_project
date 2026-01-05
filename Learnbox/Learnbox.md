@@ -83,7 +83,7 @@ pip freeze | Out-File requirements.txt
 pip install -r requirements.txt
 ```
 
-I recommend installing from the `requirements.txt` file and keep updating this file 
+I recommend installing from the `requirements.txt` file and keep updating this file
 
 **In VS Code:**
 

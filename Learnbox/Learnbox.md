@@ -18,7 +18,7 @@ This is primarily for Nabin on how to run this python script so that he has an e
   - [1.6. Install from requirements](#16-install-from-requirements)
 - [2. Regular Kalman Filter](#2-regular-kalman-filter)
 - [3. Extended Kalman Filter](#3-extended-kalman-filter)
-- [4. EKF-SLAM](#4-ekf-slam)
+- [4. EKF](#4-ekf)
 
 <!-- omit in toc -->
 ## Notes to Organize
@@ -124,6 +124,24 @@ This assumes a motion model $x_k = f(x_{k-1})$ and the sensor observation model 
 
 [Extended Kalman Filter Tutorial - Gabriel A. Terejanu]: <resources/Extended Kalman Filter Tutorial - Gabriel A. Terejanu.pdf> "Extended Kalman Filter Tutorial - Gabriel A. Terejanu"
 
-## 4. EKF-SLAM
+## 4. EKF
+
+EKF requires a motion model in the following manner:
+
+$$\vec{x}_k = f(\vec{x}_{k-1}, \vec{u}_k) + w_k$$
+
+where $u_k$ is the control input at time step $k$, and $w_k$ is the process noise, typically assumed to be Gaussian with zero mean and covariance $Q_k$.
+
+the motion model f() is nonlinear.
+
+for a differential drive robot, the control inputs are typically the linear velocity $v_k$ and angular velocity $\omega_k$. The motion model can be expressed as:
+$$
+\begin{align}
+x_k &= x_{k-1} + v_k \cdot \Delta t \cdot \cos(\theta_{k-1}) + w_{x,k} \\
+y_k &= y_{k-1} + v_k \cdot \Delta t \cdot \sin(\theta_{k-1}) + w_{y,k} \\
+\theta_k &= \theta_{k-1} + \omega_k \cdot \Delta t + w_{\theta,k}
+\end{align}$$
+
+where $\Delta t$ is the time interval between time steps, and $w_{x,k}$, $w_{y,k}$, and $w_{\theta,k}$ are the components of the process noise vector $w_k$.
 
 ...

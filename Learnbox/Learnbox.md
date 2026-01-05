@@ -128,20 +128,24 @@ This assumes a motion model $x_k = f(x_{k-1})$ and the sensor observation model 
 
 EKF requires a motion model in the following manner:
 
-$$\vec{x}_k = f(\vec{x}_{k-1}, \vec{u}_k) + w_k$$
+$$\vec{x}_k = f(\vec{x}_{k-1}, \vec{u}_k) + \vec{w}_k$$
 
 where $u_k$ is the control input at time step $k$, and $w_k$ is the process noise, typically assumed to be Gaussian with zero mean and covariance $Q_k$.
 
 the motion model f() is nonlinear.
 
 for a differential drive robot, the control inputs are typically the linear velocity $v_k$ and angular velocity $\omega_k$. The motion model can be expressed as:
+
 $$
 \begin{align}
-x_k &= x_{k-1} + v_k \cdot \Delta t \cdot \cos(\theta_{k-1}) + w_{x,k} \\
-y_k &= y_{k-1} + v_k \cdot \Delta t \cdot \sin(\theta_{k-1}) + w_{y,k} \\
-\theta_k &= \theta_{k-1} + \omega_k \cdot \Delta t + w_{\theta,k}
-\end{align}$$
+x_k &= x_{k-1} + v_k \cdot \Delta t \cdot \cos(\theta_{k-1}) &+ w_{x,k} \\
+y_k &= y_{k-1} + v_k \cdot \Delta t \cdot \sin(\theta_{k-1}) &+ w_{y,k} \\
+\theta_k &= \theta_{k-1} + \omega_k \cdot \Delta t &+ w_{\theta,k}
+\end{align}
+$$
 
 where $\Delta t$ is the time interval between time steps, and $w_{x,k}$, $w_{y,k}$, and $w_{\theta,k}$ are the components of the process noise vector $w_k$.
+
+we will have an input from the differential drive robot's odometry data, which provides the linear and angular velocities.
 
 ...

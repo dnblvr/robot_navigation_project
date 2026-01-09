@@ -136,7 +136,7 @@ def simulate():
         ekf.predict([ax_m, ay_m], r_m)
 
         # -------- GPS / LiDAR update --------
-        if k % 10 == 0:
+        if k % 1 == 0:
             z = [
                 x_gt[0] + np.random.randn() * gps_noise,
                 x_gt[1] + np.random.randn() * gps_noise

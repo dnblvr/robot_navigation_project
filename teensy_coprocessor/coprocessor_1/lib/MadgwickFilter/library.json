@@ -1,0 +1,15 @@
+{
+  "name": "MadgwickFilter",
+  "version": "1.0.0",
+  "description": "C-based implementation of the Madgwick filter for orientation estimation using IMU data",
+  "keywords": ["queue", "", "function pointer", "embedded", "teensy"],
+  "authors": [
+    {
+      "name": "Gian Fajardo",
+      "email": "gianfajardo.prim@gmail.com"
+    }
+  ],
+  "license": "MIT",
+  "frameworks": ["arduino"],
+  "platforms": ["teensy"]
+}

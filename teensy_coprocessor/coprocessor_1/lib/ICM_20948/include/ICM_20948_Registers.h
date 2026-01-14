@@ -10,27 +10,73 @@
 #ifndef __INC_ICM20948_H__
 #define __INC_ICM20948_H__
 
-// Mag
-#define WHO_AM_I_AK09916        0x01
-#define AK09916_ST1             0x10
+// ----------------------------------------------------------------------------
+//
+//  AK09916 Registers
+//
+// ----------------------------------------------------------------------------
+
+/**
+ * @note must wake up AK09916 before reading WHO_AM_I register! 
+ */
+
+#define AK09916_WHO_AM_I        0x01
+#define AK09916_DATA_STATUS_1   0x10
+
+#define AK09916_ST1_DRDY        0x01
+#define AK09916_ST1_DOR         0x02
+
+#define AK09916_DATA_STATUS_2   0x18
+
+/**
+ * @brief AK09916 Control Register 2
+ * 
+ * mode select B4-0:
+ *  - `00000`: Power-down
+ *  - `00001`: Single measurement
+ *  - `00010`: Continuous measurement 10 Hz
+ *  - `00100`: Continuous measurement 20 Hz
+ *  - `00110`: Continuous measurement 50 Hz
+ *  - `01000`: Continuous measurement 100 Hz
+ */
+#define AK09916_CONTROL_2       0x31
+
+/**
+ * @brief B0 -> software reset
+ */
+#define AK09916_CONTROL_3       0x32
+
 #define AK09916_XOUT_L          0x11
 #define AK09916_XOUT_H          0x12
 #define AK09916_YOUT_L          0x13
 #define AK09916_YOUT_H          0x14
 #define AK09916_ZOUT_L          0x15
 #define AK09916_ZOUT_H          0x16
-#define AK09916_ST2             0x18
-#define AK09916_CNTL            0x30
-#define AK09916_CNTL2           0x31
 
-// ICM20948
-// User Bank 0
+
+// ----------------------------------------------------------------------------
+//
+//  ICM20948 Registers - User Bank 0
+//
+// ----------------------------------------------------------------------------
+
 #define WHO_AM_I_ICM20948       0x00
 #define USER_CTRL               0x03
 #define LP_CONFIG		        0x05
 #define PWR_MGMT_1              0x06
 #define PWR_MGMT_2              0x07
 #define INT_PIN_CFG             0x0F
+
+#define INT1_ACTL       1 << 7
+#define INT1_OPEN       1 << 6
+#define INT1_LATCH_EN   1 << 5
+
+/**
+ * @brief switches to I2C bypass mode, enabling direct access to the
+ *  magnetometer 
+ */
+#define BYPASS_EN       1 << 1
+
 #define INT_ENABLE              0x10
 #define INT_ENABLE_1	        0x11
 #define INT_ENABLE_2	        0x12
@@ -89,9 +135,21 @@
 #define FIFO_R_W                0x72
 #define DATA_RDY_STATUS	        0x74
 #define FIFO_CFG		        0x76
+
 #define REG_BANK_SEL	        0x7F
 
-// User Bank 1
+#define REG_BANK_0      0x00
+#define REG_BANK_1      0x10
+#define REG_BANK_2      0x20
+#define REG_BANK_3      0x30
+
+
+// ----------------------------------------------------------------------------
+//
+//  ICM20948 Registers - User Bank 1
+//
+// ----------------------------------------------------------------------------
+
 #define SELF_TEST_X_GYRO  		0x02
 #define SELF_TEST_Y_GYRO  		0x03
 #define SELF_TEST_Z_GYRO  		0x04
@@ -106,7 +164,13 @@
 #define ZA_OFFSET_L       		0x1B
 #define TIMEBASE_CORRECTION_PLL 0x28
 
-// User Bank 2
+
+// ----------------------------------------------------------------------------
+//
+//  ICM20948 Registers - User Bank 2
+//
+// ----------------------------------------------------------------------------
+
 #define GYRO_SMPLRT_DIV        	0x00
 #define GYRO_CONFIG_1      		0x01
 #define GYRO_CONFIG_2      		0x02
@@ -127,7 +191,13 @@
 #define TEMP_CONFIG				0x53
 #define MOD_CTRL_USR			0x54
 
-// User Bank 3
+
+// ----------------------------------------------------------------------------
+//
+//  ICM20948 Registers - User Bank 3
+//
+// ----------------------------------------------------------------------------
+
 #define I2C_MST_ODR_CONFIG		0x00
 #define I2C_MST_CTRL       		0x01
 #define I2C_MST_DELAY_CTRL 		0x02
@@ -152,41 +222,6 @@
 #define I2C_SLV4_CTRL      		0x15
 #define I2C_SLV4_DO        		0x16
 #define I2C_SLV4_DI        		0x17
-
-
-// Register map for the Magnetometer AK09916
-#define AK09916_WHO_AM_I        0x01
-#define AK09916_DATA_STATUS_1   0x10
-
-#define AK09916_ST1_DRDY        0x01
-#define AK09916_ST1_DOR         0x02
-
-#define AK09916_DATA_STATUS_2   0x18
-
-/**
- * @brief AK09916 Control Register 2
- * 
- * mode select B4-0:
- *  - `00000`: Power-down
- *  - `00001`: Single measurement
- *  - `00010`: Continuous measurement 10 Hz
- *  - `00100`: Continuous measurement 20 Hz
- *  - `00110`: Continuous measurement 50 Hz
- *  - `01000`: Continuous measurement 100 Hz
- */
-#define AK09916_CONTROL_2       0x31
-
-/**
- * @brief B0 -> software reset
- */
-#define AK09916_CONTROL_3       0x32
-
-#define AK09916_MAG_XOUT_L      0x11
-#define AK09916_MAG_XOUT_H      0x12
-#define AK09916_MAG_YOUT_L      0x13
-#define AK09916_MAG_YOUT_H      0x14
-#define AK09916_MAG_ZOUT_L      0x15
-#define AK09916_MAG_ZOUT_H      0x16
 
 
 

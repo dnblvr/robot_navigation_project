@@ -13,7 +13,7 @@
 #define INT_TYPE    uint32_t
 #define DIMS        3
 
-// #define CHANGES 1
+#define CHANGES 1
 
 #define DEBUG_OUTPUT 1
 
@@ -24,6 +24,13 @@
 //
 // ----------------------------------------------------------------------------
 
+/**
+ * @brief Sends multiple bytes over I2C
+ * 
+ * @param config    sensor configuration structure
+ * @param data      data buffer to send
+ * @param length    number of bytes to send
+ */
 void I2C_send_multiple(
         sensor_config_t*    config,
         uint8_t*            data,
@@ -37,10 +44,19 @@ void I2C_send_multiple(
     for (size_t i = 0; i < length; i++) {
         wire->write(data[i]);
     }
-    wire->endTransmission(true);  // Send STOP condition
+
+    // Send STOP condition
+    wire->endTransmission(true);
 }
 
-
+/**
+ * @brief Reads multiple bytes over I2C after writing register address
+ * 
+ * @param config    sensor configuration structure
+ * @param reg_addr  register address to read from
+ * @param data      buffer to store read data
+ * @param length    number of bytes to read
+ */
 void I2C_read_register(
         sensor_config_t*    config,
         uint8_t             reg_addr,
@@ -58,7 +74,9 @@ void I2C_read_register(
     
 
     // Read response
-    wire->requestFrom((uint8_t)config->i2c_address, (uint8_t)length, (bool)true);
+    wire->requestFrom((uint8_t)config->i2c_address,
+                      (uint8_t)length,
+                      (bool)true);
     
     for (size_t i = 0; i < length; i++) {
         if (wire->available()) {
@@ -67,6 +85,13 @@ void I2C_read_register(
     }
 }
 
+/**
+ * @brief Scans the I2C bus for connected devices and attempts direct register
+ *  read
+ * 
+ * @param wire      Pointer to TwoWire instance
+ * @param serial    Pointer to usb_serial_class instance for output
+ */
 void I2C_scan_bus(
         TwoWire*            wire,
         usb_serial_class*   serial)
@@ -116,15 +141,14 @@ int8_t icm20948_init(
         sensor_config_t*    mag_config,
         void*               serial_usb)
 {
-    usb_serial_class* serial_global = (usb_serial_class*)serial_usb;
-    // TwoWire* wire = (TwoWire*)ag_config->wire_instance;
+    serial_global = (usb_serial_class*)serial_usb;
 
-    uint8_t reg[2], buf;
+    uint8_t reg[6], buf;
 
     // I2C Bus Scan -----------------------------------------------------------
     // I2C_scan_bus(wire, serial_global);
-
     delay(1);
+
 
     // wake up accel/gyro
     // first write register then, write value
@@ -135,7 +159,7 @@ int8_t icm20948_init(
     /** --------------------------------------------------------
      * switch to user bank to 0
      */
-    reg[0] = REG_BANK_SEL; reg[1] = 0x00;
+    reg[0] = REG_BANK_SEL; reg[1] = REG_BANK_0;
     I2C_send_multiple(ag_config, reg, 2);
 
 
@@ -166,14 +190,15 @@ int8_t icm20948_init(
     serial_global->printf("WHO_AM_I value: 0x%02X (expected 0xEA)\n", buf);
     #endif
 
-    if (buf != 0xEA)    return -1;
+    if (buf != 0xEA)
+        return -1;
     
-
+    delay(20);
 
     /** --------------------------------------------------------
      * switch to user bank 2 for gyro & accel config
      */
-    reg[0] = REG_BANK_SEL; reg[1] = 0x20;
+    reg[0] = REG_BANK_SEL; reg[1] = REG_BANK_2;
     I2C_send_multiple(ag_config, reg, 2);
 
 
@@ -195,7 +220,7 @@ int8_t icm20948_init(
     // accel config
     // set full scale to +-2g
     // set noise bandwidth to 136Hz
-    reg[0] = ACCEL_CONFIG; reg[1] = 0x11;
+    reg[0] = ACCEL_CONFIG; reg[1] = 0x01 | (0x02 << 3);
     I2C_send_multiple(ag_config, reg, 2);
     
 
@@ -206,27 +231,36 @@ int8_t icm20948_init(
     I2C_send_multiple(ag_config, reg, 2);
 
 
+    // plug in gyro offsets
+    // reg[0] = XG_OFFSET_H;   reg[1] = 0x00;
+    //                         reg[2] = 0x00;      
+
+
+    delay(20);
+
+    
+    // magnetometer initialization --------------------------------------------
     
     /** --------------------------------------------------------
      * switch back to user bank to 0
      */
-    reg[0] = REG_BANK_SEL; reg[1] = 0x00;
+    reg[0] = REG_BANK_SEL; reg[1] = REG_BANK_0;
     I2C_send_multiple(ag_config, reg, 2);
-
+        
     
-    // wake up mag! (INT_PIN_CFG, BYPASS_EN = 1)
-    reg[0] = INT_PIN_CFG; reg[1] = 0x02;
+    // while user bank is set to zero, wake up mag!
+    // (INT_PIN_CFG, BYPASS_EN = 1)
+    // reg[0] = INT_PIN_CFG; reg[1] = BYPASS_EN;
+    reg[0] = INT_PIN_CFG; reg[1] = INT1_ACTL | BYPASS_EN;
     I2C_send_multiple(ag_config, reg, 2);
 
-
-    // magnetometer initialization --------------------------------------------
 
     // check if the magnetometer can be accessed and give a 1 ms delay
     I2C_read_register(mag_config, AK09916_WHO_AM_I, &buf, 1);
     delay(1);
 
     #if DEBUG_OUTPUT
-        serial_global->printf("MAG. WHO_AM_I: 0x%X\n", buf);
+    serial_global->printf("MAG. WHO_AM_I: 0x%X\n", buf);
     #endif
 
     if (buf != 0x09)
@@ -235,12 +269,14 @@ int8_t icm20948_init(
 
     // config mag
     // set mag mode, to measure continuously in 100Hz
-    reg[0] = AK09916_CNTL2; reg[1] = 0x08;
+    reg[0] = AK09916_CONTROL_2; reg[1] = 0x08;
     I2C_send_multiple(mag_config, reg, 2);
 
     return 0;
 
 }
+
+
 
 void icm20948_set_mag_rate(
         sensor_config_t*    mag_config,
@@ -288,7 +324,7 @@ void icm20948_set_mag_rate(
         return;
     }
 
-    reg[0] = AK09916_CNTL2;
+    reg[0] = AK09916_CONTROL_2;
     // i2c_write_blocking(config->i2c, config->addr_mag, reg, 2, false);
     I2C_send_multiple(mag_config, reg, 2);
 
@@ -365,6 +401,7 @@ void icm20948_cal_accel(
     return;
 }
 
+
 // ----------------------------------------------------------------------------
 //
 //  READ FUNCTIONS
@@ -380,11 +417,12 @@ void icm20948_read_raw_accel(
 
     uint8_t buf[6];
 
-    // accel: 2 bytes each axis    
+    // relies on auto-increment of register address to record the high and low 
+    // bytes of each axis in the body-acceleration realm
     I2C_read_register(ag_config, ACCEL_XOUT_H, buf, 6);
 
     for (i = 0; i < DIMS; i++)
-        accel[i] = (buf[2*i] << 8 | buf[2*i + 1]);
+        accel[i] = (int16_t)(buf[2*i] << 8 | buf[2*i + 1]);
     
     return;
 }
@@ -398,11 +436,12 @@ void icm20948_read_raw_gyro(
 
     uint8_t buf[6];
 
-    // gyro: 2byte each axis
+    // relies on auto-increment of register address to record the high and low 
+    // bytes of each axis of the body-rotation rate sensor
     I2C_read_register(ag_config, GYRO_XOUT_H, buf, 6);
     
     for (i = 0; i < DIMS; i++)
-        gyro[i] = (buf[2*i] << 8 | buf[2*i + 1]);
+        gyro[i] = (int16_t)(buf[2*i] << 8 | buf[2*i + 1]);
 
     return;
 }
@@ -413,7 +452,9 @@ void icm20948_read_raw_temp(
 {
 
     uint8_t buf[6];
-    
+
+    // relies on auto-increment of register address to record the high and low 
+    // bytes of the temperature sensor
     I2C_read_register(ag_config, TEMP_OUT_H, buf, 2);
     
     *temp = (buf[0] << 8 | buf[1]);
@@ -425,8 +466,6 @@ void icm20948_read_raw_mag(
         sensor_config_t*    mag_config,
         int16_t             mag[DIMS])
 {
-    // usb_serial_class* serial_global = (usb_serial_class*)mag_config->serial_usb;
-    
     // counter
     INT_TYPE i;
 
@@ -441,11 +480,18 @@ void icm20948_read_raw_mag(
         return;
     }
 
-    // read the next 6 bytes of mag data
-    I2C_read_register(mag_config, AK09916_XOUT_L, &buf[1], 6);
+    // relies on auto-increment of register address to record the high and low 
+    // bytes of each of the three axes of the magnetometer sensor
+    I2C_read_register(mag_config,
+                      AK09916_XOUT_L,
+                      &buf[1],
+                      6);
 
     // finish reading by getting ST2
-    I2C_read_register(mag_config, AK09916_DATA_STATUS_2, &buf[7], 1);
+    I2C_read_register(mag_config,
+                      AK09916_DATA_STATUS_2,
+                      &buf[7],
+                      1);
 
     // serial_global->printf("  here mag read: %02X\n", buf[0]);
 
@@ -456,7 +502,7 @@ void icm20948_read_raw_mag(
     // serial_global->print("]\n");
 
     for (i = 0; i < DIMS; i++)
-        mag[i] = (buf[2*i + 2] << 8 | buf[2*i + 1]);
+        mag[i] = (int16_t)(buf[2*i + 2] << 8 | buf[2*i + 1]);
 
 #ifdef DEBUG_OUTPUT
     if ((buf[6] & 0x08) == 0x08)

@@ -107,7 +107,10 @@ void setup() {
     Wire.setClock(400000); // 400 kHz I2C
     Wire.begin();
 
-    if (icm20948_init(&icm_config, &ak_config, (void*)&Serial) != 0) {
+    if (icm20948_init(&icm_config,
+                      &ak_config,
+                      (void*)&Serial) != 0)
+    {
         Serial.println("ICM-20948 initialization failed!");
         while (1);
     }
@@ -116,7 +119,14 @@ void setup() {
 
     icm20948_set_mag_rate(&ak_config, 10);
 
-    int16_t gyro_bias[3] = {75, 79, -50};
+    icm_offsets_t offsets = {
+        .accel_bias = {0, 0, 0},
+        // .gyro_bias  = {-75, -79, 50},
+        .gyro_bias  = {0, 0, 0},
+        .mag_bias   = {0, 0, 0}
+    };
+
+    // calibrate_gyro(&icm_config, &offsets);
 
     // icm20948_cal_gyro(&icm_config, gyro_bias);
     
@@ -176,18 +186,18 @@ void loop() {
     // Process queued function calls from serial events
     // process_function_queue();
 
-    icm20948_read_raw_accel(&icm_config, accel);
+    // icm20948_read_raw_accel(&icm_config, accel);
     icm20948_read_raw_gyro(&icm_config, gyro);
-    icm20948_read_raw_mag(&ak_config, mag);
+    // icm20948_read_raw_mag(&ak_config, mag);
 
     // Serial.printf("accel = {%7.i, %7.i, %7.i}\t",
     //               accel[0], accel[1], accel[2]);
 
-    // Serial.printf("gyro = {%7.i, %7.i, %7.i}\t",
-    //               gyro[0], gyro[1], gyro[2]);
+    Serial.printf("gyro = {%7.i, %7.i, %7.i}\n",
+                  gyro[0], gyro[1], gyro[2]);
 
-    Serial.printf("mag = {%7.i, %7.i, %7.i}\n",
-                  mag[0], mag[1], mag[2]);
+    // Serial.printf("mag = {%7.i, %7.i, %7.i}\n",
+    //               mag[0], mag[1], mag[2]);
 }
 
 #endif

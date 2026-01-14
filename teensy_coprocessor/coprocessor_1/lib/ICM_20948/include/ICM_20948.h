@@ -48,13 +48,10 @@ extern "C" {
 
 /**
  * @brief 
- * 
  */
 typedef struct icm20948_config {
 
     // usual addr
-//     uint8_t    addr_accel_gyro;
-//     uint8_t    addr_mag;
     uint8_t    i2c_address;
     
     // Pointer to Wire instance (TwoWire*)
@@ -69,22 +66,10 @@ typedef struct icm20948_config {
 /**
  * @brief 
  * 
- * @details indices 0, 1 & 2 represent x, y, & z dimensions
  */
 typedef struct {
-
-    //
-    int16_t accel_raw[3];
-    int16_t accel_bias[3];
-
-    int16_t gyro_raw[3];
-    int16_t gyro_bias[3];
-
-    int16_t mag_raw[3];
-    int16_t mag_bias[3];
-    float temp_c;
-
-} icm20984_data_t;
+    int16_t x, y, z;
+} calibration_data_t;
 
 
 // ----------------------------------------------------------------------------
@@ -105,6 +90,7 @@ int8_t icm20948_init(
         sensor_config_t*    icm_config,
         sensor_config_t*    mag_config,
         void*              serial_usb);
+
 
 /**
  * @brief 

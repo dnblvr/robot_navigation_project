@@ -53,9 +53,9 @@ extern "C" {
 typedef struct icm20948_config {
 
     // usual addr
-    uint8_t    addr_accel_gyro;
-    uint8_t    addr_mag;
-//     uint8_t    i2c_address;
+//     uint8_t    addr_accel_gyro;
+//     uint8_t    addr_mag;
+    uint8_t    i2c_address;
     
     // Pointer to Wire instance (TwoWire*)
     void*      wire_instance;
@@ -63,7 +63,7 @@ typedef struct icm20948_config {
     // Pointer to USB Serial instance (usb_serial_class*)
     void*      serial_usb;
 
-} icm20948_config_t;
+} sensor_config_t;
 
 
 /**
@@ -96,10 +96,15 @@ typedef struct {
 /**
  * @brief 
  * 
- * @param config 
+ * @param icm_config 
+ * @param mag_config 
+ * @param serial_usb 
  * @return int8_t 
  */
-int8_t icm20948_init(icm20948_config_t *config);
+int8_t icm20948_init(
+        sensor_config_t*    icm_config,
+        sensor_config_t*    mag_config,
+        void*              serial_usb);
 
 /**
  * @brief 
@@ -107,16 +112,18 @@ int8_t icm20948_init(icm20948_config_t *config);
  * @param config 
  * @param mode 
  */
-void icm20948_set_mag_rate(icm20948_config_t *config, uint8_t mode);
+void icm20948_set_mag_rate(
+        sensor_config_t*    config,
+        uint8_t             mode);
 
 
 /** ---------------------------------------------------------------------------
  * CALIBRATION FUNCTIONS
  */
 
-void icm20948_cal_gyro(icm20948_config_t *config, int16_t gyro_bias[3]);
-void icm20948_cal_accel(icm20948_config_t *config, int16_t accel_bias[3]);
-void icm20948_cal_mag_simple(icm20948_config_t *config, int16_t mag_bias[3]);
+void icm20948_cal_gyro(sensor_config_t*    config, int16_t gyro_bias[3]);
+void icm20948_cal_accel(sensor_config_t*    config, int16_t accel_bias[3]);
+void icm20948_cal_mag_simple(sensor_config_t*    config, int16_t mag_bias[3]);
 
 // ----------------------------------------------------------------------------
 //
@@ -128,11 +135,10 @@ void icm20948_cal_mag_simple(icm20948_config_t *config, int16_t mag_bias[3]);
  * READ RAW DATA FUNCTIONS
  */
 
-void icm20948_read_raw_accel(icm20948_config_t *config, int16_t accel[3]);
-void icm20948_read_raw_gyro(icm20948_config_t *config, int16_t gyro[3]);
-void icm20948_read_raw_temp(icm20948_config_t *config, int16_t *temp);
-void icm20948_read_raw_mag(icm20948_config_t *config, int16_t mag[3]);
-
+void icm20948_read_raw_accel(sensor_config_t*    config, int16_t accel[3]);
+void icm20948_read_raw_gyro(sensor_config_t*    config, int16_t gyro[3]);
+void icm20948_read_raw_temp(sensor_config_t*    config, int16_t *temp);
+void icm20948_read_raw_mag(sensor_config_t*    config, int16_t mag[3]);
 
 /** ---------------------------------------------------------------------------
  * READ CALIBRATED DATA FUNCTIONS
@@ -146,7 +152,7 @@ void icm20948_read_raw_mag(icm20948_config_t *config, int16_t mag[3]);
  * @param bias 
  */
 void icm20948_read_cal_gyro(
-        icm20948_config_t *config,
+        sensor_config_t *config,
         int16_t gyro[3],
         int16_t bias[3]);
 
@@ -158,7 +164,7 @@ void icm20948_read_cal_gyro(
  * @param bias 
  */
 void icm20948_read_cal_accel(
-        icm20948_config_t *config,
+        sensor_config_t *config,
         int16_t accel[3],
         int16_t bias[3]);
 
@@ -171,7 +177,7 @@ void icm20948_read_cal_accel(
  * @param bias 
  */
 void icm20948_read_cal_mag(
-        icm20948_config_t *config,
+        sensor_config_t *config,
         int16_t mag[3],
         int16_t bias[3]);
 
@@ -183,7 +189,7 @@ void icm20948_read_cal_mag(
  * @param temp 
  */
 void icm20948_read_temp_c(
-        icm20948_config_t *config,
+        sensor_config_t *config,
         float* temp);
 
 

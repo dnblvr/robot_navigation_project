@@ -44,14 +44,19 @@ void timer_ISR() {
 
 }
 
-icm20948_config_t icm_config = {
-    .addr_accel_gyro  = ICM20948_ADDR_ACCEL_GYRO_0,
-    .addr_mag         = ICM20948_ADDR_MAG,
-    .wire_instance    = (void*)&Wire,
-    .serial_usb       = (void*)&Serial
+// ICM
+sensor_config_t icm_config = {
+    .i2c_address  = ICM20948_ADDR_ACCEL_GYRO_0,
+    .wire_instance  = (void*)&Wire,
+    .serial_usb     = (void*)&Serial
 };
 
 // AK09916_
+sensor_config_t ak_config = {
+    .i2c_address    = ICM20948_ADDR_MAG,
+    .wire_instance  = (void*)&Wire,
+    .serial_usb     = (void*)&Serial
+};
 
 
 // function declarations -----------------------------------------------------
@@ -102,14 +107,14 @@ void setup() {
     Wire.setClock(400000); // 400 kHz I2C
     Wire.begin();
 
-    if (icm20948_init(&icm_config) != 0) {
+    if (icm20948_init(&icm_config, &ak_config, (void*)&Serial) != 0) {
         Serial.println("ICM-20948 initialization failed!");
         while (1);
     }
 
     Serial.printf("here 2\n");
 
-    icm20948_set_mag_rate(&icm_config, 10);
+    icm20948_set_mag_rate(&ak_config, 10);
 
     int16_t gyro_bias[3] = {75, 79, -50};
 
@@ -173,7 +178,7 @@ void loop() {
 
     icm20948_read_raw_accel(&icm_config, accel);
     icm20948_read_raw_gyro(&icm_config, gyro);
-    icm20948_read_raw_mag(&icm_config, mag);
+    icm20948_read_raw_mag(&ak_config, mag);
 
     // Serial.printf("accel = {%7.i, %7.i, %7.i}\t",
     //               accel[0], accel[1], accel[2]);

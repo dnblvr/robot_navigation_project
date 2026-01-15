@@ -31,34 +31,81 @@ extern "C" {
 // ----------------------------------------------------------------------------
 
 /**
- * @brief Adddress of the ICM-20948 sensor when AD0 is low
+ * @brief Simple vector structure
+ * 
+ * @param x X-axis component
+ * @param y Y-axis component
+ * @param z Z-axis component
  */
-#define ICM20948_ADDR_ACCEL_GYRO_0    0x68
+typedef struct {
+
+    int16_t x, y, z;
+
+} vector_int_t;
 
 
 /**
- * @brief Adddress of the ICM-20948 sensor when AD0 is high
+ * @brief ICM-20948 data container
+ * 
+ * @param accel  Accelerometer data
+ * @param gyro   Gyroscope data
+ * @param temp   Temperature data
+ * @param counts Sample count or timestamp
  */
-#define ICM20948_ADDR_ACCEL_GYRO_1    0x69
+typedef struct {
+
+    vector_int_t    accel;
+    vector_int_t    gyro;
+    int16_t         temp;
+    uint32_t        counts;
+
+} icm_data_t;
+
+
+/**
+ * @brief AK09916 magnetometer data container
+ * 
+ * @param mag    Magnetometer data
+ * @param counts Sample count or timestamp
+ */
+typedef struct {
+
+    vector_int_t    mag;
+    uint32_t        counts;
+
+} ak_data_t;
+
+
+/**
+ * @brief Address of the ICM-20948 sensor when AD0 is low
+ */
+#define ICM20948_ADDR_ACCEL_GYRO_0  0x68
+
+
+/**
+ * @brief Address of the ICM-20948 sensor when AD0 is high
+ */
+#define ICM20948_ADDR_ACCEL_GYRO_1  0x69
+
 
 /**
  * @brief Address of the AK09916 magnetometer sensor
  */
 #define ICM20948_ADDR_MAG           0x0C
 
+
 /**
- * @brief 
+ * @brief Sensor configuration structure
+ * 
+ * @param i2c_address       I2C address of the sensor
+ * @param wire_instance     Pointer to TwoWire instance (cast to void*)
+ * @param offset_instance   Pointer to offset structure (cast to void*)
  */
-typedef struct icm20948_config {
+typedef struct {
 
-    // usual addr
-    uint8_t    i2c_address;
-    
-    // Pointer to Wire instance (TwoWire*)
-    void*      wire_instance;
-
-    // Pointer to USB Serial instance (usb_serial_class*)
-    void*      serial_usb;
+    uint8_t i2c_address;
+    void*   wire_instance;
+    void*   offset_instance;
 
 } sensor_config_t;
 
@@ -80,7 +127,7 @@ typedef struct icm20948_config {
 int8_t icm20948_init(
         sensor_config_t*    icm_config,
         sensor_config_t*    mag_config,
-        void*              serial_usb);
+        void*               serial_usb);
 
 
 /**
@@ -94,13 +141,32 @@ void icm20948_set_mag_rate(
         uint8_t             mode);
 
 
-/** ---------------------------------------------------------------------------
+/* ----------------------------------------------------------------------------
  * CALIBRATION FUNCTIONS
  */
 
-void icm20948_cal_gyro(sensor_config_t*    config, int16_t gyro_bias[3]);
-void icm20948_cal_accel(sensor_config_t*    config, int16_t accel_bias[3]);
-void icm20948_cal_mag_simple(sensor_config_t*    config, int16_t mag_bias[3]);
+
+void icm20948_load_calibration(
+        sensor_config_t*    config,
+        vector_int_t        gyro_bias,
+        vector_int_t        accel_bias);
+
+
+void ak09916_load_calibration(
+        sensor_config_t*    config,
+        vector_int_t        mag_bias);
+
+
+void icm20948_cal_gyro(
+        sensor_config_t*    config,
+        int16_t             gyro_bias[3]);
+void icm20948_cal_accel(
+        sensor_config_t*    config,
+        int16_t             accel_bias[3]);
+void icm20948_cal_mag_simple(
+        sensor_config_t*    config,
+        int16_t             mag_bias[3]);
+
 
 // ----------------------------------------------------------------------------
 //
@@ -108,7 +174,7 @@ void icm20948_cal_mag_simple(sensor_config_t*    config, int16_t mag_bias[3]);
 //
 // ----------------------------------------------------------------------------
 
-/** ---------------------------------------------------------------------------
+/* ----------------------------------------------------------------------------
  * READ RAW DATA FUNCTIONS
  */
 
@@ -117,9 +183,20 @@ void icm20948_read_raw_gyro(sensor_config_t*    config, int16_t gyro[3]);
 void icm20948_read_raw_temp(sensor_config_t*    config, int16_t *temp);
 void icm20948_read_raw_mag(sensor_config_t*    config, int16_t mag[3]);
 
-/** ---------------------------------------------------------------------------
+/* ----------------------------------------------------------------------------
  * READ CALIBRATED DATA FUNCTIONS
  */
+
+
+void icm20948_record_data(
+        sensor_config_t*    config,
+        icm_data_t*         data);
+
+
+void ak09916_record_data(
+        sensor_config_t*    config,
+        ak_data_t*          data);
+
 
 /**
  * @brief 
@@ -132,6 +209,7 @@ void icm20948_read_cal_gyro(
         sensor_config_t *config,
         int16_t gyro[3],
         int16_t bias[3]);
+
 
 /**
  * @brief 

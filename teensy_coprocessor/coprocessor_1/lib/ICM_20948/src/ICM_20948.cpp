@@ -131,22 +131,20 @@ void I2C_scan_bus(
 //
 // ----------------------------------------------------------------------------
 
-// static sensor_config_t*    local_ag_config;
-// static sensor_config_t*    local_mag_config;
 
-static usb_serial_class* serial_global;
+static usb_serial_class* local_serial;
 
 int8_t icm20948_init(
         sensor_config_t*    ag_config,
         sensor_config_t*    mag_config,
         void*               serial_usb)
 {
-    serial_global = (usb_serial_class*)serial_usb;
+    local_serial = (usb_serial_class*)serial_usb;
 
     uint8_t reg[6], buf;
 
     // I2C Bus Scan -----------------------------------------------------------
-    // I2C_scan_bus(wire, serial_global);
+    // I2C_scan_bus(wire, local_serial);
     delay(1);
 
 
@@ -180,20 +178,18 @@ int8_t icm20948_init(
 
 
     // check if the accel/gyro can be accessed and give a 1 ms delay
-    I2C_read_register(ag_config,
-                      WHO_AM_I_ICM20948,
-                      &buf,
-                      1);
+    I2C_read_register(ag_config, WHO_AM_I_ICM20948, &buf, 1);
     delay(1);
 
     #if DEBUG_OUTPUT
-    serial_global->printf("WHO_AM_I value: 0x%02X (expected 0xEA)\n", buf);
+    local_serial->printf("WHO_AM_I value: 0x%02X (expected 0xEA)\n", buf);
     #endif
 
     if (buf != 0xEA)
         return -1;
     
     delay(20);
+
 
     /** --------------------------------------------------------
      * switch to user bank 2 for gyro & accel config
@@ -228,42 +224,33 @@ int8_t icm20948_init(
     //  - output_data_rate = 1.125kHz / (1 + ACCEL_SMPLRT_DIV)
     //  - 16 bits for ACCEL_SMPLRT_DIV
     reg[0] = ACCEL_SMPLRT_DIV_2; reg[1] = 0x0A;
-    I2C_send_multiple(ag_config, reg, 2);
-
-
-    // plug in gyro offsets
-    // reg[0] = XG_OFFSET_H;   reg[1] = 0x00;
-    //                         reg[2] = 0x00;      
-
-
+    I2C_send_multiple(ag_config, reg, 2); 
     delay(20);
+
     
     /** --------------------------------------------------------
-     * switch back to user bank to 0 for interrupt configuration
+     * switch back to user bank to 0 for magnetometer configuration
      */
     reg[0] = REG_BANK_SEL; reg[1] = REG_BANK_0;
-    I2C_send_multiple(ag_config, reg, 2);
-
-    
-    reg[0] = INT_ENABLE_1; reg[1] = RAW_DATA_READY_EN;
     I2C_send_multiple(ag_config, reg, 2);
         
     
     // in the meantime, prepare to wake up mag by bypassing the I2C master interface!
     // (INT_PIN_CFG, BYPASS_EN = 1)
-    reg[0] = INT_PIN_CFG; reg[1] = INT1_ACTL | BYPASS_EN;
+    reg[0] = INT_PIN_CFG; reg[1] = INT1_BYPASS_EN;
     I2C_send_multiple(ag_config, reg, 2);
     delay(20);
-    
+
+
     // magnetometer initialization --------------------------------------------
 
-
-    // check if the magnetometer can be accessed and give a 1 ms delay
+    // while in `REG_BANK_0`, check if the magnetometer can be accessed and
+    // give a 1 ms delay
     I2C_read_register(mag_config, AK09916_WHO_AM_I, &buf, 1);
     delay(1);
 
     #if DEBUG_OUTPUT
-    serial_global->printf("MAG. WHO_AM_I: 0x%X\n", buf);
+    local_serial->printf("MAG. WHO_AM_I: 0x%X\n", buf);
     #endif
 
     if (buf != 0x09)
@@ -272,8 +259,21 @@ int8_t icm20948_init(
 
     // config mag
     // set mag mode, to measure continuously in 100Hz
-    reg[0] = AK09916_CONTROL_2; reg[1] = 0x08;
+    reg[0] = AK09916_CONTROL_2; reg[1] = CONTINUOUS_100HZ;
     I2C_send_multiple(mag_config, reg, 2);
+
+    
+    // interrupt configuration ------------------------------------------------
+
+    // enable data ready interrupt
+    reg[0] = INT_ENABLE_1; reg[1] = RAW_DRDY_EN;
+    I2C_send_multiple(ag_config, reg, 2);
+
+
+    // configure interrupt pin: active-low, push-pull, latch until cleared
+    reg[0] = INT_PIN_CFG; reg[1] = INT1_ACTL | INT1_BYPASS_EN;
+    I2C_send_multiple(ag_config, reg, 2);
+
 
     return 0;
 
@@ -328,7 +328,6 @@ void icm20948_set_mag_rate(
     }
 
     reg[0] = AK09916_CONTROL_2;
-    // i2c_write_blocking(config->i2c, config->addr_mag, reg, 2, false);
     I2C_send_multiple(mag_config, reg, 2);
 
     return;
@@ -337,7 +336,6 @@ void icm20948_set_mag_rate(
 void icm20948_cal_mag_simple(
         sensor_config_t*    mag_config,
         int16_t             mag_bias[DIMS])
-        
 {
     // counters
     INT_TYPE i, j;
@@ -393,7 +391,6 @@ void icm20948_cal_accel(
 
         }
 
-        // sleep_ms(25);
         delay(25);
 
     }
@@ -410,6 +407,59 @@ void icm20948_cal_accel(
 //  READ FUNCTIONS
 //
 // ----------------------------------------------------------------------------
+
+void icm20948_record_data(
+        sensor_config_t*    icm_config,
+        icm_data_t*         data)
+{
+    icm_data_t* local_offsets   = (icm_data_t*)icm_config->offset_instance;
+    vector_int_t* accel_offset  = &(local_offsets->accel);
+    vector_int_t* gyro          = &(local_offsets->gyro);
+
+    uint8_t reg[14];
+    
+    // assume that the user bank is already set to 0. then, read accel, gyro, temp in one I2C transaction
+    I2C_read_register(icm_config, ACCEL_XOUT_H, reg, 14);
+
+    data->accel.x   = (int16_t)(reg[ 0] << 8 | reg[ 1]);
+    data->accel.y   = (int16_t)(reg[ 2] << 8 | reg[ 3]);
+    data->accel.z   = (int16_t)(reg[ 4] << 8 | reg[ 5]);
+
+    data->gyro.x    = (int16_t)(reg[ 6] << 8 | reg[ 7]);
+    data->gyro.y    = (int16_t)(reg[ 8] << 8 | reg[ 9]);
+    data->gyro.z    = (int16_t)(reg[10] << 8 | reg[11]);
+
+    data->temp      = (int16_t)(reg[12] << 8 | reg[13]);
+
+    
+    // add offsets
+    data->accel.x  -= accel_offset->x;
+    data->accel.y  -= accel_offset->y;
+    data->accel.z  -= accel_offset->z;
+
+    data->gyro.x   -= gyro->x;
+    data->gyro.y   -= gyro->y;
+    data->gyro.z   -= gyro->z;
+}
+
+
+void ak09916_record_data(
+        sensor_config_t*    ak_config,
+        ak_data_t*          data)
+{
+    ak_data_t* local_offsets    = (ak_data_t*)ak_config->offset_instance;
+    vector_int_t* mag           = &(local_offsets->mag);
+
+    uint8_t reg[7];
+
+    // assume that the user bank is already set to 0. then, read mag in one I2C transaction
+    I2C_read_register(ak_config, AK09916_XOUT_L, reg, 7);
+
+    data->mag.x = (int16_t)(reg[1] << 8 | reg[0]);
+    data->mag.y = (int16_t)(reg[3] << 8 | reg[2]);
+    data->mag.z = (int16_t)(reg[5] << 8 | reg[4]);
+}
+
 
 void icm20948_read_raw_accel(
         sensor_config_t*    ag_config,
@@ -479,7 +529,7 @@ void icm20948_read_raw_mag(
     I2C_read_register(mag_config, AK09916_DATA_STATUS_1, buf, 1);
 
     if ((buf[0] & AK09916_ST1_DRDY) != AK09916_ST1_DRDY) {
-        serial_global->printf("  AK09916_DATA_STATUS_1 = %02X\nST1: Data is NOT ready\n", buf[0]);
+        local_serial->printf("  AK09916_DATA_STATUS_1 = %02X\nST1: Data is NOT ready\n", buf[0]);
         return;
     }
 
@@ -496,20 +546,20 @@ void icm20948_read_raw_mag(
                       &buf[7],
                       1);
 
-    // serial_global->printf("  here mag read: %02X\n", buf[0]);
+    // local_serial->printf("  here mag read: %02X\n", buf[0]);
 
     // print whole array for debugging
-    // serial_global->print("[");
+    // local_serial->print("[");
     // for (i = 0; i < 8; i++)
-    //     serial_global->printf("%02X, ", buf[i]);
-    // serial_global->print("]\n");
+    //     local_serial->printf("%02X, ", buf[i]);
+    // local_serial->print("]\n");
 
     for (i = 0; i < DIMS; i++)
         mag[i] = (int16_t)(buf[2*i + 2] << 8 | buf[2*i + 1]);
 
 #ifdef DEBUG_OUTPUT
     if ((buf[6] & 0x08) == 0x08)
-        serial_global->printf("mag: ST1: Sensor overflow\n");
+        local_serial->printf("mag: ST1: Sensor overflow\n");
 
     // printf below works only if we read 0x10
     //if ((buf[0] & 0x01) == 0x01) printf("mag: ST1: Data overrun\n");

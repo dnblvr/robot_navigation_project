@@ -7,6 +7,9 @@
 // #include "matrix_examples.h"
 #include <IntervalTimer.h>
 
+// #include <avr/io.h>
+// #include <avr/interrupt.h>
+
 #define DEBUG_OUTPUT
 
 
@@ -28,38 +31,53 @@
 
 IntervalTimer     update_timer;
 volatile uint8_t  task_flag = 0;
-volatile uint32_t counter   = 0;
+volatile uint32_t num_counts   = 0;
 
 #define TASK_1_FLAG 0x01
 
 /**
  * @brief Timer interrupt service routine
- * @note Sets a flag to indicate it's time to read the encoder
+ * @note Sets a flag to indicate it's time to read the sensors
  */
 void timer_ISR() {
 
     task_flag  |= TASK_1_FLAG;
 
-    counter++;
+    num_counts++;
 
 }
 
+
+// ICM-20948 configuration structures ----------------------------------------
+
+icm_data_t icm_offsets = {
+    .accel  = {0},
+    .gyro   = {74, 85, -46},
+    .temp   =  0,
+    .counts =  0
+};
+
+ak_data_t ak_offsets = {
+    .mag    = {0},
+    .counts =  0
+};
+
 // ICM
 sensor_config_t icm_config = {
-    .i2c_address  = ICM20948_ADDR_ACCEL_GYRO_0,
-    .wire_instance  = (void*)&Wire,
-    .serial_usb     = (void*)&Serial
+    .i2c_address        = ICM20948_ADDR_ACCEL_GYRO_0,
+    .wire_instance      = (void*) &Wire,
+    .offset_instance    = (void*) &icm_offsets
 };
 
 // AK09916_
 sensor_config_t ak_config = {
-    .i2c_address    = ICM20948_ADDR_MAG,
-    .wire_instance  = (void*)&Wire,
-    .serial_usb     = (void*)&Serial
+    .i2c_address        = ICM20948_ADDR_MAG,
+    .wire_instance      = (void*) &Wire,
+    .offset_instance    = (void*) &ak_offsets
 };
 
 
-// function declarations -----------------------------------------------------
+// function declarations ------------------------------------------------------
 
 /**
  * @brief 
@@ -90,7 +108,7 @@ void setup() {
     
     // Serial.println("Starting...");
 
-    // activate LED to indicate setup in progress
+    // activate built-in LED to indicate setup in progress
     pinMode(LED_BUILTIN, OUTPUT);
     digitalWrite(LED_BUILTIN, HIGH);
 
@@ -101,7 +119,7 @@ void setup() {
     // T4.1 --> BLE UART Friend
     // initialize_BLE_UART();
     
-    // I2C initialization ----------------------------------------------------
+    // I2C initialization -----------------------------------------------------
     Wire.setSDA(SDA_PIN);
     Wire.setSCL(SCL_PIN);
     Wire.setClock(400000); // 400 kHz I2C
@@ -115,17 +133,28 @@ void setup() {
         while (1);
     }
 
-    Serial.printf("here 2\n");
+    // Serial.printf("here 2\n");
 
-    icm20948_set_mag_rate(&ak_config, 10);
+    // icm20948_set_mag_rate(&ak_config, 10);
+
+
+    // configure interrupt pin from ICM20948 ----------------------------------
+    // pinMode(22, INPUT_PULLUP); // INT pin from ICM20948
+    pinMode(22, INPUT); // INT pin from ICM20948
+
+    attachInterrupt(digitalPinToInterrupt(22),
+                    timer_ISR,
+                    FALLING);
     
     
     // timer_ISR to run every 1 Hz
-    update_timer.begin(timer_ISR, (uint32_t)1000000);
+    // update_timer.begin(timer_ISR, (uint32_t)1000000);
 
     Serial.println("Setup complete. Waiting for messages...");
     
     digitalWrite(LED_BUILTIN, LOW);
+
+    
 
 #ifdef CALIBRATION_MODE
     Serial.println("CALIBRATION MODE ENABLED");
@@ -171,20 +200,33 @@ void loop() {
 
     // proceed with the following tasks ---------------------------------------
 
-    int16_t accel[3] = {0}, gyro[3] = {0}, mag[3] = {0};
+    // vector_int_t accel = {0}, gyro = {0}, mag = {0};
+
+    icm_data_t icm_data = {
+            .accel  = {0},
+            .gyro   = {0},
+            .temp   =  0,
+            .counts =  0};
+
+    ak_data_t ak_data = {
+            .mag    = {0},
+            .counts =  0};
 
     // Process queued function calls from serial events
     // process_function_queue();
 
     // icm20948_read_raw_accel(&icm_config, accel);
-    icm20948_read_raw_gyro(&icm_config, gyro);
+    // icm20948_read_raw_gyro(&icm_config, gyro);
     // icm20948_read_raw_mag(&ak_config, mag);
 
-    // Serial.printf("accel = {%7.i, %7.i, %7.i}\t",
-    //               accel[0], accel[1], accel[2]);
+    icm20948_record_data(&icm_config,
+                         &icm_data);
+
+    Serial.printf("accel = {%7.i, %7.i, %7.i}\t",
+                  icm_data.accel.x, icm_data.accel.y, icm_data.accel.z);
 
     Serial.printf("gyro = {%7.i, %7.i, %7.i}\n",
-                  gyro[0], gyro[1], gyro[2]);
+                  icm_data.gyro.x, icm_data.gyro.y, icm_data.gyro.z);
 
     // Serial.printf("mag = {%7.i, %7.i, %7.i}\n",
     //               mag[0], mag[1], mag[2]);

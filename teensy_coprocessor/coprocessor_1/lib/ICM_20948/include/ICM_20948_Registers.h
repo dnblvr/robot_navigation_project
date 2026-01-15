@@ -32,19 +32,29 @@
  * @brief AK09916 Control Register 2
  * 
  * mode select B4-0:
- *  - `00000`: Power-down
- *  - `00001`: Single measurement
- *  - `00010`: Continuous measurement 10 Hz
- *  - `00100`: Continuous measurement 20 Hz
- *  - `00110`: Continuous measurement 50 Hz
- *  - `01000`: Continuous measurement 100 Hz
+ *  - `0b00000`: Power-down
+ *  - `0b00001`: Single measurement
+ *  - `0b00010`: Continuous measurement 1; 10 Hz
+ *  - `0b00100`: Continuous measurement 2; 20 Hz
+ *  - `0b00110`: Continuous measurement 3; 50 Hz
+ *  - `0b01000`: Continuous measurement 4; 100 Hz
+ *  - `0b10000`: Self-test mode
  */
 #define AK09916_CONTROL_2       0x31
+
+#define SINGLE_MODE         1 << 0
+#define CONTINUOUS_10HZ     1 << 1
+#define CONTINUOUS_20HZ     1 << 2
+#define CONTINUOUS_50HZ     3 << 1
+#define CONTINUOUS_100HZ    1 << 3
+#define SELF_TEST_MODE      1 << 4
 
 /**
  * @brief B0 -> software reset
  */
 #define AK09916_CONTROL_3       0x32
+
+#define SOFT_RESET      1 << 0
 
 #define AK09916_XOUT_L          0x11
 #define AK09916_XOUT_H          0x12
@@ -75,9 +85,12 @@
  * @brief switches to I2C bypass mode, enabling direct access to the
  *  magnetometer 
  */
-#define BYPASS_EN       1 << 1
+#define INT1_BYPASS_EN  1 << 1
 
 #define INT_ENABLE              0x10
+
+#define I2C_MST_INT_EN  1 << 0
+
 #define INT_ENABLE_1	        0x11
 #define INT_ENABLE_2	        0x12
 #define INT_ENABLE_3	        0x13
@@ -88,7 +101,7 @@
 #define INT_STATUS              0x19
 #define INT_STATUS_1	        0x1A
 
-#define RAW_DATA_READY_EN   0x01
+#define RAW_DRDY_EN     0x01
 
 
 #define INT_STATUS_2	        0x1B
@@ -110,6 +123,7 @@
 #define GYRO_ZOUT_L             0x38
 #define TEMP_OUT_H              0x39
 #define TEMP_OUT_L              0x3A
+
 #define EXT_SENS_DATA_00        0x3B
 #define EXT_SENS_DATA_01        0x3C
 #define EXT_SENS_DATA_02        0x3D
@@ -134,6 +148,7 @@
 #define EXT_SENS_DATA_21        0x50
 #define EXT_SENS_DATA_22        0x51
 #define EXT_SENS_DATA_23        0x52
+
 #define FIFO_EN_1               0x66
 #define FIFO_EN_2               0x67
 #define FIFO_RST		        0x68

@@ -82,10 +82,18 @@
 #define INT_ENABLE_2	        0x12
 #define INT_ENABLE_3	        0x13
 #define I2C_MST_STATUS          0x17
+
+
+
 #define INT_STATUS              0x19
 #define INT_STATUS_1	        0x1A
+
+#define RAW_DATA_READY_EN   0x01
+
+
 #define INT_STATUS_2	        0x1B
 #define INT_STATUS_3	        0x1C
+
 #define DELAY_TIMEH		        0x28
 #define DELAY_TIMEL		        0x29
 #define ACCEL_XOUT_H            0x2D

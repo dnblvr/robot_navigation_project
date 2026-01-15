@@ -118,17 +118,7 @@ void setup() {
     Serial.printf("here 2\n");
 
     icm20948_set_mag_rate(&ak_config, 10);
-
-    icm_offsets_t offsets = {
-        .accel_bias = {0, 0, 0},
-        // .gyro_bias  = {-75, -79, 50},
-        .gyro_bias  = {0, 0, 0},
-        .mag_bias   = {0, 0, 0}
-    };
-
-    // calibrate_gyro(&icm_config, &offsets);
-
-    // icm20948_cal_gyro(&icm_config, gyro_bias);
+    
     
     // timer_ISR to run every 1 Hz
     update_timer.begin(timer_ISR, (uint32_t)1000000);

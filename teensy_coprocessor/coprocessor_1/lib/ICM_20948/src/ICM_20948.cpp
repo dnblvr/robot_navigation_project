@@ -237,22 +237,25 @@ int8_t icm20948_init(
 
 
     delay(20);
-
-    
-    // magnetometer initialization --------------------------------------------
     
     /** --------------------------------------------------------
-     * switch back to user bank to 0
+     * switch back to user bank to 0 for interrupt configuration
      */
     reg[0] = REG_BANK_SEL; reg[1] = REG_BANK_0;
     I2C_send_multiple(ag_config, reg, 2);
+
+    
+    reg[0] = INT_ENABLE_1; reg[1] = RAW_DATA_READY_EN;
+    I2C_send_multiple(ag_config, reg, 2);
         
     
-    // while user bank is set to zero, wake up mag!
+    // in the meantime, prepare to wake up mag by bypassing the I2C master interface!
     // (INT_PIN_CFG, BYPASS_EN = 1)
-    // reg[0] = INT_PIN_CFG; reg[1] = BYPASS_EN;
     reg[0] = INT_PIN_CFG; reg[1] = INT1_ACTL | BYPASS_EN;
     I2C_send_multiple(ag_config, reg, 2);
+    delay(20);
+    
+    // magnetometer initialization --------------------------------------------
 
 
     // check if the magnetometer can be accessed and give a 1 ms delay

@@ -63,15 +63,6 @@ typedef struct icm20948_config {
 } sensor_config_t;
 
 
-/**
- * @brief 
- * 
- */
-typedef struct {
-    int16_t x, y, z;
-} calibration_data_t;
-
-
 // ----------------------------------------------------------------------------
 //
 //  INITIALIZATION FUNCTIONS

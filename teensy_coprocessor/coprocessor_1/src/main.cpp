@@ -219,8 +219,7 @@ void loop() {
     // icm20948_read_raw_gyro(&icm_config, gyro);
     // icm20948_read_raw_mag(&ak_config, mag);
 
-    icm20948_record_data(&icm_config,
-                         &icm_data);
+    icm20948_record_data(&icm_config, &icm_data);
 
     Serial.printf("accel = {%7.i, %7.i, %7.i}\t",
                   icm_data.accel.x, icm_data.accel.y, icm_data.accel.z);

@@ -14,6 +14,8 @@
 #include <stdint.h>
 #include "ICM_20948_Registers.h"
 
+#include <helper_3dmath.h>
+
 // Forward declaration for C++ TwoWire class
 #ifdef __cplusplus
 class TwoWire;
@@ -31,7 +33,7 @@ extern "C" {
 // ----------------------------------------------------------------------------
 
 /**
- * @brief Simple vector structure
+ * @brief Simple vector structure, in fixed point integers
  * 
  * @param x X-axis component
  * @param y Y-axis component
@@ -42,6 +44,20 @@ typedef struct {
     int16_t x, y, z;
 
 } vector_int_t;
+
+
+/**
+ * @brief Simple vector structure, in flaots
+ * 
+ * @param x X-axis component
+ * @param y Y-axis component
+ * @param z Z-axis component
+ */
+typedef struct {
+
+    float x, y, z;
+
+} vector_float_t;
 
 
 /**
@@ -74,6 +90,23 @@ typedef struct {
     uint32_t        counts;
 
 } ak_data_t;
+
+
+/**
+ * @brief Generic data frame container
+ * 
+ * @param accel  Accelerometer data
+ */
+typedef struct {
+
+    vector_int_t    accel;
+    vector_int_t    gyro;
+    int16_t         temp;
+    vector_int_t    mag;
+    Quaternion      quat;
+    uint32_t        counts;
+
+} dataframe_t;
 
 
 /**
@@ -157,15 +190,15 @@ void ak09916_load_calibration(
         vector_int_t        mag_bias);
 
 
-void icm20948_cal_gyro(
-        sensor_config_t*    config,
-        int16_t             gyro_bias[3]);
-void icm20948_cal_accel(
-        sensor_config_t*    config,
-        int16_t             accel_bias[3]);
-void icm20948_cal_mag_simple(
-        sensor_config_t*    config,
-        int16_t             mag_bias[3]);
+// void icm20948_cal_gyro(
+//         sensor_config_t*    config,
+//         int16_t             gyro_bias[3]);
+// void icm20948_cal_accel(
+//         sensor_config_t*    config,
+//         int16_t             accel_bias[3]);
+// void icm20948_cal_mag_simple(
+//         sensor_config_t*    config,
+//         int16_t             mag_bias[3]);
 
 
 // ----------------------------------------------------------------------------
@@ -178,10 +211,10 @@ void icm20948_cal_mag_simple(
  * READ RAW DATA FUNCTIONS
  */
 
-void icm20948_read_raw_accel(sensor_config_t*    config, int16_t accel[3]);
-void icm20948_read_raw_gyro(sensor_config_t*    config, int16_t gyro[3]);
-void icm20948_read_raw_temp(sensor_config_t*    config, int16_t *temp);
-void icm20948_read_raw_mag(sensor_config_t*    config, int16_t mag[3]);
+// void icm20948_read_raw_accel(sensor_config_t*    config, int16_t accel[3]);
+// void icm20948_read_raw_gyro(sensor_config_t*    config, int16_t gyro[3]);
+// void icm20948_read_raw_temp(sensor_config_t*    config, int16_t *temp);
+// void icm20948_read_raw_mag(sensor_config_t*    config, int16_t mag[3]);
 
 /* ----------------------------------------------------------------------------
  * READ CALIBRATED DATA FUNCTIONS
@@ -205,10 +238,10 @@ void ak09916_record_data(
  * @param gyro 
  * @param bias 
  */
-void icm20948_read_cal_gyro(
-        sensor_config_t *config,
-        int16_t gyro[3],
-        int16_t bias[3]);
+// void icm20948_read_cal_gyro(
+//         sensor_config_t *config,
+//         int16_t gyro[3],
+//         int16_t bias[3]);
 
 
 /**
@@ -218,10 +251,10 @@ void icm20948_read_cal_gyro(
  * @param accel 
  * @param bias 
  */
-void icm20948_read_cal_accel(
-        sensor_config_t *config,
-        int16_t accel[3],
-        int16_t bias[3]);
+// void icm20948_read_cal_accel(
+//         sensor_config_t *config,
+//         int16_t accel[3],
+//         int16_t bias[3]);
 
 
 /**
@@ -231,10 +264,10 @@ void icm20948_read_cal_accel(
  * @param mag 
  * @param bias 
  */
-void icm20948_read_cal_mag(
-        sensor_config_t *config,
-        int16_t mag[3],
-        int16_t bias[3]);
+// void icm20948_read_cal_mag(
+//         sensor_config_t *config,
+//         int16_t mag[3],
+//         int16_t bias[3]);
 
 
 /**
@@ -243,9 +276,9 @@ void icm20948_read_cal_mag(
  * @param config 
  * @param temp 
  */
-void icm20948_read_temp_c(
-        sensor_config_t *config,
-        float* temp);
+// void icm20948_read_temp_c(
+//         sensor_config_t *config,
+//         float* temp);
 
 
 #ifdef __cplusplus

@@ -2,7 +2,7 @@
  * @file ICM_20948_Registers.h
  * @author @akionu (https://github.com/akionu)
  *         (modified by Gian Fajardo for the Teensy 4.1 platform)
- * @brief 
+ * @brief Register definitions for the ICM-20948 sensor
  * @date 2025-12-27 
  */
 
@@ -12,7 +12,18 @@
 
 // ----------------------------------------------------------------------------
 //
-//  AK09916 Registers
+//  REGISTER BITS
+//
+// ----------------------------------------------------------------------------
+
+#define GET_BIT(value, mask)    ((value) & (mask) != 0)
+#define SET_BIT(value, mask)    ((value) | (mask))
+#define UNSET_BIT(value, mask)  ((value) & ~(mask))
+#define BIT(n)                  (1 << (n))
+
+// ----------------------------------------------------------------------------
+//
+//  AK09916 REGISTERS
 //
 // ----------------------------------------------------------------------------
 
@@ -42,20 +53,23 @@
  */
 #define AK09916_CONTROL_2       0x31
 
-#define SINGLE_MODE         1 << 0
-#define CONTINUOUS_10HZ     1 << 1
-#define CONTINUOUS_20HZ     1 << 2
-#define CONTINUOUS_50HZ     3 << 1
-#define CONTINUOUS_100HZ    1 << 3
-#define SELF_TEST_MODE      1 << 4
+    #define SINGLE_MODE         BIT(0)
+    #define CONTINUOUS_10HZ     BIT(1)
+    #define CONTINUOUS_20HZ     BIT(2)
+    #define CONTINUOUS_50HZ     (BIT(2) | BIT(1))
+    #define CONTINUOUS_100HZ    BIT(3)
+    #define SELF_TEST_MODE      BIT(4)
 
 /**
  * @brief B0 -> software reset
  */
 #define AK09916_CONTROL_3       0x32
 
-#define SOFT_RESET      1 << 0
+    #define SOFT_RESET      BIT(0)
 
+/** ---------------------------------------------------------------------------
+ * @brief Data Output Registers
+ */
 #define AK09916_XOUT_L          0x11
 #define AK09916_XOUT_H          0x12
 #define AK09916_YOUT_L          0x13
@@ -75,40 +89,53 @@
 #define LP_CONFIG		        0x05
 #define PWR_MGMT_1              0x06
 #define PWR_MGMT_2              0x07
+
+/**
+ * @brief interrupt configuration register address
+ */
 #define INT_PIN_CFG             0x0F
 
-#define INT1_ACTL       1 << 7
-#define INT1_OPEN       1 << 6
-#define INT1_LATCH_EN   1 << 5
+    #define INT1_ACTL       BIT(7)
+    #define INT1_OPEN       BIT(6)
+    #define INT1_LATCH_EN   BIT(5)
 
 /**
  * @brief switches to I2C bypass mode, enabling direct access to the
  *  magnetometer 
  */
-#define INT1_BYPASS_EN  1 << 1
+#define INT1_BYPASS_EN      BIT(1)
 
+/**
+ * @brief interrupt enable register address
+ */
 #define INT_ENABLE              0x10
 
-#define I2C_MST_INT_EN  1 << 0
+    #define I2C_MST_INT_EN  BIT(0)
 
 #define INT_ENABLE_1	        0x11
 #define INT_ENABLE_2	        0x12
 #define INT_ENABLE_3	        0x13
 #define I2C_MST_STATUS          0x17
 
-
-
+/**
+ * @brief interrupt status register address
+ */
 #define INT_STATUS              0x19
 #define INT_STATUS_1	        0x1A
 
-#define RAW_DRDY_EN     0x01
+    #define RAW_DRDY_EN     BIT(0)
 
 
 #define INT_STATUS_2	        0x1B
 #define INT_STATUS_3	        0x1C
 
-#define DELAY_TIMEH		        0x28
-#define DELAY_TIMEL		        0x29
+
+/* ----------------------------------------------------------------------------
+ * data registers 
+ */
+
+#define DELAY_TIME_H	        0x28
+#define DELAY_TIME_L	        0x29
 #define ACCEL_XOUT_H            0x2D
 #define ACCEL_XOUT_L            0x2E
 #define ACCEL_YOUT_H            0x2F
@@ -159,12 +186,15 @@
 #define DATA_RDY_STATUS	        0x74
 #define FIFO_CFG		        0x76
 
+/**
+ * @brief register that selects different portions of the register map 
+ */
 #define REG_BANK_SEL	        0x7F
 
-#define REG_BANK_0      0x00
-#define REG_BANK_1      0x10
-#define REG_BANK_2      0x20
-#define REG_BANK_3      0x30
+    #define REG_BANK_0      0x00
+    #define REG_BANK_1      0x10
+    #define REG_BANK_2      0x20
+    #define REG_BANK_3      0x30
 
 
 // ----------------------------------------------------------------------------

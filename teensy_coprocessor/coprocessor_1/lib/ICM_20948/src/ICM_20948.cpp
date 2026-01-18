@@ -15,7 +15,7 @@
 
 #define CHANGES 1
 
-#define DEBUG_OUTPUT 1
+// #define DEBUG_OUTPUT 1
 
 
 // ----------------------------------------------------------------------------
@@ -209,21 +209,21 @@ int8_t icm20948_init(
     // set gyro output data rate to 100Hz
     // output_data_rate = 1.125kHz / (1 + GYRO_SMPLRT_DIV)
     // 1125 / 11 = 100
-    reg[0] = GYRO_SMPLRT_DIV; reg[1] = 0x0A;
+    reg[0] = GYRO_SMPLRT_DIV; reg[1] = 11;
     I2C_send_multiple(ag_config, reg, 2);
 
     
     // accel config
     // set full scale to +-2g
     // set noise bandwidth to 136Hz
-    reg[0] = ACCEL_CONFIG; reg[1] = 0x01 | (0x02 << 3);
+    reg[0] = ACCEL_CONFIG;     reg[1] = 0x01 | (0x02 << 3);
     I2C_send_multiple(ag_config, reg, 2);
     
 
     // set accel output data rate to 100Hz
     //  - output_data_rate = 1.125kHz / (1 + ACCEL_SMPLRT_DIV)
     //  - 16 bits for ACCEL_SMPLRT_DIV
-    reg[0] = ACCEL_SMPLRT_DIV_2; reg[1] = 0x0A;
+    reg[0] = ACCEL_SMPLRT_DIV_2; reg[1] = 11;
     I2C_send_multiple(ag_config, reg, 2); 
     delay(20);
 
@@ -231,13 +231,13 @@ int8_t icm20948_init(
     /** --------------------------------------------------------
      * switch back to user bank to 0 for magnetometer configuration
      */
-    reg[0] = REG_BANK_SEL; reg[1] = REG_BANK_0;
+    reg[0] = REG_BANK_SEL;      reg[1] = REG_BANK_0;
     I2C_send_multiple(ag_config, reg, 2);
         
     
     // in the meantime, prepare to wake up mag by bypassing the I2C master interface!
     // (INT_PIN_CFG, BYPASS_EN = 1)
-    reg[0] = INT_PIN_CFG; reg[1] = INT1_BYPASS_EN;
+    reg[0] = INT_PIN_CFG;       reg[1] = INT1_BYPASS_EN;
     I2C_send_multiple(ag_config, reg, 2);
     delay(20);
 
@@ -265,9 +265,14 @@ int8_t icm20948_init(
     
     // interrupt configuration ------------------------------------------------
 
-    // enable data ready interrupt
+    // enable data ready interrupt; temporarily disabled for this commit
     reg[0] = INT_ENABLE_1; reg[1] = RAW_DRDY_EN;
     I2C_send_multiple(ag_config, reg, 2);
+
+
+    // allows I2C peripheral to generate interrupts through the same INT_1 pin
+    // reg[0] = INT_ENABLE; reg[1] = I2C_MST_INT_EN;
+    // I2C_send_multiple(ag_config, reg, 2);
 
 
     // configure interrupt pin: active-low, push-pull, latch until cleared
@@ -294,31 +299,22 @@ void icm20948_set_mag_rate(
 
 
     switch (mode) {
+    
+    // single-shot; after which it transitions to power-down
+    case 0:     reg[1] = SINGLE_MODE;
+                break;
 
-    // single shot; after measure, transitions to power-down mode automatically
-    case 0:
-        reg[1] = 0x01;
-        break;
+    case 10:    reg[1] = CONTINUOUS_10HZ;
+                break;
 
-    // 10Hz continuous --------------------------------------------------------
-    case 10:
-        reg[1] = 0x02;
-        break;
+    case 20:    reg[1] = CONTINUOUS_20HZ;
+                break;
 
-    // 20Hz continuous --------------------------------------------------------
-    case 20:
-        reg[1] = 0x04;
-        break;
+    case 50:    reg[1] = CONTINUOUS_50HZ;
+                break;
 
-    // 50Hz continuous --------------------------------------------------------
-    case 50:
-        reg[1] = 0x06;
-        break;
-
-    // 100Hz continuous -------------------------------------------------------
-    case 100:
-        reg[1] = 0x08;
-        break;
+    case 100:   reg[1] = CONTINUOUS_100HZ;
+                break;
 
     default:
 #ifdef DEBUG_OUTPUT
@@ -333,73 +329,73 @@ void icm20948_set_mag_rate(
     return;
 }
 
-void icm20948_cal_mag_simple(
-        sensor_config_t*    mag_config,
-        int16_t             mag_bias[DIMS])
-{
-    // counters
-    INT_TYPE i, j;
+// void icm20948_cal_mag_simple(
+//         sensor_config_t*    mag_config,
+//         int16_t             mag_bias[DIMS])
+// {
+//     // counters
+//     INT_TYPE i, j;
 
-    int16_t buf[DIMS] = {0}, max[DIMS] = {0}, min[DIMS] = {0};
+//     int16_t buf[DIMS] = {0}, max[DIMS] = {0}, min[DIMS] = {0};
 
-#ifdef DEBUG_OUTPUT
-    printf("mag calibration: \nswing sensor for 360 deg\n");
-#endif
+// #ifdef DEBUG_OUTPUT
+//     printf("mag calibration: \nswing sensor for 360 deg\n");
+// #endif
 
-    for (i = 0; i < MAX_ITERS; i++) {
+//     for (i = 0; i < MAX_ITERS; i++) {
 
-        icm20948_read_raw_mag(mag_config, buf);
+//         icm20948_read_raw_mag(mag_config, buf);
 
-        for (j = 0; j < DIMS; j++) {
-            if (buf[j] > max[j])
-                max[j] = buf[j];
-            if (buf[j] < min[j])
-                min[j] = buf[j];
-        }
+//         for (j = 0; j < DIMS; j++) {
+//             if (buf[j] > max[j])
+//                 max[j] = buf[j];
+//             if (buf[j] < min[j])
+//                 min[j] = buf[j];
+//         }
 
-        // sleep_ms(10);
-        delay(10);
+//         // sleep_ms(10);
+//         delay(10);
 
-    }
+//     }
 
-    for (i = 0; i < DIMS; i++)
-        mag_bias[i] = (max[i] + min[i]) / 2;
+//     for (i = 0; i < DIMS; i++)
+//         mag_bias[i] = (max[i] + min[i]) / 2;
 
-    return;
-}
+//     return;
+// }
 
-void icm20948_cal_accel(
-        sensor_config_t*    ag_config,
-        int16_t             accel_bias[DIMS])
-{
-    // counters
-    INT_TYPE i, j;
+// void icm20948_cal_accel(
+//         sensor_config_t*    ag_config,
+//         int16_t             accel_bias[DIMS])
+// {
+//     // counters
+//     INT_TYPE i, j;
 
-    int16_t buf[DIMS]  = {0};
-    int32_t bias[DIMS] = {0};
+//     int16_t buf[DIMS]  = {0};
+//     int32_t bias[DIMS] = {0};
 
-    for (i = 0; i < MAX_ITERS; i++) {
+//     for (i = 0; i < MAX_ITERS; i++) {
 
-        icm20948_read_raw_accel(ag_config, buf);
+//         icm20948_read_raw_accel(ag_config, buf);
 
-        for (j = 0; j < DIMS; j++) {
+//         for (j = 0; j < DIMS; j++) {
 
-            if (j == 2)
-                bias[j] += (buf[j] - 16384);
-            else
-                bias[j] += buf[j];
+//             if (j == 2)
+//                 bias[j] += (buf[j] - 16384);
+//             else
+//                 bias[j] += buf[j];
 
-        }
+//         }
 
-        delay(25);
+//         delay(25);
 
-    }
+//     }
 
-    for (i = 0; i < DIMS; i++)
-        accel_bias[i] = (int16_t)(bias[i] / MAX_ITERS);
+//     for (i = 0; i < DIMS; i++)
+//         accel_bias[i] = (int16_t)(bias[i] / MAX_ITERS);
 
-    return;
-}
+//     return;
+// }
 
 
 // ----------------------------------------------------------------------------
@@ -412,24 +408,25 @@ void icm20948_record_data(
         sensor_config_t*    icm_config,
         icm_data_t*         data)
 {
-    icm_data_t* local_offsets   = (icm_data_t*)icm_config->offset_instance;
-    vector_int_t* accel_offset  = &(local_offsets->accel);
-    vector_int_t* gyro          = &(local_offsets->gyro);
+    // get offsets
+    icm_data_t*   offsets       = (icm_data_t*)icm_config->offset_instance;
+    vector_int_t* accel_offset  = &(offsets->accel);
+    vector_int_t* gyro_offset   = &(offsets->gyro);
 
-    uint8_t reg[14];
+    uint8_t buf[14];
     
     // assume that the user bank is already set to 0. then, read accel, gyro, temp in one I2C transaction
-    I2C_read_register(icm_config, ACCEL_XOUT_H, reg, 14);
+    I2C_read_register(icm_config, ACCEL_XOUT_H, buf, 14);
 
-    data->accel.x   = (int16_t)(reg[ 0] << 8 | reg[ 1]);
-    data->accel.y   = (int16_t)(reg[ 2] << 8 | reg[ 3]);
-    data->accel.z   = (int16_t)(reg[ 4] << 8 | reg[ 5]);
+    data->accel.x   = (int16_t)(buf[ 0] << 8 | buf[ 1]);
+    data->accel.y   = (int16_t)(buf[ 2] << 8 | buf[ 3]);
+    data->accel.z   = (int16_t)(buf[ 4] << 8 | buf[ 5]);
 
-    data->gyro.x    = (int16_t)(reg[ 6] << 8 | reg[ 7]);
-    data->gyro.y    = (int16_t)(reg[ 8] << 8 | reg[ 9]);
-    data->gyro.z    = (int16_t)(reg[10] << 8 | reg[11]);
+    data->gyro.x    = (int16_t)(buf[ 6] << 8 | buf[ 7]);
+    data->gyro.y    = (int16_t)(buf[ 8] << 8 | buf[ 9]);
+    data->gyro.z    = (int16_t)(buf[10] << 8 | buf[11]);
 
-    data->temp      = (int16_t)(reg[12] << 8 | reg[13]);
+    data->temp      = (int16_t)(buf[12] << 8 | buf[13]);
 
     
     // add offsets
@@ -437,9 +434,9 @@ void icm20948_record_data(
     data->accel.y  -= accel_offset->y;
     data->accel.z  -= accel_offset->z;
 
-    data->gyro.x   -= gyro->x;
-    data->gyro.y   -= gyro->y;
-    data->gyro.z   -= gyro->z;
+    data->gyro.x   -= gyro_offset->x;
+    data->gyro.y   -= gyro_offset->y;
+    data->gyro.z   -= gyro_offset->z;
 }
 
 
@@ -448,207 +445,233 @@ void ak09916_record_data(
         ak_data_t*          data)
 {
     ak_data_t* local_offsets    = (ak_data_t*)ak_config->offset_instance;
-    vector_int_t* mag           = &(local_offsets->mag);
+    vector_int_t* mag_offset    = &(local_offsets->mag);
 
     uint8_t reg[7];
 
-    // assume that the user bank is already set to 0. then, read mag in one I2C transaction
-    I2C_read_register(ak_config, AK09916_XOUT_L, reg, 7);
-
-    data->mag.x = (int16_t)(reg[1] << 8 | reg[0]);
-    data->mag.y = (int16_t)(reg[3] << 8 | reg[2]);
-    data->mag.z = (int16_t)(reg[5] << 8 | reg[4]);
-}
-
-
-void icm20948_read_raw_accel(
-        sensor_config_t*    ag_config,
-        int16_t             accel[DIMS])
-{
-    // counter
-    INT_TYPE i;
-
-    uint8_t buf[6];
-
-    // relies on auto-increment of register address to record the high and low 
-    // bytes of each axis in the body-acceleration realm
-    I2C_read_register(ag_config, ACCEL_XOUT_H, buf, 6);
-
-    for (i = 0; i < DIMS; i++)
-        accel[i] = (int16_t)(buf[2*i] << 8 | buf[2*i + 1]);
-    
-    return;
-}
-
-void icm20948_read_raw_gyro(
-        sensor_config_t*    ag_config,
-        int16_t             gyro[DIMS])
-{
-    // counter
-    INT_TYPE i;
-
-    uint8_t buf[6];
-
-    // relies on auto-increment of register address to record the high and low 
-    // bytes of each axis of the body-rotation rate sensor
-    I2C_read_register(ag_config, GYRO_XOUT_H, buf, 6);
-    
-    for (i = 0; i < DIMS; i++)
-        gyro[i] = (int16_t)(buf[2*i] << 8 | buf[2*i + 1]);
-
-    return;
-}
-
-void icm20948_read_raw_temp(
-        sensor_config_t*    ag_config,
-        int16_t*            temp)
-{
-
-    uint8_t buf[6];
-
-    // relies on auto-increment of register address to record the high and low 
-    // bytes of the temperature sensor
-    I2C_read_register(ag_config, TEMP_OUT_H, buf, 2);
-    
-    *temp = (buf[0] << 8 | buf[1]);
-
-    return;
-}
-
-void icm20948_read_raw_mag(
-        sensor_config_t*    mag_config,
-        int16_t             mag[DIMS])
-{
-    // counter
-    INT_TYPE i;
-
-    uint8_t buf[8];
-
-
     // read ST1 and check if data is ready
-    I2C_read_register(mag_config, AK09916_DATA_STATUS_1, buf, 1);
+    I2C_read_register(ak_config, AK09916_DATA_STATUS_1, reg, 1);
 
-    if ((buf[0] & AK09916_ST1_DRDY) != AK09916_ST1_DRDY) {
-        local_serial->printf("  AK09916_DATA_STATUS_1 = %02X\nST1: Data is NOT ready\n", buf[0]);
+    if ((reg[0] & AK09916_ST1_DRDY) != AK09916_ST1_DRDY) {
+        
+        #ifdef DEBUG_OUTPUT
+        local_serial->printf("  AK09916_DATA_STATUS_1 = %02X\nST1: Data is NOT ready\n", reg[0]);
+        #endif
         return;
     }
 
-    // relies on auto-increment of register address to record the high and low 
-    // bytes of each of the three axes of the magnetometer sensor
-    I2C_read_register(mag_config,
-                      AK09916_XOUT_L,
-                      &buf[1],
-                      6);
+    // assume that the user bank is already set to 0. then, read mag in one I2C
+    // transaction
+    I2C_read_register(ak_config, AK09916_XOUT_L, reg, 7);
+
 
     // finish reading by getting ST2
-    I2C_read_register(mag_config,
+    I2C_read_register(ak_config,
                       AK09916_DATA_STATUS_2,
-                      &buf[7],
+                      &reg[7],
                       1);
 
-    // local_serial->printf("  here mag read: %02X\n", buf[0]);
+    // process the data; 
+    data->mag.x = (int16_t)(reg[1] << 8 | reg[0]);
+    data->mag.y = (int16_t)(reg[3] << 8 | reg[2]);
+    data->mag.z = (int16_t)(reg[5] << 8 | reg[4]);
 
-    // print whole array for debugging
-    // local_serial->print("[");
-    // for (i = 0; i < 8; i++)
-    //     local_serial->printf("%02X, ", buf[i]);
-    // local_serial->print("]\n");
-
-    for (i = 0; i < DIMS; i++)
-        mag[i] = (int16_t)(buf[2*i + 2] << 8 | buf[2*i + 1]);
-
-#ifdef DEBUG_OUTPUT
-    if ((buf[6] & 0x08) == 0x08)
-        local_serial->printf("mag: ST1: Sensor overflow\n");
-
-    // printf below works only if we read 0x10
-    //if ((buf[0] & 0x01) == 0x01) printf("mag: ST1: Data overrun\n");
-    //if ((buf[0] & 0x02) != 0x02) printf("mag: ST1: Data is NOT ready\n");
-#endif
-
-    return;
+    // offsets are incorporated later in later commits
 }
 
-void icm20948_cal_gyro(
-        sensor_config_t*    ag_config,
-        int16_t             gyro_bias[DIMS])
-{
-    // counters
-    INT_TYPE i, j;
+
+// void icm20948_read_raw_accel(
+//         sensor_config_t*    ag_config,
+//         int16_t             accel[DIMS])
+// {
+//     // counter
+//     INT_TYPE i;
+
+//     uint8_t buf[6];
+
+//     // relies on auto-increment of register address to record the high and low 
+//     // bytes of each axis in the body-acceleration realm
+//     I2C_read_register(ag_config, ACCEL_XOUT_H, buf, 6);
+
+//     for (i = 0; i < DIMS; i++)
+//         accel[i] = (int16_t)(buf[2*i] << 8 | buf[2*i + 1]);
     
-    int16_t buf[DIMS]  = {0};
-    int32_t bias[DIMS] = {0};
+//     return;
+// }
 
-    for (i = 0; i < MAX_ITERS; i++) {
+// void icm20948_read_raw_gyro(
+//         sensor_config_t*    ag_config,
+//         int16_t             gyro[DIMS])
+// {
+//     // counter
+//     INT_TYPE i;
 
-        icm20948_read_raw_gyro(ag_config, buf);
+//     uint8_t buf[6];
 
-        for (j = 0; j < DIMS; j++) {
-            bias[j] += buf[j];
-        }
+//     // relies on auto-increment of register address to record the high and low 
+//     // bytes of each axis of the body-rotation rate sensor
+//     I2C_read_register(ag_config, GYRO_XOUT_H, buf, 6);
+    
+//     for (i = 0; i < DIMS; i++)
+//         gyro[i] = (int16_t)(buf[2*i] << 8 | buf[2*i + 1]);
 
-        delay(25);
-    }
+//     return;
+// }
 
-    for (i = 0; i < DIMS; i++)
-        gyro_bias[i] = (int16_t)(bias[i] / MAX_ITERS);
-}
+// void icm20948_read_raw_temp(
+//         sensor_config_t*    ag_config,
+//         int16_t*            temp)
+// {
 
-void icm20948_read_cal_gyro(
-        sensor_config_t*    ag_config,
-        int16_t             gyro[DIMS],
-        int16_t             bias[DIMS])
-{
-    // counters
-    INT_TYPE i;
+//     uint8_t buf[6];
 
-    icm20948_read_raw_gyro(ag_config, gyro);
+//     // relies on auto-increment of register address to record the high and low 
+//     // bytes of the temperature sensor
+//     I2C_read_register(ag_config, TEMP_OUT_H, buf, 2);
+    
+//     *temp = (buf[0] << 8 | buf[1]);
 
-    for (i = 0; i < DIMS; i++)
-        gyro[i] -= bias[i];
-}
+//     return;
+// }
 
+// void icm20948_read_raw_mag(
+//         sensor_config_t*    mag_config,
+//         int16_t             mag[DIMS])
+// {
+//     // counter
+//     INT_TYPE i;
 
-
-void icm20948_read_cal_accel(
-        sensor_config_t*    ag_config, 
-        int16_t             accel[DIMS],
-        int16_t             bias[DIMS])
-{
-    // counters
-    INT_TYPE i;
-
-    icm20948_read_raw_accel(ag_config, accel);
-
-    for (i = 0; i < DIMS; i++)
-        accel[i] -= bias[i];
-}
-
+//     uint8_t buf[8];
 
 
-void icm20948_read_cal_mag(
-        sensor_config_t*    mag_config, 
-        int16_t             mag[DIMS],
-        int16_t             bias[DIMS])
-{
-    // counters
-    INT_TYPE i;
+//     // read ST1 and check if data is ready
+//     I2C_read_register(mag_config, AK09916_DATA_STATUS_1, buf, 1);
 
-    icm20948_read_raw_mag(mag_config, mag);
+//     if ((buf[0] & AK09916_ST1_DRDY) != AK09916_ST1_DRDY) {
+        
+//         #ifdef DEBUG_OUTPUT
+//         local_serial->printf("  AK09916_DATA_STATUS_1 = %02X\nST1: Data is NOT ready\n", buf[0]);
+//         #endif
 
-    for (i = 0; i < DIMS; i++)
-        mag[i] -= bias[i];
-}
+//         return;
+//     }
 
-void icm20948_read_temp_c(
-        sensor_config_t*    ag_config, 
-        float*              temp)
-{
-    int16_t tmp;
+//     // relies on auto-increment of register address to record the high and low 
+//     // bytes of each of the three axes of the magnetometer sensor
+//     I2C_read_register(mag_config,
+//                       AK09916_XOUT_L,
+//                       &buf[1],
+//                       6);
 
-    icm20948_read_raw_temp(ag_config, &tmp);
+//     // finish reading by getting ST2
+//     I2C_read_register(mag_config,
+//                       AK09916_DATA_STATUS_2,
+//                       &buf[7],
+//                       1);
 
-    // temp  = ((raw_value - ambient_temp) / speed_of_sound) + 21
-    *temp = (((float)tmp - 21.0f) / 333.87) + 21.0f;
-}
+//     // local_serial->printf("  here mag read: %02X\n", buf[0]);
+
+//     // print whole array for debugging
+//     // local_serial->print("[");
+//     // for (i = 0; i < 8; i++)
+//     //     local_serial->printf("%02X, ", buf[i]);
+//     // local_serial->print("]\n");
+
+//     for (i = 0; i < DIMS; i++)
+//         mag[i] = (int16_t)(buf[2*i + 2] << 8 | buf[2*i + 1]);
+
+// #ifdef DEBUG_OUTPUT
+//     if ((buf[6] & 0x08) == 0x08)
+//         local_serial->printf("mag: ST1: Sensor overflow\n");
+
+//     // printf below works only if we read 0x10
+//     //if ((buf[0] & 0x01) == 0x01) printf("mag: ST1: Data overrun\n");
+//     //if ((buf[0] & 0x02) != 0x02) printf("mag: ST1: Data is NOT ready\n");
+// #endif
+
+//     return;
+// }
+
+// void icm20948_cal_gyro(
+//         sensor_config_t*    ag_config,
+//         int16_t             gyro_bias[DIMS])
+// {
+//     // counters
+//     INT_TYPE i, j;
+    
+//     int16_t buf[DIMS]  = {0};
+//     int32_t bias[DIMS] = {0};
+
+//     for (i = 0; i < MAX_ITERS; i++) {
+
+//         icm20948_read_raw_gyro(ag_config, buf);
+
+//         for (j = 0; j < DIMS; j++) {
+//             bias[j] += buf[j];
+//         }
+
+//         delay(25);
+//     }
+
+//     for (i = 0; i < DIMS; i++)
+//         gyro_bias[i] = (int16_t)(bias[i] / MAX_ITERS);
+// }
+
+// void icm20948_read_cal_gyro(
+//         sensor_config_t*    ag_config,
+//         int16_t             gyro[DIMS],
+//         int16_t             bias[DIMS])
+// {
+//     // counters
+//     INT_TYPE i;
+
+//     icm20948_read_raw_gyro(ag_config, gyro);
+
+//     for (i = 0; i < DIMS; i++)
+//         gyro[i] -= bias[i];
+// }
+
+
+
+// void icm20948_read_cal_accel(
+//         sensor_config_t*    ag_config, 
+//         int16_t             accel[DIMS],
+//         int16_t             bias[DIMS])
+// {
+//     // counters
+//     INT_TYPE i;
+
+//     icm20948_read_raw_accel(ag_config, accel);
+
+//     for (i = 0; i < DIMS; i++)
+//         accel[i] -= bias[i];
+// }
+
+
+
+// void icm20948_read_cal_mag(
+//         sensor_config_t*    mag_config, 
+//         int16_t             mag[DIMS],
+//         int16_t             bias[DIMS])
+// {
+//     // counters
+//     INT_TYPE i;
+
+//     icm20948_read_raw_mag(mag_config, mag);
+
+//     for (i = 0; i < DIMS; i++)
+//         mag[i] -= bias[i];
+// }
+
+// void icm20948_read_temp_c(
+//         sensor_config_t*    ag_config, 
+//         float*              temp)
+// {
+//     int16_t tmp;
+
+//     icm20948_read_raw_temp(ag_config, &tmp);
+
+//     // temp  = ((raw_value - ambient_temp) / speed_of_sound) + 21
+//     *temp = (((float)tmp - 21.0f) / 333.87) + 21.0f;
+// }
 

@@ -1,16 +1,18 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include <iostream>
-#include <string.h>
+#include <string>
+
 #include <FunctionQueue.h>
 #include <ICM_20948.h>
+// #include <helper_3dmath.h>
+#include <MadgwickFilter.h>
 // #include "matrix_examples.h"
-#include <IntervalTimer.h>
 
-// #include <avr/io.h>
-// #include <avr/interrupt.h>
 
-#define DEBUG_OUTPUT
+
+// #define DEBUG_OUTPUT
+// #define VISUALIZE_QUATERNION
 
 
 
@@ -27,23 +29,30 @@
 
 // #define CALIBRATION_MODE 1
 
+/* ----------------------------------------------------------------------------
+ * interrupt functions
+ */
 
+volatile uint8_t  task_flag     = 0;
+volatile uint32_t num_counts    = 0;
 
-IntervalTimer     update_timer;
-volatile uint8_t  task_flag = 0;
-volatile uint32_t num_counts   = 0;
-
-#define TASK_1_FLAG 0x01
+#define DATA_READY_FLAG 0x01
 
 /**
- * @brief Timer interrupt service routine
+ * @brief user-defined macro to wait for interrupt Assembly instruction 
+ * 
+ * @note This macro wraps the assembly instruction "wfi" to improve code
+ *  readability.
+ */
+#define WaitForInterrupt()  asm("wfi")
+
+/**
+ * @brief data-ready interrupt service routine
  * @note Sets a flag to indicate it's time to read the sensors
  */
-void timer_ISR() {
+void Data_Ready_ISR() {
 
-    task_flag  |= TASK_1_FLAG;
-
-    num_counts++;
+    task_flag  |= DATA_READY_FLAG;
 
 }
 
@@ -77,6 +86,31 @@ sensor_config_t ak_config = {
 };
 
 
+#define DELTA_T 0.01f // 10 ms sample rate
+
+
+// orientation/motion vars
+Quaternion dmpQ;        // [w, x, y, z] quaternion container
+VectorInt16 aa;         // [x, y, z]    accel sensor measurements
+VectorFloat gravity;    // [x, y, z]    gravity vector
+VectorInt16 aaReal;     // [x, y, z]    gravity-free accel sensor
+VectorInt16 aaWorld;    // [x, y, z]    world-frame accel sensor measurements
+
+
+
+Madgwick_Filter MF(16 /*used to be 360*/, 14, 17.f, DELTA_T);
+VectorInt16 rawAV;
+Quaternion madgwickQ;
+
+
+/**
+ * @brief 
+ */
+#define MAX_BUFFER_SAMPLES 100
+
+dataframe_t data_buffer[MAX_BUFFER_SAMPLES];
+
+
 // function declarations ------------------------------------------------------
 
 /**
@@ -90,6 +124,10 @@ void handle_BLE_command(const String& message);
 void handle_MSP432_command(const String& message);
 
 
+
+void record_data_task();
+
+
 // ----------------------------------------------------------------------------
 // 
 //  SETUP & LOOP
@@ -98,15 +136,18 @@ void handle_MSP432_command(const String& message);
 
 void setup() {
 
+    
+
     // matrix_examples();
 
     // instantiate Serial port ------------------------------------------------
     Serial.begin(115200);
 
-    // allows time for Serial Monitor to open
+    // allows time for the Serial Monitor and/or logic analyzer to open up
+    // note: should be removed for production code
     while (!Serial);
     
-    // Serial.println("Starting...");
+    Serial.println("Starting...");
 
     // activate built-in LED to indicate setup in progress
     pinMode(LED_BUILTIN, OUTPUT);
@@ -119,23 +160,21 @@ void setup() {
     // T4.1 --> BLE UART Friend
     // initialize_BLE_UART();
     
+
     // I2C initialization -----------------------------------------------------
     Wire.setSDA(SDA_PIN);
     Wire.setSCL(SCL_PIN);
     Wire.setClock(400000); // 400 kHz I2C
     Wire.begin();
 
+    // ICM-20948 initialization
     if (icm20948_init(&icm_config,
-                      &ak_config,
-                      (void*)&Serial) != 0)
+                       &ak_config,
+                       (void*)&Serial) != 0)
     {
         Serial.println("ICM-20948 initialization failed!");
         while (1);
     }
-
-    // Serial.printf("here 2\n");
-
-    // icm20948_set_mag_rate(&ak_config, 10);
 
 
     // configure interrupt pin from ICM20948 ----------------------------------
@@ -143,18 +182,15 @@ void setup() {
     pinMode(22, INPUT); // INT pin from ICM20948
 
     attachInterrupt(digitalPinToInterrupt(22),
-                    timer_ISR,
+                    Data_Ready_ISR,
                     FALLING);
-    
-    
-    // timer_ISR to run every 1 Hz
-    // update_timer.begin(timer_ISR, (uint32_t)1000000);
 
     Serial.println("Setup complete. Waiting for messages...");
     
     digitalWrite(LED_BUILTIN, LOW);
 
-    
+    // dmpQ = {1.0f, 0.0f, 0.0f, 0.0f};
+    dmpQ = Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
 
 #ifdef CALIBRATION_MODE
     Serial.println("CALIBRATION MODE ENABLED");
@@ -163,7 +199,7 @@ void setup() {
 
     icm20948_cal_gyro(&icm_config, gyro);
 
-    Serial.printf("gyro = {%10.i, %10.i, %10.i}\n",
+    Serial.printf("gyro = {%10i, %10i, %10i}\n",
                   gyro[0], gyro[1], gyro[2]);
 
     // results from multiple runs:
@@ -179,59 +215,131 @@ void setup() {
 }
 
 
-#ifdef CALIBRATION_MODE
-
-void loop() {}
-
-#else
-
 
 void loop() {
 
+#ifndef CALIBRATION_MODE
+
+    // Serial.printf("Loop count: %lu\n", num_counts);
+
     // Wait for interrupt
-    asm("wfi");
+    WaitForInterrupt();
 
     // if the task flag is not set, return and do not perform any tasks
-    if (!(task_flag & TASK_1_FLAG))
-        return;
+    if (task_flag & DATA_READY_FLAG) {
 
-    // clear the task flag
-    task_flag &= ~TASK_1_FLAG;
+        // clear the task flag
+        task_flag  &= ~DATA_READY_FLAG;
 
-    // proceed with the following tasks ---------------------------------------
+        // indicate data read in progress
+        digitalWrite(LED_BUILTIN, HIGH);
 
-    // vector_int_t accel = {0}, gyro = {0}, mag = {0};
+        record_data_task();
 
-    icm_data_t icm_data = {
-            .accel  = {0},
-            .gyro   = {0},
-            .temp   =  0,
-            .counts =  0};
+        // indicate data read complete
+        digitalWrite(LED_BUILTIN, LOW);
+        
+    }
 
-    ak_data_t ak_data = {
-            .mag    = {0},
-            .counts =  0};
+    
 
     // Process queued function calls from serial events
     // process_function_queue();
 
-    // icm20948_read_raw_accel(&icm_config, accel);
-    // icm20948_read_raw_gyro(&icm_config, gyro);
-    // icm20948_read_raw_mag(&ak_config, mag);
+#endif
 
-    icm20948_record_data(&icm_config, &icm_data);
-
-    Serial.printf("accel = {%7.i, %7.i, %7.i}\t",
-                  icm_data.accel.x, icm_data.accel.y, icm_data.accel.z);
-
-    Serial.printf("gyro = {%7.i, %7.i, %7.i}\n",
-                  icm_data.gyro.x, icm_data.gyro.y, icm_data.gyro.z);
-
-    // Serial.printf("mag = {%7.i, %7.i, %7.i}\n",
-    //               mag[0], mag[1], mag[2]);
 }
 
-#endif
+void record_data_task() {
+
+#define ICM20948_OK 0x00
+
+    uint8_t status = ICM20948_OK;
+
+    dataframe_t icm_data = {
+            .accel  = {0},
+            .gyro   = {0},
+            .temp   =  0,
+            .mag    = {0},
+            .counts =  0};
+
+    // read sensor data
+    status |= icm20948_record_data(&icm_config, &icm_data);
+    status |= ak09916_record_data(&ak_config, &icm_data);
+
+
+    // increment sample count regardless of status
+    icm_data.counts = num_counts++;
+
+    // check for read errors
+    if (status) {
+        #ifdef DEBUG_OUTPUT
+        Serial.printf("ICM-20948 read failed w/ status: 0x%02X\n",
+                      status);
+        #endif
+
+        return;
+    }
+
+    VectorFloat magS;
+
+    magS.x = (float)icm_data.mag.x;
+    magS.y = (float)icm_data.mag.y;
+    magS.z = (float)icm_data.mag.z;
+
+    aa.x = icm_data.accel.x;
+    aa.y = icm_data.accel.y;
+    aa.z = icm_data.accel.z;
+
+    rawAV.x = icm_data.gyro.x;
+    rawAV.y = icm_data.gyro.y;
+    rawAV.z = icm_data.gyro.z;
+
+        
+    MF.DMP_Main(&aa, &magS, &dmpQ, rawAV.getMagnitude());
+        
+    dmpGetGravity(&MF.wOriN, &gravity);
+    dmpGetLinearAccel(&aa, &gravity, &aaReal);
+    dmpGetLinearAccelInWorld(&aaReal, &MF.wOriN, &aaWorld);
+
+    dmpQ = MF.wOriN;
+
+
+    // for slow debugging output
+    if ((icm_data.counts % 30) == 0) {
+
+        // Serial.printf("accel = {%5i, %5i, %5i}\t",
+        //             icm_data.accel.x, icm_data.accel.y, icm_data.accel.z);
+
+        // Serial.printf("gyro = {%5i, %5i, %5i}\t",
+        //             icm_data.gyro.x, icm_data.gyro.y, icm_data.gyro.z);
+
+        // Serial.printf("mag = {%5i, %5i, %5i}\n",
+        //             icm_data.mag.x, icm_data.mag.y, icm_data.mag.z);
+
+        Serial.printf("%5u: q = ", icm_data.counts);
+        MF.wOriN.print(4);
+        Serial.println();
+        
+    }
+
+    if ((icm_data.counts % 3) == 0) {     
+
+    #ifdef VISUALIZE_QUATERNION
+        // Send quaternion and vector data for visualization
+        // Format: Q,w,x,y,z for quaternion
+        Serial.printf("Q,%.6f,%.6f,%.6f,%.6f\n", dmpQ.w, dmpQ.x, dmpQ.y, dmpQ.z);
+        // Format: G,x,y,z for gravity vector
+        Serial.printf("G,%.6f,%.6f,%.6f\n", gravity.x, gravity.y, gravity.z);
+        // Format: M,x,y,z for magnetometer vector
+        Serial.printf("M,%.3f,%.3f,%.3f\n", magS.x, magS.y, magS.z);
+        // Format: A,x,y,z for world-frame acceleration
+        Serial.printf("A,%.6f,%.6f,%.6f\n", aaWorld.x, aaWorld.y, aaWorld.z);
+    #endif
+
+    }
+
+}
 
 
 // ----------------------------------------------------------------------------

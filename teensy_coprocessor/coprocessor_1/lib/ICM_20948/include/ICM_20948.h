@@ -221,14 +221,14 @@ void ak09916_load_calibration(
  */
 
 
-void icm20948_record_data(
+uint8_t icm20948_record_data(
         sensor_config_t*    config,
-        icm_data_t*         data);
+        dataframe_t*        data);
 
 
-void ak09916_record_data(
+uint8_t ak09916_record_data(
         sensor_config_t*    config,
-        ak_data_t*          data);
+        dataframe_t*        data);
 
 
 /**

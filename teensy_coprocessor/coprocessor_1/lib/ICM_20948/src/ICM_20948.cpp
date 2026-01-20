@@ -404,10 +404,13 @@ void icm20948_set_mag_rate(
 //
 // ----------------------------------------------------------------------------
 
-void icm20948_record_data(
+uint8_t icm20948_record_data(
         sensor_config_t*    icm_config,
-        icm_data_t*         data)
+        dataframe_t*        data)
 {
+    #define ICM20948_FAILED 0x01
+
+
     // get offsets
     icm_data_t*   offsets       = (icm_data_t*)icm_config->offset_instance;
     vector_int_t* accel_offset  = &(offsets->accel);
@@ -415,7 +418,8 @@ void icm20948_record_data(
 
     uint8_t buf[14];
     
-    // assume that the user bank is already set to 0. then, read accel, gyro, temp in one I2C transaction
+    // assume that the user bank is already set to 0. then, read accel, gyro,
+    // temp in one I2C transaction
     I2C_read_register(icm_config, ACCEL_XOUT_H, buf, 14);
 
     data->accel.x   = (int16_t)(buf[ 0] << 8 | buf[ 1]);
@@ -437,15 +441,20 @@ void icm20948_record_data(
     data->gyro.x   -= gyro_offset->x;
     data->gyro.y   -= gyro_offset->y;
     data->gyro.z   -= gyro_offset->z;
+
+    return 0;
 }
 
 
-void ak09916_record_data(
+uint8_t ak09916_record_data(
         sensor_config_t*    ak_config,
-        ak_data_t*          data)
+        dataframe_t*        data)
 {
+    #define AK09916_FAILED 0x02
+
+    // get offsets
     ak_data_t* local_offsets    = (ak_data_t*)ak_config->offset_instance;
-    vector_int_t* mag_offset    = &(local_offsets->mag);
+    // vector_int_t* mag_offset    = &(local_offsets->mag);
 
     uint8_t reg[7];
 
@@ -457,7 +466,7 @@ void ak09916_record_data(
         #ifdef DEBUG_OUTPUT
         local_serial->printf("  AK09916_DATA_STATUS_1 = %02X\nST1: Data is NOT ready\n", reg[0]);
         #endif
-        return;
+        return AK09916_FAILED;
     }
 
     // assume that the user bank is already set to 0. then, read mag in one I2C
@@ -466,17 +475,31 @@ void ak09916_record_data(
 
 
     // finish reading by getting ST2
-    I2C_read_register(ak_config,
-                      AK09916_DATA_STATUS_2,
-                      &reg[7],
-                      1);
+    I2C_read_register(ak_config, AK09916_DATA_STATUS_2, &reg[7], 1);
+
 
     // process the data; 
     data->mag.x = (int16_t)(reg[1] << 8 | reg[0]);
     data->mag.y = (int16_t)(reg[3] << 8 | reg[2]);
     data->mag.z = (int16_t)(reg[5] << 8 | reg[4]);
 
+    // check data overflow
+    if ((reg[6] & 0x08) == 0x08) {
+        
+        #ifdef DEBUG_OUTPUT
+        local_serial->printf("mag: ST2: Sensor overflow\n");
+        #endif
+
+        return AK09916_FAILED;
+    }
+
+    // 
+
+    
+
     // offsets are incorporated later in later commits
+
+    return 0;
 }
 
 

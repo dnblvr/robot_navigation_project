@@ -1,0 +1,15 @@
+{
+  "name": "helper_3dmath",
+  "version": "1.0.0",
+  "description": "user-defined helper 3D math library for embedded systems",
+  "keywords": ["queue", "circular buffer", "function pointer", "embedded", "teensy"],
+  "authors": [
+    {
+      "name": "Gian Fajardo",
+      "email": "gianfajardo.prim@gmail.com"
+    }
+  ],
+  "license": "MIT",
+  "frameworks": ["arduino"],
+  "platforms": ["teensy", "espressif32", "atmelavr"]
+}

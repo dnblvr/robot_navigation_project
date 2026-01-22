@@ -12,7 +12,8 @@
 
 
 // #define DEBUG_OUTPUT
-#define VISUALIZE_EULER_ANGLES
+#define DEBUG_FINAL_OUTPUT
+// #define VISUALIZE_EULER_ANGLES
 
 
 
@@ -90,17 +91,15 @@ sensor_config_t ak_config = {
 
 
 // orientation/motion vars
-Quaternion dmpQ;        // [w, x, y, z] quaternion container
+Quaternion imu_q;       // [w, x, y, z] quaternion container
 VectorInt16 aa;         // [x, y, z]    accel sensor measurements
 VectorFloat gravity;    // [x, y, z]    gravity vector
 VectorInt16 aaReal;     // [x, y, z]    gravity-free accel sensor
 VectorInt16 aaWorld;    // [x, y, z]    world-frame accel sensor measurements
-
+VectorFloat rawAV;      // [x, y, z]    raw angular velocity measurements
 
 
 Madgwick_Filter orientation_filter(100 /*used to be 360*/, 14, 17.f, DELTA_T);
-VectorFloat rawAV;
-Quaternion madgwickQ;
 
 
 /**
@@ -189,8 +188,8 @@ void setup() {
     
     digitalWrite(LED_BUILTIN, LOW);
 
-    // dmpQ = {1.0f, 0.0f, 0.0f, 0.0f};
-    dmpQ = Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    // imu_q = {1.0f, 0.0f, 0.0f, 0.0f};
+    imu_q = Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
 
 #ifdef CALIBRATION_MODE
     Serial.println("CALIBRATION MODE ENABLED");
@@ -296,15 +295,14 @@ void record_data_task() {
     rawAV.z = icm_data.gyro.z / 131.0f;
 
         
-    orientation_filter.update(&aa, &magS, &dmpQ, &rawAV);
+    orientation_filter.update(&aa, &magS, &imu_q, &rawAV);
         
-    Get_Gravity(&orientation_filter.wOriN, &gravity);
+    Get_Gravity(&imu_q, &gravity);
     Get_Linear_Accel(&aa, &gravity, &aaReal);
-    Get_World_Accel(&aaReal, &orientation_filter.wOriN, &aaWorld);
+    Get_World_Accel(&aaReal, &imu_q, &aaWorld);
+    
 
-    dmpQ = orientation_filter.wOriN;
-
-#ifdef DEBUG_OUTPUT
+#ifdef DEBUG_FINAL_OUTPUT
     // for slow debugging output
     if ((icm_data.counts % 30) == 0) {
 
@@ -318,23 +316,23 @@ void record_data_task() {
         //             icm_data.mag.x, icm_data.mag.y, icm_data.mag.z);
 
         Serial.printf("%5u: q = ", icm_data.counts);
-        orientation_filter.wOriN.print(4);
+        imu_q.print(4);
         Serial.println();
 
     }
-#endif // DEBUG_OUTPUT
+#endif // DEBUG_FINAL_OUTPUT
 
 #ifdef VISUALIZE_EULER_ANGLES
     if ((icm_data.counts % 3) == 0) {     
         // Convert quaternion to Euler angles and send
         float euler[3];
-        Get_Euler(&dmpQ, euler);
+        Get_Euler(&imu_q, euler);
         
         // Send Euler angles in degrees: E,psi,theta,phi (yaw,pitch,roll)
         Serial.printf("E,%.2f,%.2f,%.2f\n", 
-                     euler[0] * 180.0f/PI,  // psi (yaw)
-                     euler[1] * 180.0f/PI,  // theta (pitch)
-                     euler[2] * 180.0f/PI); // phi (roll)
+                      euler[0] * 180.0f/PI,     // psi (yaw)
+                      euler[1] * 180.0f/PI,     // theta (pitch)
+                      euler[2] * 180.0f/PI);    // phi (roll)
         
         // Format: G,x,y,z for gravity vector
         Serial.printf("G,%.6f,%.6f,%.6f\n", gravity.x, gravity.y, gravity.z);

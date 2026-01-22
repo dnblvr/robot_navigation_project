@@ -4,7 +4,7 @@
 
 #include "helper_3dmath.h"
 
-
+// #define CHANGES 1
 
 
 // ----------------------------------------------------------------------------
@@ -227,9 +227,9 @@ private:
          * if alpha is closer to 1, more weight is given to the most recent sample
          * if alpha is closer to 0, more weight is given to older samples
          */
-        #define ALPHA_UPDATE 0.2f
-        static float betaP = 1;
-        float betaN = 0;
+        #define ALPHA_UPDATE  0.2f
+        static float betaP  = 1;
+        float betaN         = 0;
         
         betaN = ALPHA_UPDATE*rot_rate_mag + ( 1 - ALPHA_UPDATE )*betaP;
         
@@ -265,7 +265,7 @@ private:
     
 public:
     
-    Quaternion wOriN, *won = &wOriN;
+    // Quaternion wOriN, *won = &wOriN;
     
     Madgwick_Filter(float a, float b, float z, float dt) {
         alpha   = a;
@@ -275,7 +275,7 @@ public:
         
         angularVelBias  = {0,0,0,0};
         modAngularVel   = {0,0,0,0};
-        wOriN           = Quaternion();
+        // wOriN           = Quaternion();
         wOriP           = Quaternion();
     }
 
@@ -302,13 +302,13 @@ public:
         // Serial.print(*vals[4], places);     Serial.print("]");
     }
     
+    #ifndef CHANGES
     void update(
             VectorInt16*    accelSensor,
             VectorFloat*    magU,
-            Quaternion*     dmpQ,
+            Quaternion*     won,
             VectorFloat*    angular_velocity)
     {
-        // float avMag = angular_velocity->getMagnitude();
 
         VectorFloat accelU = VectorFloat();
         
@@ -320,17 +320,78 @@ public:
 
         // angular velocity as quaternion
         // @todo this parameter should be in place of the `angular_velocity` parameter
-        Quaternion q_av;
-
-        q_av = Quaternion(
+        Quaternion q_av = Quaternion(
                 0,
                 angular_velocity->x,
                 angular_velocity->y,
                 angular_velocity->z);
 
+        float rot_vel_mag = q_av.getMagnitude();
+
         // -----------------------------------------------------------
+
+    #if USE_GRAVITY
+        accelU = (VectorFloat)(*accelSensor);
+        accelU.normalize();
+    #endif        
         
-        // memcpy(q_p, won, sizeQuaternion);
+    
+        /**
+         * @brief compute a new `q_gradient` that points in the direction of the
+         *  fastest change to reduce the error between measured and estimated
+         * @note this is equation (3.21) from Madgwick's thesis
+         */
+        compute_gradient_vector(&accelU, magU, &q_gradient);
+
+
+        /**
+         * @brief update beta based on the rate of the angular velocity
+         * @note this is equation (3.33) from Madgwick's thesis
+         * 
+         */
+        beta = 0.5*sqrt(3) * calcBeta(rot_vel_mag);
+
+        // adds angular velocity direction based on...
+        q_dot = q_p->getProduct(q_av) * 0.5;    // 
+        q_dot = q_dot  -  q_gradient * beta;
+
+        // integrate to yield quaternion
+        *won = wOriP  +  q_dot * del_t;
+
+        won->normalize();
+        
+        // update previous orientation
+        wOriP = *won;
+
+    }
+
+    #else
+
+    void update(
+            VectorInt16*    accelSensor,
+            VectorFloat*    magU,
+            Quaternion*     won,
+            VectorFloat*    angular_velocity)
+    {
+        VectorFloat accelU = VectorFloat();
+        
+        Quaternion q_gradient = {0,0,0,0};
+
+        // equation 3.30 from Madgwick's thesis
+        // this will store the sum total of all the estimated changes in orientation at time t
+        Quaternion q_dot = {0,0,0,0};
+
+        // angular velocity as quaternion
+        // @todo this parameter should be in place of the `angular_velocity` parameter
+        Quaternion q_av = Quaternion(
+                0,
+                angular_velocity->x,
+                angular_velocity->y,
+                angular_velocity->z);
+
+        float rot_vel_mag = q_av.getMagnitude();
+
+        // -----------------------------------------------------------
 
     #if USE_GRAVITY
         accelU = (VectorFloat)(*accelSensor);
@@ -351,21 +412,27 @@ public:
          * @note this is equation (3.33) from Madgwick's thesis
          * 
          */
-        beta = 0.5*sqrt(3) * calcBeta(angular_velocity->getMagnitude());
+        beta        = 0.5*sqrt(3) * calcBeta(rot_vel_mag);
+        stepSize    = calcStepSize(rot_vel_mag);
+        gamma       = calcWeight(stepSize);
+
+        *won   =     ( wOriP - q_gradient*stepSize )*gamma
+                  +   (wOriP)*( 1.f - gamma );
 
         // adds angular velocity direction based on...
-        q_dot = q_p->getProduct(q_av) * 0.5;    // 
-        q_dot = q_dot  -  q_gradient * beta;
+        // q_dot = q_p->getProduct(q_av) * 0.5;    // 
+        // q_dot = q_dot  -  q_gradient * beta;
 
-        // integrate to yield quaternion
-        wOriN = wOriP  +  q_dot * del_t;
+        // // integrate to yield quaternion
+        // *won = wOriP  +  q_dot * del_t;
 
-        wOriN.normalize();
+        won->normalize();
         
         // update previous orientation
-        wOriP = wOriN;
+        wOriP = *won;
 
     }
+    #endif // CHANGES
 };
 
 #endif /* __MADGWICK_FILTER_H__ */

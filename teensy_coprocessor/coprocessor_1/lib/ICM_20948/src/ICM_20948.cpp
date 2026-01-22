@@ -364,39 +364,6 @@ void icm20948_set_mag_rate(
 //     return;
 // }
 
-// void icm20948_cal_accel(
-//         sensor_config_t*    ag_config,
-//         int16_t             accel_bias[DIMS])
-// {
-//     // counters
-//     INT_TYPE i, j;
-
-//     int16_t buf[DIMS]  = {0};
-//     int32_t bias[DIMS] = {0};
-
-//     for (i = 0; i < MAX_ITERS; i++) {
-
-//         icm20948_read_raw_accel(ag_config, buf);
-
-//         for (j = 0; j < DIMS; j++) {
-
-//             if (j == 2)
-//                 bias[j] += (buf[j] - 16384);
-//             else
-//                 bias[j] += buf[j];
-
-//         }
-
-//         delay(25);
-
-//     }
-
-//     for (i = 0; i < DIMS; i++)
-//         accel_bias[i] = (int16_t)(bias[i] / MAX_ITERS);
-
-//     return;
-// }
-
 
 // ----------------------------------------------------------------------------
 //
@@ -492,10 +459,6 @@ uint8_t ak09916_record_data(
 
         return AK09916_FAILED;
     }
-
-    // 
-
-    
 
     // offsets are incorporated later in later commits
 

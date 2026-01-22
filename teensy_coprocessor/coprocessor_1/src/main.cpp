@@ -5,14 +5,14 @@
 
 #include <FunctionQueue.h>
 #include <ICM_20948.h>
-// #include <helper_3dmath.h>
+#include <helper_3dmath.h>
 #include <MadgwickFilter.h>
 // #include "matrix_examples.h"
 
 
 
 // #define DEBUG_OUTPUT
-// #define VISUALIZE_QUATERNION
+#define VISUALIZE_EULER_ANGLES
 
 
 
@@ -98,8 +98,8 @@ VectorInt16 aaWorld;    // [x, y, z]    world-frame accel sensor measurements
 
 
 
-Madgwick_Filter MF(16 /*used to be 360*/, 14, 17.f, DELTA_T);
-VectorInt16 rawAV;
+Madgwick_Filter orientation_filter(100 /*used to be 360*/, 14, 17.f, DELTA_T);
+VectorFloat rawAV;
 Quaternion madgwickQ;
 
 
@@ -291,20 +291,20 @@ void record_data_task() {
     aa.y = icm_data.accel.y;
     aa.z = icm_data.accel.z;
 
-    rawAV.x = icm_data.gyro.x;
-    rawAV.y = icm_data.gyro.y;
-    rawAV.z = icm_data.gyro.z;
+    rawAV.x = icm_data.gyro.x / 131.0f;
+    rawAV.y = icm_data.gyro.y / 131.0f;
+    rawAV.z = icm_data.gyro.z / 131.0f;
 
         
-    MF.DMP_Main(&aa, &magS, &dmpQ, rawAV.getMagnitude());
+    orientation_filter.update(&aa, &magS, &dmpQ, &rawAV);
         
-    dmpGetGravity(&MF.wOriN, &gravity);
-    dmpGetLinearAccel(&aa, &gravity, &aaReal);
-    dmpGetLinearAccelInWorld(&aaReal, &MF.wOriN, &aaWorld);
+    Get_Gravity(&orientation_filter.wOriN, &gravity);
+    Get_Linear_Accel(&aa, &gravity, &aaReal);
+    Get_World_Accel(&aaReal, &orientation_filter.wOriN, &aaWorld);
 
-    dmpQ = MF.wOriN;
+    dmpQ = orientation_filter.wOriN;
 
-
+#ifdef DEBUG_OUTPUT
     // for slow debugging output
     if ((icm_data.counts % 30) == 0) {
 
@@ -318,27 +318,35 @@ void record_data_task() {
         //             icm_data.mag.x, icm_data.mag.y, icm_data.mag.z);
 
         Serial.printf("%5u: q = ", icm_data.counts);
-        MF.wOriN.print(4);
+        orientation_filter.wOriN.print(4);
         Serial.println();
-        
+
     }
+#endif // DEBUG_OUTPUT
 
+#ifdef VISUALIZE_EULER_ANGLES
     if ((icm_data.counts % 3) == 0) {     
-
-    #ifdef VISUALIZE_QUATERNION
-        // Send quaternion and vector data for visualization
-        // Format: Q,w,x,y,z for quaternion
-        Serial.printf("Q,%.6f,%.6f,%.6f,%.6f\n", dmpQ.w, dmpQ.x, dmpQ.y, dmpQ.z);
+        // Convert quaternion to Euler angles and send
+        float euler[3];
+        Get_Euler(&dmpQ, euler);
+        
+        // Send Euler angles in degrees: E,psi,theta,phi (yaw,pitch,roll)
+        Serial.printf("E,%.2f,%.2f,%.2f\n", 
+                     euler[0] * 180.0f/PI,  // psi (yaw)
+                     euler[1] * 180.0f/PI,  // theta (pitch)
+                     euler[2] * 180.0f/PI); // phi (roll)
+        
         // Format: G,x,y,z for gravity vector
         Serial.printf("G,%.6f,%.6f,%.6f\n", gravity.x, gravity.y, gravity.z);
+        
         // Format: M,x,y,z for magnetometer vector
         Serial.printf("M,%.3f,%.3f,%.3f\n", magS.x, magS.y, magS.z);
+        
         // Format: A,x,y,z for world-frame acceleration
         Serial.printf("A,%.6f,%.6f,%.6f\n", aaWorld.x, aaWorld.y, aaWorld.z);
-    #endif
-
     }
 
+#endif
 }
 
 

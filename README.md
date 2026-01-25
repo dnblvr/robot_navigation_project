@@ -1,7 +1,7 @@
 <!-- omit in toc -->
 # Autonomous Navigator
 
-Principal Authors: &nbsp; **Lucero Aguilar-Larios** & **Gian Fajardo**
+Principal Authors: &nbsp; **Gian Fajardo**, **Nabin Jaiswal**, & **Lucero Aguilar-Larios**
 
 Faculty Advisor: &emsp; **Dr. Shahnam Mirzaei**
 

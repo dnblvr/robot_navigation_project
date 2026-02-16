@@ -1,5 +1,5 @@
 /**
- * @file ICM_20948.c
+ * @file ICM_20948.cpp
  * @author your name (you@domain.com)
  * @brief 
  * @version 0.1
@@ -25,10 +25,9 @@
 // ----------------------------------------------------------------------------
 
 /**
- * @brief Sends multiple bytes over I2C
+ * @brief Sends multiple bytes over I2C via direct LPI2C1 hardware access
  * 
- * @details Optimized Teensy 4.0 implementation - direct LPI2C1 hardware access
- * Assumptions:
+ * @details Optimized Teensy 4.0 implementation which assumes:
  *   - LPI2C1 already initialized by Wire.begin()
  *   - Single-master bus (no arbitration needed)
  *   - FIFO depth = 4 entries (Teensy 4.0 spec)
@@ -45,13 +44,14 @@ void I2C_send_multiple(
         size_t              length)
 {
 
-    uint8_t address = config->i2c_address;
+    uint8_t address     = config->i2c_address;
 
-    // Clear all status flags from previous transactions (SDF, NDF, ALF, FEF, PLTF, DMF)
-    IMXRT_LPI2C1.MSR = 0x00007F00;
+    // Clear all status flags from previous transactions (SDF, NDF, ALF, FEF,
+    // PLTF, DMF)
+    IMXRT_LPI2C1.MSR    = 0x00007F00;
 
     // Write START + 7-bit address (shifted left with R/W=0 for write)
-    IMXRT_LPI2C1.MTDR = LPI2C_MTDR_CMD_START | (address << 1);
+    IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_START | (address << 1);
 
     // Write data bytes
     for (size_t i = 0; i < length; i++) {
@@ -60,22 +60,24 @@ void I2C_send_multiple(
         while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
 
         // Write data byte with TRANSMIT command
-        IMXRT_LPI2C1.MTDR = LPI2C_MTDR_CMD_TRANSMIT | data[i];
+        IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_TRANSMIT | data[i];
     }
 
     // Ensure FIFO space, then write STOP condition
     while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
-    IMXRT_LPI2C1.MTDR = LPI2C_MTDR_CMD_STOP;
+    IMXRT_LPI2C1.MTDR       = LPI2C_MTDR_CMD_STOP;
+
 
     // Check for NACK error (device not responding)
     if (IMXRT_LPI2C1.MSR & LPI2C_MSR_NDF) {
 
         // Clear FIFO and abort on NACK
-        IMXRT_LPI2C1.MCR |= LPI2C_MCR_RTF | LPI2C_MCR_RRF;
+        IMXRT_LPI2C1.MCR   |= LPI2C_MCR_RTF | LPI2C_MCR_RRF;
         return;
     }
 
-    // Wait for STOP completion (ensures transaction finishes before return)
+    // Wait for STOP completion, which ensures transaction finishes before
+    // return
     while (!(IMXRT_LPI2C1.MSR & LPI2C_MSR_SDF));
 
     // Clear STOP flag so next transaction can start cleanly
@@ -84,10 +86,10 @@ void I2C_send_multiple(
 
 
 /**
- * @brief Reads multiple bytes over I2C after writing register address
+ * @brief Reads multiple bytes over I2C after writing register address; uses 
+ *  direct LPI2C1 hardware access
  * 
- * @details Optimized Teensy 4.0 implementation - direct LPI2C1 hardware access
- * Assumptions:
+ * @details Optimized Teensy 4.0 implementation, which assumes:
  *  - LPI2C1 already initialized by Wire.begin()
  *  - Single-master bus (no arbitration needed)
  *  - FIFO depth = 4 entries (Teensy 4.0 spec)
@@ -138,14 +140,14 @@ void I2C_read_register(
         while (((IMXRT_LPI2C1.MFSR >> 16) & 0x07) == 0);
         
         // Read data byte from receive register
-        data[i] = IMXRT_LPI2C1.MRDR & 0xFF;
+        data[i]     = IMXRT_LPI2C1.MRDR & 0xFF;
     }
 
     // Check for NACK error (device not responding)
     if (IMXRT_LPI2C1.MSR & LPI2C_MSR_NDF) {
 
         // Clear FIFO and abort on NACK
-        IMXRT_LPI2C1.MCR |= LPI2C_MCR_RTF | LPI2C_MCR_RRF;
+        IMXRT_LPI2C1.MCR   |= LPI2C_MCR_RTF | LPI2C_MCR_RRF;
         return;
     }
 
@@ -153,7 +155,7 @@ void I2C_read_register(
     while (!(IMXRT_LPI2C1.MSR & LPI2C_MSR_SDF));
 
     // Clear STOP flag so next transaction can start cleanly
-    IMXRT_LPI2C1.MSR = LPI2C_MSR_SDF;
+    IMXRT_LPI2C1.MSR    = LPI2C_MSR_SDF;
 }
 
 /**

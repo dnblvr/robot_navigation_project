@@ -27,6 +27,14 @@
 /**
  * @brief Sends multiple bytes over I2C
  * 
+ * @details Optimized Teensy 4.0 implementation - direct LPI2C1 hardware access
+ * Assumptions:
+ *   - LPI2C1 already initialized by Wire.begin()
+ *   - Single-master bus (no arbitration needed)
+ *   - FIFO depth = 4 entries (Teensy 4.0 spec)
+ * Bloat removed: wait_idle, timeout tracking, yield(), error recovery,
+ *                arbitration handling, pin timeout, buffer overflow checks
+ * 
  * @param config    sensor configuration structure
  * @param data      data buffer to send
  * @param length    number of bytes to send
@@ -36,21 +44,55 @@ void I2C_send_multiple(
         uint8_t*            data,
         size_t              length)
 {
-    // Get Wire instance from config
-    TwoWire* wire = (TwoWire*)config->wire_instance;
 
-    // Send data over I2C (typically register address)
-    wire->beginTransmission(config->i2c_address);
+    uint8_t address = config->i2c_address;
+
+    // Clear all status flags from previous transactions (SDF, NDF, ALF, FEF, PLTF, DMF)
+    IMXRT_LPI2C1.MSR = 0x00007F00;
+
+    // Write START + 7-bit address (shifted left with R/W=0 for write)
+    IMXRT_LPI2C1.MTDR = LPI2C_MTDR_CMD_START | (address << 1);
+
+    // Write data bytes
     for (size_t i = 0; i < length; i++) {
-        wire->write(data[i]);
+
+        // wait until FIFO has space i.e. less than 4 bytes
+        while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
+
+        // Write data byte with TRANSMIT command
+        IMXRT_LPI2C1.MTDR = LPI2C_MTDR_CMD_TRANSMIT | data[i];
     }
 
-    // Send STOP condition
-    wire->endTransmission(true);
+    // Ensure FIFO space, then write STOP condition
+    while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
+    IMXRT_LPI2C1.MTDR = LPI2C_MTDR_CMD_STOP;
+
+    // Check for NACK error (device not responding)
+    if (IMXRT_LPI2C1.MSR & LPI2C_MSR_NDF) {
+
+        // Clear FIFO and abort on NACK
+        IMXRT_LPI2C1.MCR |= LPI2C_MCR_RTF | LPI2C_MCR_RRF;
+        return;
+    }
+
+    // Wait for STOP completion (ensures transaction finishes before return)
+    while (!(IMXRT_LPI2C1.MSR & LPI2C_MSR_SDF));
+
+    // Clear STOP flag so next transaction can start cleanly
+    IMXRT_LPI2C1.MSR = LPI2C_MSR_SDF;
 }
+
 
 /**
  * @brief Reads multiple bytes over I2C after writing register address
+ * 
+ * @details Optimized Teensy 4.0 implementation - direct LPI2C1 hardware access
+ * Assumptions:
+ *  - LPI2C1 already initialized by Wire.begin()
+ *  - Single-master bus (no arbitration needed)
+ *  - FIFO depth = 4 entries (Teensy 4.0 spec)
+ * Bloat removed: wait_idle, timeout tracking, yield(), error recovery,
+ *                arbitration handling, pin timeout, buffer management
  * 
  * @param config    sensor configuration structure
  * @param reg_addr  register address to read from
@@ -63,26 +105,55 @@ void I2C_read_register(
         uint8_t*            data,
         size_t              length)
 {
-    // Get Wire instance from config
-    TwoWire* wire = (TwoWire*)config->wire_instance;
+
+    uint8_t address     = config->i2c_address;
+
+    // Clear all status flags from previous transactions (SDF, NDF, ALF, FEF, PLTF, DMF) by clearing the master status register MSR
+    IMXRT_LPI2C1.MSR    = 0x00007F00;
+
+    // Write START + 7-bit address (shifted left with R/W=0 for write)
+    IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_START | (address << 1);
+
+    // Wait for TX FIFO space, then write register address with TRANSMIT command
+    while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
+    IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_TRANSMIT | reg_addr;
+
+    // Write repeated START + 7-bit address (shifted left with R/W=1 for read)
+    while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
+    IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_START | (address << 1) | 1;
+
+    // Write RECEIVE command (length - 1)
+    while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
+    IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_RECEIVE | (length - 1);
+
+    // Write STOP condition
+    while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
+    IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_STOP;
 
 
-    // Send register address
-    wire->beginTransmission(config->i2c_address);
-    wire->write(reg_addr);
-    wire->endTransmission(false);  // false = repeated START (no STOP)
-    
-
-    // Read response
-    wire->requestFrom((uint8_t)config->i2c_address,
-                      (uint8_t)length,
-                      (bool)true);
-    
+    // Read data from RX FIFO
     for (size_t i = 0; i < length; i++) {
-        if (wire->available()) {
-            data[i] = wire->read();
-        }
+
+        // wait until data available
+        while (((IMXRT_LPI2C1.MFSR >> 16) & 0x07) == 0);
+        
+        // Read data byte from receive register
+        data[i] = IMXRT_LPI2C1.MRDR & 0xFF;
     }
+
+    // Check for NACK error (device not responding)
+    if (IMXRT_LPI2C1.MSR & LPI2C_MSR_NDF) {
+
+        // Clear FIFO and abort on NACK
+        IMXRT_LPI2C1.MCR |= LPI2C_MCR_RTF | LPI2C_MCR_RRF;
+        return;
+    }
+
+    // Wait for STOP completion (ensures transaction finishes before return)
+    while (!(IMXRT_LPI2C1.MSR & LPI2C_MSR_SDF));
+
+    // Clear STOP flag so next transaction can start cleanly
+    IMXRT_LPI2C1.MSR = LPI2C_MSR_SDF;
 }
 
 /**
@@ -220,11 +291,13 @@ int8_t icm20948_init(
     I2C_send_multiple(ag_config, reg, 2);
     
 
-    // set accel output data rate to 100Hz
-    //  - output_data_rate = 1.125kHz / (1 + ACCEL_SMPLRT_DIV)
-    //  - 16 bits for ACCEL_SMPLRT_DIV
+    //  - set accel output data rate (ODR) to 100Hz
+    //      - 16 bits for ACCEL_SMPLRT_DIV
+    //      - output_data_rate = 1.125kHz / (1 + ACCEL_SMPLRT_DIV)
+    //      - ACCEL_SMPLRT_DIV = (1.125 kHz / ODR) - 1
+    //      -                  = 10.25 for 100Hz
     reg[0] = ACCEL_SMPLRT_DIV_2; reg[1] = 11;
-    I2C_send_multiple(ag_config, reg, 2); 
+    I2C_send_multiple(ag_config, reg, 2);
     delay(20);
 
     
@@ -253,7 +326,9 @@ int8_t icm20948_init(
     local_serial->printf("MAG. WHO_AM_I: 0x%X\n", buf);
     #endif
 
-    if (buf != 0x09)
+    #define WHO_AM_I_AK09916 0x09
+
+    if (buf != WHO_AM_I_AK09916)
         return -1;
 
 

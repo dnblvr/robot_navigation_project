@@ -1,6 +1,6 @@
 /**
  * @file ICM_20948_Registers.h
- * @author @akionu your name (https://github.com/akionu)
+ * @author @akionu (https://github.com/akionu)
  *         (modified by Gian Fajardo)
  * @brief 
  * @date 2025-12-27 

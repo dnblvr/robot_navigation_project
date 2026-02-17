@@ -11,8 +11,12 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+
+#include "Project_Config.h"
 #include "EUSCI_B1_I2C.h"
 #include "ICM_20948_Registers.h"
+
+#include "Clock.h"
 
 
 // ----------------------------------------------------------------------------
@@ -22,34 +26,49 @@
 // ----------------------------------------------------------------------------
 
 /**
+ * @brief Adddress of the ICM-20948 sensor when AD0 is low
+ */
+#define ICM20948_ADDR_ACCEL_GYRO    0x68
+
+
+/**
+ * @brief Address of the AK09916 magnetometer sensor
+ */
+#define ICM20948_ADDR_MAG           0x0C
+
+/**
  * @brief 
  * 
  */
 typedef struct icm20948_config {
+
     // usual addr
     // addr_accel_gyro:  0x68
     // addr_mag:         0x0C
     uint8_t    addr_accel_gyro;
     uint8_t    addr_mag;
-    // example
-    // i2c_inst_t icm20948_i2c = {i2c0_hw, false}
-    i2c_inst_t *i2c;
+
 } icm20948_config_t;
 
 
 /**
  * @brief 
  * 
+ * @details indices 0, 1 & 2 represent x, y, & z dimensions
  */
-typedef struct icm20984_data {
-    // 0: x, 1: y, 2: z
+typedef struct {
+
+    //
     int16_t accel_raw[3];
     int16_t accel_bias[3];
+
     int16_t gyro_raw[3];
     int16_t gyro_bias[3];
+
     int16_t mag_raw[3];
     int16_t mag_bias[3];
     float temp_c;
+
 } icm20984_data_t;
 
 
@@ -101,7 +120,6 @@ void icm20948_cal_mag_simple(icm20948_config_t *config, int16_t mag_bias[3]);
 /** ---------------------------------------------------------------------------
  * READ CALIBRATED DATA FUNCTIONS
  */
-
 
 /**
  * @brief 

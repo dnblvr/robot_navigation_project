@@ -33,6 +33,7 @@ extern uint32_t* INTERM_POINTER;
 
 void Initialize_RPLiDAR_C1(const C1_States*    config) {
 
+
     // Single-Request, No-Response
     const No_Response  STOP = {0x25,  0,  10},
                       RESET = {0x40,  0, 500};
@@ -43,6 +44,7 @@ void Initialize_RPLiDAR_C1(const C1_States*    config) {
 
     // Single-Request, Multiple-Response
                        SCAN = {0x20,  5};
+
 
     // unused commands
 //    const Single_Response \

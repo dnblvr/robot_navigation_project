@@ -31,10 +31,10 @@ class RobotState:
 
 def dwa_control(state, config, goal, obstacles, screen):
 
-    v_min = state.v - config.max_accel * config.dt
-    v_max = state.v + config.max_accel * config.dt
-    omega_min = state.omega - config.max_omega_accel * config.dt
-    omega_max = state.omega + config.max_omega_accel * config.dt
+    v_min       = state.v    -    config.max_accel * config.dt
+    v_max       = state.v    +    config.max_accel * config.dt
+    omega_min   = state.omega  -  config.max_omega_accel * config.dt
+    omega_max   = state.omega  +  config.max_omega_accel * config.dt
 
     dw = {
         "v_min": max(config.min_speed, v_min),

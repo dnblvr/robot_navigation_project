@@ -234,7 +234,7 @@ void Process_RPLiDAR_Data(
     float distance_angle[2] = {0};
     
     // Temporary array to hold all polar coordinates before sorting and skipping
-    float polar_data[INTERMEDIARY_BUFFER][2];  // [distance, angle]
+    float polar_data[PROCESS_BUFFER_SIZE][2];  // [distance, angle]
     int polar_count = 0;  // Number of valid polar points before skipping
 
 

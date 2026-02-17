@@ -64,12 +64,14 @@ public:
         z = nz;
     }
 
-    Quaternion getProduct(Quaternion q) {
+    Quaternion getProduct(const Quaternion q) {
+
         // Quaternion multiplication is defined by:
         //     (Q1 * Q2).w = (w1w2 - x1x2 - y1y2 - z1z2)
         //     (Q1 * Q2).x = (w1x2 + x1w2 + y1z2 - z1y2)
         //     (Q1 * Q2).y = (w1y2 - x1z2 + y1w2 + z1x2)
-        //     (Q1 * Q2).z = (w1z2 + x1y2 - y1x2 + z1w2
+        //     (Q1 * Q2).z = (w1z2 + x1y2 - y1x2 + z1w2)
+
         return Quaternion(
             w*q.w - x*q.x - y*q.y - z*q.z,  // new w
             w*q.x + x*q.w + y*q.z - z*q.y,  // new x
@@ -201,7 +203,7 @@ public:
          *  - broken up into steps:
          *      1. treat vector as quaternion with w=0
          *      2. p is assigned `q * p`
-         *      3. p is again assigned `p * conj(q)`
+         *      3. p is then assigned `p * conj(q)`
          *          1. substituting p from step 2: `p := (q * p) * conj(q)`
          *      4. p quaternion is now [0, x', y', z']
          */
@@ -291,6 +293,19 @@ public:
         z = (float)a.z; 
     }
 
+    inline VectorFloat getProduct(const VectorFloat* v) {
+        // VectorFloat multiplication is defined by:
+        //     (V1 * V2).x = (y1z2 - z1y2)
+        //     (V1 * V2).y = (z1x2 - x1z2)
+        //     (V1 * V2).z = (x1y2 - y1x2)
+        
+        return VectorFloat(
+            y*v->z - z*v->y,  // new x
+            z*v->x - x*v->z,  // new y
+            x*v->y - y*v->x   // new z
+        );
+    }
+
     float getMagnitude() {
         return sqrt(x*x + y*y + z*z);
     }
@@ -364,6 +379,113 @@ public:
 };
 
 
+// ----------------------------------------------------------------------------
+//
+//  DATA STRUCTURES & CONSTANTS
+//
+// ----------------------------------------------------------------------------
+
+/**
+ * @brief Simple vector structure, in fixed point integers
+ * 
+ * @param x X-axis component
+ * @param y Y-axis component
+ * @param z Z-axis component
+ */
+typedef struct {
+
+    int16_t x, y, z;
+
+} vector_int_t;
+
+
+/**
+ * @brief Simple vector structure, in flaots
+ * 
+ * @param x X-axis component
+ * @param y Y-axis component
+ * @param z Z-axis component
+ */
+typedef struct {
+
+    float x, y, z;
+
+} vector_float_t;
+
+
+/**
+ * @brief ICM-20948 data container
+ * 
+ * @param accel  Accelerometer data
+ * @param gyro   Gyroscope data
+ * @param temp   Temperature data
+ * @param counts Sample count or timestamp
+ */
+typedef struct {
+
+    vector_int_t    accel;
+    vector_int_t    gyro;
+    int16_t         temp;
+    uint32_t        counts;
+
+} icm_data_t;
+
+
+/**
+ * @brief AK09916 magnetometer data container
+ * 
+ * @param mag    Magnetometer data
+ * @param counts Sample count or timestamp
+ */
+typedef struct {
+
+    vector_int_t    mag;
+    uint32_t        counts;
+
+} ak_data_t;
+
+
+/**
+ * @brief Generic data frame container
+ * 
+ * @param accel  Accelerometer data
+ */
+typedef struct {
+
+    // vector_int_t    accel;
+    // vector_int_t    gyro;
+    // int16_t         temp;
+    // vector_int_t    mag;
+
+    // vector_float_t  accel;
+    // vector_float_t  gyro;
+    // int16_t         temp;
+    // vector_float_t  mag;
+    // Quaternion      quat;
+    // uint32_t        counts;
+
+    VectorFloat     accel;
+    VectorFloat     gyro;
+    int16_t         temp;
+    VectorFloat     mag;
+    Quaternion      q;
+    uint32_t        counts;
+
+} dataframe_t;
+
+typedef struct {
+  float time; // added
+
+  VectorFloat accel,
+              gyro,
+              mag;
+
+  // from FOV of world
+  Quaternion q;
+
+} States;
+
+
 
 // ----------------------------------------------------------------------------
 // 
@@ -387,9 +509,42 @@ inline uint8_t Get_Linear_Accel(
 {
     // get rid of the gravity component (+1g = +8192 in standard DMP FIFO
     // packet, sensitivity is 2g)
+    // v->x    = vRaw->x - gravity->x*8192;
+    // v->y    = vRaw->y - gravity->y*8192;
+    // v->z    = vRaw->z - gravity->z*8192;
+
+    // packet, sensitivity is 2g)
     v->x    = vRaw->x - gravity->x*8192;
     v->y    = vRaw->y - gravity->y*8192;
     v->z    = vRaw->z - gravity->z*8192;
+
+    return 0;
+}
+
+/**
+ * @brief returns linear acceleration vector (gravity removed)
+ * 
+ * @param[in] vRaw raw acceleration vector
+ * @param[in] gravity gravity vector
+ * @param[out] v linear acceleration vector (gravity removed)
+ * @return uint8_t confirms successful execution
+ * @retval 0 on success
+ */
+inline uint8_t Get_Linear_Accel(
+        VectorFloat*    vRaw,
+        VectorFloat*    gravity,
+        VectorFloat*    v)
+{
+    // get rid of the gravity component (+1g = +8192 in standard DMP FIFO
+    // packet, sensitivity is 2g)
+    // v->x    = vRaw->x - gravity->x*8192;
+    // v->y    = vRaw->y - gravity->y*8192;
+    // v->z    = vRaw->z - gravity->z*8192;
+
+    // packet, sensitivity is 2g)
+    v->x    = vRaw->x - gravity->x;
+    v->y    = vRaw->y - gravity->y;
+    v->z    = vRaw->z - gravity->z;
 
     return 0;
 }
@@ -462,5 +617,8 @@ inline uint8_t Get_Euler(
 // inline is used to avoid "multiple definition" errors during linking
 // if I am done making the changes to this file, I can add the function definitions
 // to a .cpp file and remove the inline keywords
+
+
+
 
 #endif /* _HELPER_3DMATH_H_ */

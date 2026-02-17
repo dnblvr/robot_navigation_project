@@ -38,6 +38,7 @@ float normalize_angle(float angle)
     return angle;
 }
 
+
 float pose_distance(
         const Pose* pose1,
         const Pose* pose2)

@@ -30,10 +30,10 @@
 #define OUTPUT_BUFFER               100
 
 // float buffer after sorting
-#define INTERMEDIARY_BUFFER         SKIP_FACTOR*OUTPUT_BUFFER // 500
+#define PROCESS_BUFFER_SIZE         SKIP_FACTOR*OUTPUT_BUFFER // 500
 
 // data filtered for
-#define RPLiDAR_UART_BUFFER_SIZE    INTERMEDIARY_BUFFER*MSG_LENGTH
+#define RPLiDAR_UART_BUFFER_SIZE    PROCESS_BUFFER_SIZE*MSG_LENGTH
 
 
 // check at compile-time to see if buffer size is a multiple of MSG_LENGTH

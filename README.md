@@ -1,7 +1,7 @@
 <!-- omit in toc -->
 # Autonomous Navigator
 
-Principal Authors: &nbsp; **Lucero Aguilar-Larios** & **Gian Fajardo**
+Principal Authors: &nbsp; **Gian Fajardo**, **Lucero Aguilar-Larios**
 
 Faculty Advisor: &emsp; **Dr. Shahnam Mirzaei**
 
@@ -23,11 +23,11 @@ Faculty Advisor: &emsp; **Dr. Shahnam Mirzaei**
   - [4.6. GraphSLAM](#46-graphslam)
   - [4.7. EKF-SLAM](#47-ekf-slam)
   - [4.8. RRT\*](#48-rrt)
-- [5. Dynamic Window Approach (DWA) Algorithm](#5-dynamic-window-approach-dwa-algorithm)
-- [6. Checklist](#6-checklist)
-  - [6.1. Task 1: 12 Dec 2025 (3 weeks)](#61-task-1-12-dec-2025-3-weeks)
-  - [6.2. Task 2](#62-task-2)
-  - [6.3. Ongoing Task](#63-ongoing-task)
+  - [4.9. Dynamic Window Approach (DWA) Algorithm](#49-dynamic-window-approach-dwa-algorithm)
+- [5. Checklist](#5-checklist)
+  - [5.1. Task 1: 12 Dec 2025 (3 weeks)](#51-task-1-12-dec-2025-3-weeks)
+  - [5.2. Task 2](#52-task-2)
+  - [5.3. Ongoing Task](#53-ongoing-task)
 
 ---
 
@@ -60,13 +60,13 @@ Here is how we achieve our goals:
 
 The materials involved include:
 
-|Amounts|Name           |Description              |
-|------:|:-------------:|:-----------------------:|
-|      1|TI-RSLK Chassis|[Two-Wheeled Platform][classic-ti-rslk-part]|
-|      1|RPLiDAR C1     |[2D LiDAR Scanner][rplidar-c1-scanner]|
-|      1|ICM-20948      |[MARG Sensor][sparkfun-icm-20948]|
-|      1|GPS Receiver   |[N/A][example-com]|
-|      6|VL53L5CX       |[SparkFun ToF Imager][tof-imager-vl53l5cx]|
+| Amount | Name            | Description               |
+| -----: | :-------------: | :-----------------------: |
+|      1 | TI-RSLK Chassis | [Two-Wheeled Platform][classic-ti-rslk-part] |
+|      1 | RPLiDAR C1      | [2D LiDAR Scanner][rplidar-c1-scanner] |
+|      1 | ICM-20948       | [MARG Sensor][sparkfun-icm-20948] |
+|      1 | GPS Receiver    | [N/A][example-com] |
+<!-- |      6|VL53L5CX       |[SparkFun ToF Imager][tof-imager-vl53l5cx]| -->
 
 <!-- **Sources**: -->
 
@@ -74,7 +74,7 @@ The materials involved include:
 
 [rplidar-c1-scanner]: https://www.slamtec.com/en/C1
 
-[tof-imager-vl53l5cx]: https://www.sparkfun.com/sparkfun-qwiic-tof-imager-vl53l5cx.html
+<!-- [tof-imager-vl53l5cx]: https://www.sparkfun.com/sparkfun-qwiic-tof-imager-vl53l5cx.html -->
 
 [example-com]: example.com
 
@@ -107,7 +107,7 @@ The materials involved include:
 
 - This collection of links might be a very interesting use of firmware optimization using the already-existing ARM-v4 optimized CMSIS libraries
 - [PowerPoint Presentation - msp432.pdf][]
-- [SIMPLELINK-MSP432-SDK Software development kit \(SDK\) | TI.com][]
+- [SIMPLELINK-MSP432-SDK | TI.com][]
 - [using CMSIS-DSP for msp432 system - Google Search][]
 - [CMSIS DSP Software Library][]
 - [DSP Libraries — Real Time Digital Signal Processing B Term 2024 documentation][]
@@ -137,7 +137,7 @@ The materials involved include:
 [IMXRT1060CEC_Rev_4 - IMXRT1060CEC.pdf]: https://www.nxp.com/docs/en/nxp/data-sheets/IMXRT1060CEC.pdf "IMXRT1060CEC_Rev_4 - IMXRT1060CEC.pdf"
 
 [PowerPoint Presentation - msp432.pdf]: https://faculty-web.msoe.edu/johnsontimoj/EE2920/files2920/msp432.pdf "PowerPoint Presentation - msp432.pdf"
-[SIMPLELINK-MSP432-SDK Software development kit \(SDK\) | TI.com]: https://www.ti.com/tool/SIMPLELINK-MSP432-SDK#downloads "SIMPLELINK-MSP432-SDK Software development kit \(SDK\) | TI.com"
+[SIMPLELINK-MSP432-SDK | TI.com]: https://www.ti.com/tool/SIMPLELINK-MSP432-SDK#downloads "SIMPLELINK-MSP432-SDK Software development kit \(SDK\) | TI.com"
 [using CMSIS-DSP for msp432 system - Google Search]: https://www.google.com/search?client=firefox-b-1-d&q=using+CMSIS-DSP+for+msp432+system "using CMSIS-DSP for msp432 system - Google Search"
 [CMSIS DSP Software Library]: https://arm-software.github.io/CMSIS_5/DSP/html/index.html "CMSIS DSP Software Library"
 [DSP Libraries — Real Time Digital Signal Processing B Term 2024 documentation]: https://schaumont.dyn.wpi.edu/ece4703b23/lecture6.html#data-types "DSP Libraries — Real Time Digital Signal Processing B Term 2024 documentation"
@@ -156,10 +156,10 @@ The materials involved include:
 
 ### 4.5. Iterative Closest Point (ICP)
 
-- [Iterative Closest Point \(ICP\) - 5 Minutes with Cyrill - YouTube][]
+- [Iterative Closest Point - 5 Minutes with Cyrill - YouTube][]
 - [Singular value decomposition - Wikipedia][]
 
-[Iterative Closest Point \(ICP\) - 5 Minutes with Cyrill - YouTube]: https://www.youtube.com/watch?v=QWDM4cFdKrE "Iterative Closest Point \(ICP\) - 5 Minutes with Cyrill - YouTube"
+[Iterative Closest Point - 5 Minutes with Cyrill - YouTube]: https://www.youtube.com/watch?v=QWDM4cFdKrE "Iterative Closest Point \(ICP\) - 5 Minutes with Cyrill - YouTube"
 [Singular value decomposition - Wikipedia]: https://en.wikipedia.org/wiki/Singular_value_decomposition "Singular value decomposition - Wikipedia"
 
 ### 4.6. GraphSLAM
@@ -216,7 +216,7 @@ The materials involved include:
 
 [An application of Numerical Solution to Maximum Likelihood Estimation in GraphSLAM \| by Shiva Chandrachary \| Medium]: https://shivachandrachary.medium.com/an-application-of-numerical-solutions-to-maximum-likelihood-estimation-in-graphslam-31a7284721e3 "An application of Numerical Solution to Maximum Likelihood Estimation in GraphSLAM | by Shiva Chandrachary | Medium"
 
-## 5. Dynamic Window Approach (DWA) Algorithm
+### 4.9. Dynamic Window Approach (DWA) Algorithm
 
 - [ ] [An Improved Dynamic Window Approach for Mobile Robot Dynamic Path Planning | IEEE Conference Publication | IEEE Xplore][]
 - [ ] [I built a visual and interactive DWA path planner in 2D with Pygame – supports obstacle avoidance, real-time replanning, and click-to-set goals : r/robotics][]
@@ -226,6 +226,7 @@ The materials involved include:
 - [ ] [PythonRobotics/PathPlanning/DynamicWindowApproach at master · AtsushiSakai/PythonRobotics][]
   - [ ] [PythonRobotics/PathPlanning/DynamicWindowApproach/dynamic_window_approach.py at master · AtsushiSakai/PythonRobotics][]
     - [ ] [PythonRobotics/PathPlanning/ClosedLoopRRTStar at master · AtsushiSakai/PythonRobotics][]
+<br>
 - [ ] [A Hybrid DWA-MPC Framework for Coordinated Path Planning and Collision Avoidance in Articulated Steering Vehicles | MDPI][]
 
 <!-- **Sources**: -->
@@ -248,7 +249,7 @@ The materials involved include:
 
 [A Hybrid DWA-MPC Framework for Coordinated Path Planning and Collision Avoidance in Articulated Steering Vehicles | MDPI]: https://www.mdpi.com/2075-1702/12/12/939 "A Hybrid DWA-MPC Framework for Coordinated Path Planning and Collision Avoidance in Articulated Steering Vehicles | MDPI"
 
-## 6. Checklist
+## 5. Checklist
 
 In general, for all tasks, they should follow the same guidelines:
 
@@ -257,7 +258,7 @@ In general, for all tasks, they should follow the same guidelines:
   - [ ] if simulating in MATLAB, use its C-code converter
 - [ ] optimize the functions once done, if applicable
 
-### 6.1. Task 1: 12 Dec 2025 (3 weeks)
+### 5.1. Task 1: 12 Dec 2025 (3 weeks)
 
 - [ ] improve motor control and motor tachometer functions
   - [ ] perhaps incorporate the `ICM-20948` (exclusively I^2^C) to supplement the tachometer-only motion model
@@ -266,11 +267,11 @@ In general, for all tasks, they should follow the same guidelines:
     - [ ] develop auto-steering/local planning using the Dynamic Window Approach (DWA) to prevent direct steering
   - [ ] perhaps explore other methods like HECTOR SLAM (will provide links)
 
-### 6.2. Task 2
+### 5.2. Task 2
 
 - [ ] explore EKF-SLAM
 
-### 6.3. Ongoing Task
+### 5.3. Ongoing Task
 
 - [ ] meet every Monday to check on our weekly progress
 

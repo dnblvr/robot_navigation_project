@@ -84,7 +84,7 @@ static_assert(DECIMATION_FACTOR != 1,
 
 
 // float buffer after sorting
-#define INTERMEDIARY_BUFFER         SKIP_FACTOR*OUTPUT_BUFFER // 200
+#define PROCESS_BUFFER_SIZE         SKIP_FACTOR*OUTPUT_BUFFER // 200
 
 
 /**
@@ -98,8 +98,8 @@ static_assert(DECIMATION_FACTOR != 1,
 /**
  * @brief default storage containers of the intermediary buffer
  */
-static uint8_t     uart_container[FIND_INDEX];
-static uint32_t container[INTERMEDIARY_BUFFER];
+static uint8_t     lidar_uart_buffer[FIND_INDEX];
+static uint32_t angle_distance_buffer[PROCESS_BUFFER_SIZE];
 
 
 /**

@@ -27,11 +27,11 @@ void EUSCI_B1_I2C_Init()
     // UCSWRST bit (Bit 0) in the UCBxCTLW0 register
     EUSCI_B1->CTLW0 |= 0x0001;
 
-    // ----------------------------------------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
 
-    // Configure the master and slave device addresses to be 7 bits by clearing the
-    // UCA10 and UCSLA10 bits (Bits 15 to 14) in the UCBxCTLW0 register
+    // Configure the master and slave device addresses to be 7 bits by clearing 
+    // the UCA10 and UCSLA10 bits (Bits 15 to 14) in the UCBxCTLW0 register
     EUSCI_B1->CTLW0 &= ~0xC000;
 
 
@@ -103,7 +103,7 @@ void EUSCI_B1_I2C_Init()
     P6->SEL1 &= ~0x30;
 
 
-    // ----------------------------------------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
     // Take the EUSCI_B1 module out of reset mode by clearing the
     // UCSWRST bit (Bit 0) in the UCBxCTLW0 register

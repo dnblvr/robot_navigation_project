@@ -25,6 +25,9 @@
 #include <stdint.h>
 #include "msp.h"
 
+#include <stdio.h>
+
+
 /**
  * @brief Initializes the I2C module EUSCI_B1 for communication.
  *
@@ -47,7 +50,8 @@
  *    4          UCTR         0x0        Transmitter / Receiver
  *    3          UCTXNACK     0x0        Transmit NACK condition in slave mode
  *    2          UCTXSTP      0x0        Transmit STOP condition in master mode
- *    1          UCTXSTT      0x1        Transmit START condition in master mode
+ *    1          UCTXSTT      0x1        Transmit START condition in master
+ *                                          mode
  *    0          UCSWRST      0x1        eUSCI logic held in reset state
  *
  * - CTWL1 Register Configuration:

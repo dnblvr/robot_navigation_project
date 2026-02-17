@@ -16,7 +16,7 @@
  *      Reference Manual
  *
  * @author Aaron Nanas
- *
+ *          (modified by Gian Fajardo)
  */
 
 #include "../inc/EUSCI_B1_I2C.h"
@@ -112,11 +112,15 @@ void EUSCI_B1_I2C_Init()
     // Ensure that all of the I2C interrupts are disabled by clearing Bits 14
     // to 0 in the UCBxIE register
     EUSCI_B1->IE       &= ~0x7FFF;
+//    EUSCI_B1->IE       &=  0x0003;
 
 
     // Take the EUSCI_B1 module out of reset mode by clearing the UCSWRST bit
     // (Bit 0) in the UCBxCTLW0 register
     EUSCI_B1->CTLW0    &= ~0x0001;
+
+
+    printf("INIT: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
 
 }
 
@@ -126,7 +130,7 @@ void EUSCI_B1_I2C_Send_A_Byte(
 {
     // Wait until the EUSCI_B1 module is not busy by checking the UCBBUSY bit
     // (Bit 4) in the UCBxSTATw register
-    while((EUSCI_B1->STATW & 0x0010) != 0);
+    while ((EUSCI_B1->STATW & 0x0010) != 0);
 
     // Assign the slave device's address to the UCBxI2CSA register
     EUSCI_B1->I2CSA = slave_address;
@@ -147,7 +151,7 @@ void EUSCI_B1_I2C_Send_A_Byte(
 
     // Wait until the transmit interrupt flag is not pending by checking the
     // UCTXIFG0 bit (Bit 1) in the UCBxIFG register
-    while((EUSCI_B1->IFG & 0x0002) == 0);
+    while ((EUSCI_B1->IFG & 0x0002) == 0);
 
     // Generate the STOP condition by setting the UCTXSTP bit (Bit 2) in the
     // UCBxCTLW0 register
@@ -156,6 +160,10 @@ void EUSCI_B1_I2C_Send_A_Byte(
     // Ensure that the transmit interrupt flag is not set by clearing the
     // UCTXIFG0 bit (Bit 1) in the UCBxIFG register
     EUSCI_B1->IFG &= ~0x0002;
+
+
+    printf("SAB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
+
 }
 
 void EUSCI_B1_I2C_Send_Multiple_Bytes(
@@ -163,9 +171,13 @@ void EUSCI_B1_I2C_Send_Multiple_Bytes(
         uint8_t*    data_buffer,
         uint32_t    packet_length)
 {
+    // counter
+    uint32_t i;
+
+
     // Wait until the EUSCI_B1 module is not busy by checking the
     // UCBBUSY bit (Bit 4) in the UCBxSTATw register
-    while((EUSCI_B1->STATW & 0x0010) != 0);
+    while ((EUSCI_B1->STATW & 0x0010) != 0);
 
     // Assign the slave device's address to the UCBxI2CSA register
     EUSCI_B1->I2CSA = slave_address;
@@ -178,7 +190,7 @@ void EUSCI_B1_I2C_Send_Multiple_Bytes(
 
     // Use a loop to transfer the data individually from the array to the
     // Transmit Buffer
-    for (int i = 0; i < packet_length; i++)
+    for (i = 0; i < packet_length; i++)
     {
         // Wait until the transmit interrupt flag is not pending by checking
         // the UCTXIFG0 bit (Bit 1) in the UCBxIFG register
@@ -191,7 +203,7 @@ void EUSCI_B1_I2C_Send_Multiple_Bytes(
 
     // Wait until the transmit interrupt flag is not pending by checking the
     // UCTXIFG0 bit (Bit 1) in the UCBxIFG register
-    while((EUSCI_B1->IFG & 0x0002) == 0);
+    while ((EUSCI_B1->IFG & 0x0002) == 0);
 
     // Generate the STOP condition by setting the UCTXSTP bit (Bit 2) in the
     // UCBxCTLW0 register
@@ -200,6 +212,10 @@ void EUSCI_B1_I2C_Send_Multiple_Bytes(
     // Ensure that the transmit interrupt flag is not set by clearing the
     // UCTXIFG0 bit (Bit 1) in the UCBxIFG register
     EUSCI_B1->IFG &= ~0x0002;
+
+
+    printf("SMB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
+
 }
 
 uint8_t EUSCI_B1_I2C_Receive_A_Byte(
@@ -207,7 +223,7 @@ uint8_t EUSCI_B1_I2C_Receive_A_Byte(
 {
     // Wait until the EUSCI_B1 module is not busy by checking the UCBBUSY bit
     // (Bit 4) in the UCBxSTATw register
-    while((EUSCI_B1->STATW & 0x0010) != 0);
+    while ((EUSCI_B1->STATW & 0x0010) != 0);
 
     // Hold the EUSCI_B1 module in reset mode by setting the UCSWRST bit (Bit
     // 0) in the UCBxCTLW0 register
@@ -233,11 +249,16 @@ uint8_t EUSCI_B1_I2C_Receive_A_Byte(
 
     // Wait until the receive interrupt flag is not pending by checking the
     // UCRXIFG0 bit (Bit 0) in the UCBxIFG register
-    while((EUSCI_B1->IFG & 0x0001) == 0);
+    while ((EUSCI_B1->IFG & 0x0001) == 0);
+
+
+    printf("RAB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
+
 
     // Return the received data from the Receive Buffer and ensure that it has
     // a type of uint8_t
     return ((uint8_t)(EUSCI_B1->RXBUF));
+
 }
 
 void EUSCI_B1_I2C_Receive_Multiple_Bytes(
@@ -245,6 +266,10 @@ void EUSCI_B1_I2C_Receive_Multiple_Bytes(
         uint8_t*    data_buffer,
         uint16_t    packet_length)
 {
+    // counter
+    uint32_t i;
+
+
     // Assign the slave device's address to the UCBxI2CSA register
     EUSCI_B1->I2CSA = slave_address;
 
@@ -255,7 +280,7 @@ void EUSCI_B1_I2C_Receive_Multiple_Bytes(
 
     // Use a loop to transfer the data individually from the Receive Buffer to
     // the array
-    for (int i = 0; i < packet_length; i++)
+    for (i = 0; i < packet_length; i++)
     {
         // Check if it is the last byte and then set the UCTXSTP bit (Bit 2) to
         // generate the STOP condition
@@ -275,5 +300,9 @@ void EUSCI_B1_I2C_Receive_Multiple_Bytes(
 
     // Wait until the STOP condition is transmitted by checking the status of
     // the UCTXSTP bit (Bit 2) in the UCBxCTLW0 register
-    while((EUSCI_B1->CTLW0 & 0x0004) != 0);
+    while ((EUSCI_B1->CTLW0 & 0x0004) != 0);
+
+
+    printf("RMB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
+
 }

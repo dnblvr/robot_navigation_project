@@ -13,8 +13,6 @@
 // 
 // ----------------------------------------------------------------------------
 
-#define USE_GRAVITY 1
-#define USE_MAG_NORTH 1
 
 class Madgwick_Filter {
     
@@ -32,24 +30,7 @@ private:
     float alpha, beta, gamma, zeta, stepSize;
     float* vals[5] = {&alpha, &beta, &gamma, &zeta, &stepSize};
     float del_t;
-    
-    Quaternion wOriP,           *q_p = &wOriP;
 
-    #if USE_GRAVITY
-    VectorFloat     gravF;
-    VectorFloat*    gF  = &gravF;
-
-    Quaternion      gravGrad;
-    Quaternion*     gg = &gravGrad;
-    #endif
-
-    #if USE_MAG_NORTH
-    VectorFloat     magNF;
-    VectorFloat*    mNF = &magNF;
-
-    Quaternion      magNGrad;
-    Quaternion*     mng = &magNGrad;
-    #endif
     
     // gyro compensation
     Quaternion angularVelBias, modAngularVel;
@@ -68,23 +49,32 @@ private:
     }
 
     /**
-     * @brief 
+     * @brief described in equations 
      * 
      * @param[in] accel 
+     * @param[in] q_p 
+     * @param[out] gg
+     * 
      */
-    void compute_gravity_gradient(VectorFloat* accel) {
+    void compute_gravity_gradient(
+            Quaternion*     q_p, 
+            VectorFloat*    accel,
+            Quaternion*     gg) 
+    {
+
+        VectorFloat gF;
 
         accel->normalize();
         // gravityFunction(gF, q_p, accel);
 
-        gF->x = 2*(      q_p->x*q_p->z - q_p->w*q_p->y) - accel->x;
-        gF->y = 2*(      q_p->w*q_p->x - q_p->y*q_p->z) - accel->y;
-        gF->z = 2*(0.5 - q_p->x*q_p->x - q_p->y*q_p->y) - accel->z;
+        gF.x    = 2*(      q_p->x*q_p->z - q_p->w*q_p->y) - accel->x;
+        gF.y    = 2*(      q_p->w*q_p->x - q_p->y*q_p->z) - accel->y;
+        gF.z    = 2*(0.5 - q_p->x*q_p->x - q_p->y*q_p->y) - accel->z;
 
-        gg->w = 2*( -q_p->y*gF->x + q_p->x*gF->y                  );
-        gg->x = 2*(  q_p->z*gF->x + q_p->w*gF->y - 2*q_p->x*gF->z );
-        gg->y = 2*( -q_p->w*gF->x + q_p->z*gF->y - 2*q_p->y*gF->z );
-        gg->z = 2*(  q_p->x*gF->x + q_p->y*gF->y                  );
+        gg->w   = 2*( -q_p->y*gF.x + q_p->x*gF.y                 );
+        gg->x   = 2*(  q_p->z*gF.x + q_p->w*gF.y - 2*q_p->x*gF.z );
+        gg->y   = 2*( -q_p->w*gF.x + q_p->z*gF.y - 2*q_p->y*gF.z );
+        gg->z   = 2*(  q_p->x*gF.x + q_p->y*gF.y                 );
 
 
         // Debugging prints
@@ -114,49 +104,53 @@ private:
     /**
      * @brief 
      * 
-     * @param mS 
+     * @param mag 
      * 
-     * $$q_w$$
      */
-    void magNorthGradient(VectorFloat* mS) {
+    void compute_magNorth_gradient(
+            Quaternion*     q_p,
+            VectorFloat*    mag, 
+            Quaternion*     mng) 
+    {
+        VectorFloat mNF;
 
         VectorFloat mB;
 
-        mS->normalize();
-        mB.x   = sqrt(mS->x*mS->x + mS->y*mS->y);
-        mB.z   = mS->z;
-        // magNFunction(mnf, q_p, mB, mS);
+        mag->normalize();
+        mB.x   = sqrt(mag->x*mag->x + mag->y*mag->y);
+        mB.z   = mag->z;
+        // magNFunction(mnf, q_p, mB, mag);
 
-        mNF->x =    2*mB.x*( 0.5 - q_p->y*q_p->y - q_p->z*q_p->z )  
-                 +  2*mB.z*(       q_p->x*q_p->z - q_p->w*q_p->y )
-                 -  mS->x;
-        mNF->y =    2*mB.x*(       q_p->x*q_p->y - q_p->w*q_p->z )
-                 +  2*mB.z*(       q_p->w*q_p->x + q_p->y*q_p->z )
-                 -  mS->y;
-        mNF->z =    2*mB.x*(       q_p->w*q_p->y + q_p->x*q_p->z )
-                 +  2*mB.z*( 0.5 - q_p->x*q_p->x - q_p->y*q_p->y )
-                 -  mS->z;
+        mNF.x =    2*mB.x*( 0.5 - q_p->y*q_p->y - q_p->z*q_p->z )  
+                +  2*mB.z*(       q_p->x*q_p->z - q_p->w*q_p->y )
+                -    mag->x;
+        mNF.y =    2*mB.x*(       q_p->x*q_p->y - q_p->w*q_p->z )
+                +  2*mB.z*(       q_p->w*q_p->x + q_p->y*q_p->z )
+                -    mag->y;
+        mNF.z =    2*mB.x*(       q_p->w*q_p->y + q_p->x*q_p->z )
+                +  2*mB.z*( 0.5 - q_p->x*q_p->x - q_p->y*q_p->y )
+                -    mag->z;
 
-        // compute gradient
+
         /**
          * @note confirmed analytically
          */
-        mng->w = 2*(     -mB.z*q_p->y*mNF->x        
-                    + (  -mB.x*q_p->z +   mB.z*q_p->x)*mNF->y
-                    +     mB.x*q_p->y*mNF->z                    );
-        mng->x = 2*(      mB.z*q_p->z*mNF->x
-                    + (   mB.x*q_p->y +   mB.z*q_p->w)*mNF->y
-                    + (   mB.x*q_p->z - 2*mB.z*q_p->x)*mNF->z   );
-        mng->y = 2*(  (-2*mB.x*q_p->y -   mB.z*q_p->w)*mNF->x
-                    + (   mB.x*q_p->x +   mB.z*q_p->z)*mNF->y
-                    + (   mB.x*q_p->w - 2*mB.z*q_p->y)*mNF->z   );
-        mng->z = 2*(  (-2*mB.x*q_p->z +   mB.z*q_p->x)*mNF->x
-                    + (  -mB.x*q_p->w +   mB.z*q_p->y)*mNF->y
-                    +     mB.x*q_p->x*mNF->z                    );
+        mng->w = 2*(     -mB.z*q_p->y*mNF.x
+                    + (  -mB.x*q_p->z +   mB.z*q_p->x)*mNF.y
+                    +     mB.x*q_p->y*mNF.z                    );
+        mng->x = 2*(      mB.z*q_p->z*mNF.x
+                    + (   mB.x*q_p->y +   mB.z*q_p->w)*mNF.y
+                    + (   mB.x*q_p->z - 2*mB.z*q_p->x)*mNF.z   );
+        mng->y = 2*(  (-2*mB.x*q_p->y -   mB.z*q_p->w)*mNF.x
+                    + (   mB.x*q_p->x +   mB.z*q_p->z)*mNF.y
+                    + (   mB.x*q_p->w - 2*mB.z*q_p->y)*mNF.z   );
+        mng->z = 2*(  (-2*mB.x*q_p->z +   mB.z*q_p->x)*mNF.x
+                    + (  -mB.x*q_p->w +   mB.z*q_p->y)*mNF.y
+                    +     mB.x*q_p->x*mNF.z                    );
 
 
         // Debugging prints
-        // Serial.println("in magNorthGradient():");
+        // Serial.println("in compute_magNorth_gradient():");
         // Serial.print("gg:\t"); gg->print(); Serial.println();
     }
     #endif
@@ -169,23 +163,26 @@ private:
      * @param[out] gradientDir Quaternion ptr where the computed gradient direction will be stored
      */
     void compute_gradient_vector(
+            Quaternion*     q_p,
             VectorFloat*    accelSensor,
             VectorFloat*    magSensor,
             Quaternion*     gradientDir)
     {
         *gradientDir = {0,0,0,0};
-            
+
         #if USE_GRAVITY
-            compute_gravity_gradient(accelSensor);
-            *gradientDir = *gradientDir + gravGrad;
+            Quaternion gravGrad_local;
+            compute_gravity_gradient(q_p, accelSensor, &gravGrad_local);
+            *gradientDir = *gradientDir + gravGrad_local;
         #endif
+        
         #if USE_MAG_NORTH
-            magNorthGradient(magSensor);
-            *gradientDir = *gradientDir + magNGrad;
+            Quaternion magNGrad_local;
+            compute_magNorth_gradient(q_p, magSensor, &magNGrad_local);
+            *gradientDir = *gradientDir + magNGrad_local;
         #endif
         
         gradientDir->normalize();
-        // Serial.print("gradD:\t");  gradientDir.print();    Serial.println();
     }
 
             
@@ -205,7 +202,7 @@ private:
      */
     float calcBeta(float rot_rate_mag) {
 
-    #define BETA_AVERAGING_METHOD 3
+    #define BETA_AVERAGING_METHOD 1
     
     // constant beta
     #if BETA_AVERAGING_METHOD == 1
@@ -265,8 +262,6 @@ private:
     
 public:
     
-    // Quaternion wOriN, *won = &wOriN;
-    
     Madgwick_Filter(float a, float b, float z, float dt) {
         alpha   = a;
         beta    = b; 
@@ -275,40 +270,19 @@ public:
         
         angularVelBias  = {0,0,0,0};
         modAngularVel   = {0,0,0,0};
-        // wOriN           = Quaternion();
-        wOriP           = Quaternion();
-    }
-
-    void loadOri(Quaternion* q) {
-        wOriP = *q;
-    }
-    
-    void printParameters(uint8_t places = 3) {
-
-        static uint8_t i;
-
-        Serial.print("\n\nMF iter. ");
-        Serial.print("[a,b,g,z,u] = [");
-
-        for (i = 0; i < 5-1; ++i) {
-            Serial.print(*vals[i], places);     Serial.print("\t");
-        }
-
-        Serial.print(*vals[4], places);     Serial.print("]");
-
-        // for (i = 0; i < 5-1; ++i) {
-            // Serial.print(*vals[i], places);     Serial.print("\t");
-        // }   
-        // Serial.print(*vals[4], places);     Serial.print("]");
+        // wOriP           = Quaternion();
     }
     
     #ifndef CHANGES
     void update(
-            VectorInt16*    accelSensor,
+            VectorFloat*    accelSensor,
             VectorFloat*    magU,
-            Quaternion*     won,
-            VectorFloat*    angular_velocity)
+            VectorFloat*    angular_velocity,
+            Quaternion*     q_n)
     {
+
+        static Quaternion wOriP = Quaternion();
+        static Quaternion* q_p = &wOriP;
 
         VectorFloat accelU = VectorFloat();
         
@@ -330,10 +304,8 @@ public:
 
         // -----------------------------------------------------------
 
-    #if USE_GRAVITY
         accelU = (VectorFloat)(*accelSensor);
         accelU.normalize();
-    #endif        
         
     
         /**
@@ -341,7 +313,7 @@ public:
          *  fastest change to reduce the error between measured and estimated
          * @note this is equation (3.21) from Madgwick's thesis
          */
-        compute_gradient_vector(&accelU, magU, &q_gradient);
+        compute_gradient_vector(q_p, &accelU, magU, &q_gradient);
 
 
         /**
@@ -356,30 +328,37 @@ public:
         q_dot = q_dot  -  q_gradient * beta;
 
         // integrate to yield quaternion
-        *won = wOriP  +  q_dot * del_t;
+        *q_n = wOriP  +  q_dot * del_t;
 
-        won->normalize();
+        q_n->normalize();
         
         // update previous orientation
-        wOriP = *won;
+        wOriP = *q_n;
 
     }
 
     #else
 
     void update(
-            VectorInt16*    accelSensor,
+            VectorFloat*    accelSensor,
             VectorFloat*    magU,
-            Quaternion*     won,
-            VectorFloat*    angular_velocity)
+            VectorFloat*    angular_velocity,
+            Quaternion*     q_n)
     {
+
+        static Quaternion wOriP = Quaternion();
+        static Quaternion* q_p = &wOriP;
+
         VectorFloat accelU = VectorFloat();
         
+        // gradient direction
         Quaternion q_gradient = {0,0,0,0};
+
 
         // equation 3.30 from Madgwick's thesis
         // this will store the sum total of all the estimated changes in orientation at time t
         Quaternion q_dot = {0,0,0,0};
+
 
         // angular velocity as quaternion
         // @todo this parameter should be in place of the `angular_velocity` parameter
@@ -394,8 +373,7 @@ public:
         // -----------------------------------------------------------
 
     #if USE_GRAVITY
-        accelU = (VectorFloat)(*accelSensor);
-        accelU.normalize();
+        accelSensor->normalize();
     #endif
         
     
@@ -404,7 +382,7 @@ public:
          *  fastest change to reduce the error between measured and estimated
          * @note this is equation (3.21) from Madgwick's thesis
          */
-        compute_gradient_vector(&accelU, magU, &q_gradient);
+        compute_gradient_vector(q_p, &accelU, magU, &q_gradient);
 
 
         /**
@@ -416,20 +394,13 @@ public:
         stepSize    = calcStepSize(rot_vel_mag);
         gamma       = calcWeight(stepSize);
 
-        *won   =     ( wOriP - q_gradient*stepSize )*gamma
+        *q_n   =     ( wOriP - q_gradient*stepSize )*gamma
                   +   (wOriP)*( 1.f - gamma );
 
-        // adds angular velocity direction based on...
-        // q_dot = q_p->getProduct(q_av) * 0.5;    // 
-        // q_dot = q_dot  -  q_gradient * beta;
-
-        // // integrate to yield quaternion
-        // *won = wOriP  +  q_dot * del_t;
-
-        won->normalize();
+        q_n->normalize();
         
         // update previous orientation
-        wOriP = *won;
+        wOriP = *q_n;
 
     }
     #endif // CHANGES

@@ -422,7 +422,7 @@ uint8_t slam_add_pose(
         }
         
         // Shift state vector similarly
-        for (i = 0; i < (MAX_POSES - 1) * 3; i++) {
+        for (i = 0; i < (MAX_POSES - 1)*3; i++) {
             optimizer->state[i] = optimizer->state[i + 3];
         }
         
@@ -430,7 +430,7 @@ uint8_t slam_add_pose(
         // (pose 0 is being discarded, so its constraints are invalid)
         new_constraint_count = 0;
         for (i = 0; i < optimizer->num_constraints; i++) {
-            Constraint *c = &optimizer->constraints[i];
+            Constraint* c = &optimizer->constraints[i];
             
             // Skip constraints that reference pose 0 (being discarded)
             if (c->pose1_id == 0 || c->pose2_id == 0) {
@@ -470,9 +470,9 @@ uint8_t slam_add_pose(
     // IMPORTANT: Initialize state to the provided pose estimate
     // This gives optimization a good starting point, but it will adjust
     // these values to minimize constraint errors
-    optimizer->state[idx * 3 + 0] = pose->x;
-    optimizer->state[idx * 3 + 1] = pose->y;
-    optimizer->state[idx * 3 + 2] = pose->theta;
+    optimizer->state[3*idx + 0] = pose->x;
+    optimizer->state[3*idx + 1] = pose->y;
+    optimizer->state[3*idx + 2] = pose->theta;
     
     optimizer->current_pose_count++;
     
@@ -682,7 +682,7 @@ uint8_t slam_detect_loop_closure(
         SLAMOptimizer*  optimizer,
         int             current_pose_id)
 {
-    // DISABLED: Loop closure d
+    // DISABLED: Loop closure disabled
     return 0;
     
     int candidate;
@@ -695,8 +695,8 @@ uint8_t slam_detect_loop_closure(
     
 
     // early return
-    if (current_pose_id < MIN_TEMPORAL_GAP ||
-        current_pose_id >= optimizer->buffer_size) {
+    if (    (current_pose_id < MIN_TEMPORAL_GAP) \
+         || (current_pose_id >= optimizer->buffer_size)) {
         return 0;
     }
     

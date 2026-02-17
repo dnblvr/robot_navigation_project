@@ -93,8 +93,8 @@ void Configure_RPLiDAR_Struct(
 
     // Assign current buffer position and the absolute position of the array
     // to the pointer
-    RX_POINTER      = (uint8_t*)&uart_container;
-    INTERM_POINTER  = (uint32_t*)&container;
+    RX_POINTER      = (uint8_t*)&lidar_uart_buffer;
+    INTERM_POINTER  = (uint32_t*)&angle_distance_buffer;
 
 
     // Generate the reset state
@@ -450,7 +450,7 @@ static void Skip_Action(void) {
 
 
     // if `interm_buffer_counter` exceeds `RPLiDAR_UART_BUFFER_SIZE`
-    if (config->interm_buffer_counter > INTERMEDIARY_BUFFER) {
+    if (config->interm_buffer_counter > PROCESS_BUFFER_SIZE) {
 
         End_Record();
 

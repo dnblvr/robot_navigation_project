@@ -84,7 +84,7 @@ static_assert(DECIMATION_FACTOR != 1,
 
 
 // float buffer after sorting
-#define INTERMEDIARY_BUFFER         SKIP_FACTOR*OUTPUT_BUFFER // 200
+#define PROCESS_BUFFER_SIZE         SKIP_FACTOR*OUTPUT_BUFFER // 200
 
 
 /**
@@ -96,36 +96,85 @@ static_assert(DECIMATION_FACTOR != 1,
 
 
 /**
- * @brief default storage containers of the intermediary buffer
+ * @brief temporary buffer for holding and processing the incoming bytes
+ *  from the UART ISR
+ * 
+ * @note the size is as big as needed to find the start pattern
+ * 
+ * @see `FIND_INDEX`, `Find_Pattern_Action()`
  */
-static uint8_t     uart_container[FIND_INDEX];
-static uint32_t container[INTERMEDIARY_BUFFER];
+static uint8_t lidar_uart_buffer[FIND_INDEX];
 
 
 /**
- * @details To convert from `angle_degrees` to `raw_angle`:
- *      angle_d            = (1/64) * (raw_angle >> 16);
- *      angle_d * 64 << 16 =           raw_angle
- *      angle_d      << 22 =           raw_angle
+ * @brief bit-packed storage `angle_distance_buffer` for both of the fixed-point angle and
+ *  distance data for efficient transfer and processing throughout the UART ISR.
+ * 
+ * @details each `uint32_t` element contains:
+ *      - bits [31:16]: U9.6 angle in degrees
+ *      - bits [15:0] : U14.2 distance in millimeters
+ * 
+ * 
+ * @note the bit-packing under this configuration benefits the sorting stage.
+ *  If enabled, it can arrange the pointclouds in ascending-angle order.
+ * 
+ * @note size is determined by the `PROCESS_BUFFER_SIZE` constant
+ * 
+ * @note these containers are declared `static` to limit their scope to this
+ *  file only.
+ * 
+ * @see `PROCESS_BUFFER_SIZE`
+ */
+static uint32_t angle_distance_buffer[PROCESS_BUFFER_SIZE];
+
+
+/**
+ * @brief bit shift factor to convert from the raw angle format to degrees
+ * 
+ * @details This constant enables the bit-packing design pattern by defining the
+ *  bit position where the angle value is packed within the `uint32_t`
+ *  angle_distance_buffer.
+ *      To convert from `angle_degrees` to `raw_angle`:
+ *      `angle_d            = (1/64) * (raw_angle >> 16);`
+ *      `angle_d * 64 << 16 =           raw_angle`
+ *      `angle_d      << 22 =           raw_angle`
+ * 
+ * @see `angle_distance_buffer`
  */
 #define SHIFT_FACTOR    22
 
 
 /**
- * @brief bitmask that only shows the angle of the concatenated message
+ * @brief bitmask that extracts the angle field from the bit-packed message
+ * @details Used to extract the upper 16 bits (angle field) from the bit-packed
+ *      `uint32_t` angle_distance_buffer via bitwise AND operation. 
+ * 
+ * @see angle_distance_buffer, SHIFT_FACTOR
  */
 #define ANGLE_ONLY      0xFFFF0000
 
 
 /**
- * @brief function pointer type for angle filtering
+ * @brief function pointer type for angle filtering operations on bit-packed data
+ * @details Defines a callback interface for filtering bit-packed angle/distance
+ *      data. The `uint32_t data` parameter contains the bit-packed angle (upper
+ *      16 bits) and distance (lower 16 bits) values, allowing filters to make
+ *      decisions based on angle thresholds or ranges.
+ * @see angle_distance_buffer, Scan_All
  */
 typedef uint8_t (*Angle_Filter)(uint32_t data);
 
 
 /**
- * @brief default `Angle_Filter` function that scans all points
- * @details This is going to be real difficult to understand.
+ * @brief default `Angle_Filter` function that accepts all bit-packed data points
+ * @details This filter function operates on the bit-packed format and returns 1
+ *      (accept) for every point, effectively disabling angle-based filtering.
+ *      It processes the `uint32_t data` parameter containing bit-packed angle
+ *      and distance values without any filtering logic.
+ * @param data Bit-packed `uint32_t` containing angle (bits [31:16]) and
+ *      distance (bits [15:0])
+ * @return uint8_t 1 (accept all points)
+ * @see Angle_Filter, angle_distance_buffer
  */
 uint8_t Scan_All(uint32_t data);
 
@@ -173,21 +222,31 @@ typedef enum {
 /**
  * @brief   UART state tracker of the RPLiDAR C1 at each scan
  *
- * @param   angle_filter    angle-rejection filter to be used at each scan
+ * @param   angle_filter    function pointer to the angle-rejection filter
+ *                              applied to bit-packed data at each scan
+ *
+ * @param   current_state   records the hierarchical state of the RPLiDAR C1
+ *                              system (IDLING, READY, RECORDING, PROCESSING)
  *
  * @param   limit_status    indicates the current state of the decimation
- *                              filter
+ *                              filter within the record state machine
  *
- * @param   isr_counter     persistent counter that counts all bytes
- * @param   buffer_pointer  pointer to the current buffer position
+ * @param   isr_counter     persistent byte counter for tracking ISR progress
  *
- * @param   interm_buffer_pointer   asfsdahf
- * @param   interm_buffer_counter   asdfsda
+ * @param   buffer_pointer  pointer to the current position in the UART byte
+ *                              buffer
  *
- * @param   current_state   records the state of the RPLiDAR C1 data pro-
- *                              cessing
+ * @param   interm_buffer_pointer   pointer to the bit-packed
+ *                              `angle_distance_buffer` array where bit-packed  are stored
  *
- * @details
+ * @param   interm_buffer_counter   counter tracking the number of bit-packed
+ *                              data points collected
+ *
+ * @details This structure maintains all state required for the hierarchical
+ *      state machine that manages UART reception and bit-packing of RPLiDAR
+ *      angle/distance data into the intermediary buffer.
+ *
+ * @see Record_States, RPLiDAR_States, angle_distance_buffer
  */
 typedef struct {
 
@@ -221,7 +280,7 @@ typedef struct {
 /**
  * @brief
  *
- * @oaram[in] config    `C1_States` struct pointer for configuration
+ * @param[in] config    `C1_States` struct pointer for configuration
  *
  * @param[in] RX_Data   pointer to the array
  */
@@ -333,7 +392,7 @@ void EUSCI_A2_UART_OutChar(uint8_t data);
 
 
 /**
- * @brief raw 1-byte UART data container
+ * @brief raw 1-byte UART data angle_distance_buffer
  */
 static uint32_t data;
 
@@ -405,7 +464,17 @@ static inline uint8_t pattern(const uint8_t*   msg_ptr);
 
 
 /**
- * @brief
+ * @brief Compacts raw UART bytes into a bit-packed `uint32_t` angle_distance_buffer
+ * 
+ * @details This function implements the core bit-packing operation: it takes
+ *  raw angle and distance bytes from the RPLiDAR C1 response and encodes them
+ *  into a single `uint32_t` with angle in the upper 16 bits and distance in
+ *  the lower 16 bits. This design pattern enables efficient data processing
+ *  through the interrupt handler and state machine.
+ * 
+ * @param MSG_START Pointer to the start of a 5-byte RPLiDAR response message
+ * @return uint32_t Bit-packed angle and distance value
+ * @see angle_distance_buffer, SHIFT_FACTOR, ANGLE_ONLY
  */
 static inline uint32_t Compact_Data(volatile uint8_t* MSG_START);
 

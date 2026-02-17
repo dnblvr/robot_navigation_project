@@ -24,7 +24,7 @@
  *
  *  Here are unused tasks:
  *      TASK 0: receive BLE motor commands at 10 times a second
- *      TASK 1: blank
+ *      TASK 1: record and calculate ICM20948 values
  *      TASK 5: blank
  */
 
@@ -34,21 +34,21 @@
 //#define TASK_0_DIV_FREQ 1
 //#define TASK_0_OFFSET   0
 
-//#define TASK_1_FLAG     0x01 << 1
-//#define TASK_1_DIV_FREQ 30
-//#define TASK_1_OFFSET   0
+#define TASK_1_FLAG     0x01 << 1
+#define TASK_1_DIV_FREQ 1
+#define TASK_1_OFFSET   0
 
 #define TASK_2_FLAG     0x01 << 2
 #define TASK_2_DIV_FREQ 2
 #define TASK_2_OFFSET   0
 
-#define TASK_3_FLAG     0x01 << 3
-#define TASK_3_DIV_FREQ MAX_DIV_FREQ
-#define TASK_3_OFFSET   0
+//#define TASK_3_FLAG     0x01 << 3
+//#define TASK_3_DIV_FREQ MAX_DIV_FREQ
+//#define TASK_3_OFFSET   0
 
-#define TASK_4_FLAG     0x01 << 4
-#define TASK_4_DIV_FREQ MAX_DIV_FREQ
-#define TASK_4_OFFSET   5
+//#define TASK_4_FLAG     0x01 << 4
+//#define TASK_4_DIV_FREQ MAX_DIV_FREQ
+//#define TASK_4_OFFSET   5
 
 //#define TASK_5_FLAG     0x01 << 5
 //#define TASK_5_DIV_FREQ 30
@@ -74,10 +74,7 @@ volatile uint32_t   tick_counter    = 0;
 /**
  * @brief Task selector function that will run at each tick
  */
-/**
- * @brief Task selector function that will run at each tick
- */
-void Task_Selector(void) {
+void Timer_A1_Task_Selector(void) {
 
 
 #ifdef TASK_0_FLAG

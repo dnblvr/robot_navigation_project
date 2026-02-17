@@ -64,16 +64,13 @@ void transform_point_cloud(
     c = cosf(pose->theta);
     s = sinf(pose->theta);
     
-
     out_scan->num_pts   = scan->num_pts;
-    
+
+    // Apply rotation and translation
     for (i = 0; i < scan->num_pts; i++) {
 
-        float x, y;
-
-        // Apply rotation and translation
-        x   = scan->points[i].x;
-        y   = scan->points[i].y;
+        float x = scan->points[i].x;
+        float y = scan->points[i].y;
         
         out_scan->points[i].x   = c * x - s * y + pose->x;
         out_scan->points[i].y   = s * x + c * y + pose->y;
@@ -91,8 +88,8 @@ void compose_poses(
     c = cosf(p1->theta);
     s = sinf(p1->theta);
     
-    result->x       = p1->x + c * p2->x - s * p2->y;
-    result->y       = p1->y + s * p2->x + c * p2->y;
+    result->x       = c * p2->x - s * p2->y + p1->x;
+    result->y       = s * p2->x + c * p2->y + p1->y;
     result->theta   = normalize_angle(p1->theta + p2->theta);
 
 }

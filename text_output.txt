@@ -1,0 +1,333 @@
+
+
+test scan -------
+
+
+
+
+
+
+
+POSE,25.70, 4.75, 0.36
+SCAN_START
+Scan 0: 80 points
+
+
+
+
+
+
+
+
+POSE,137.81,83.70, 0.91
+SCAN_START
+Scan 1: 80 points
+  mean_error=51.338, error_conf=0.425, match_ratio=0.250, confidence=0.106
+Constraint 0->1: total=(57.41,-10.78,0.548) mag=58.4 conf=0.11 [ADDED]
+Optimizing graph...
+Pose[0] optimized: x=25.70 y=4.75 theta=0.355 | 80 points transformed
+Pose[1] optimized: x=192.34 y=152.79 theta=0.917 | 80 points transformed
+Current (most recent) pose: x=192.34 y=152.79 theta=0.917
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+test scan -------
+
+
+
+
+
+
+
+POSE, 0.00, 0.00, 0.00
+SCAN_START
+Scan 0: 73 points
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+test scan -------
+
+
+
+
+
+
+
+POSE, 0.00, 0.00, 0.00
+SCAN_START
+Scan 0: 82 points
+
+
+
+
+POSE, 0.00, 0.00, 0.00
+SCAN_START
+Scan 1: 86 points
+  mean_error=19.380, error_conf=0.724, match_ratio=0.902, confidence=0.653
+Constraint 0->1: total=(2.68,-2.76,0.023) mag=3.8 conf=0.65->0.01 [LOW CONF]
+Optimizing graph...
+Pose[0] optimized: x=0.00 y=0.00 theta=-0.000 | 82 points transformed
+Pose[1] optimized: x=-2.68 y=2.76 theta=-0.023 | 86 points transformed
+Current (most recent) pose: x=-2.68 y=2.76 theta=-0.023
+
+
+
+
+
+
+
+
+POSE,144.37,63.74, 0.80
+SCAN_START
+Scan 2: 84 points
+  mean_error=19.699, error_conf=0.720, match_ratio=0.674, confidence=0.486
+Constraint 1->2: total=(46.81,-225.71,0.864) mag=230.5 conf=0.49 [ADDED]
+
+
+
+
+
+
+
+
+POSE,197.19,237.98, 1.67
+SCAN_START
+Scan 3: 81 points
+  mean_error=28.158, error_conf=0.625, match_ratio=0.786, confidence=0.491
+Constraint 2->3: total=(53.41,-248.32,0.895) mag=254.0 conf=0.49 [ADDED]
+Optimizing graph...
+Pose[0] optimized: x=-0.00 y=-0.00 theta=-0.000 | 82 points transformed
+Pose[1] optimized: x=-8.04 y=8.29 theta=-0.717 | 86 points transformed
+Pose[2] optimized: x=197.49 y=257.00 theta=0.066 | 84 points transformed
+Pose[3] optimized: x=130.57 y=612.98 theta=0.914 | 81 points transformed
+Current (most recent) pose: x=130.57 y=612.98 theta=0.914
+
+
+
+
+
+
+
+
+POSE,110.84,426.73, 2.44
+SCAN_START
+Scan 4: 77 points
+  mean_error=43.422, error_conf=0.485, match_ratio=0.407, confidence=0.198
+Constraint 3->4: total=(169.68,94.82,0.765) mag=194.4 conf=0.20 [ADDED]
+
+
+
+
+
+
+
+
+POSE,-13.07,468.78, 3.07
+SCAN_START
+Scan 5: 75 points
+  mean_error=40.485, error_conf=0.509, match_ratio=0.727, confidence=0.370
+Constraint 4->5: total=(-20.10,-152.18,0.592) mag=153.5 conf=0.37 [ADDED]
+Optimizing graph...
+Cholesky failed at iteration 0
+Pose[0] optimized: x=-0.00 y=-0.00 theta=-0.000 | 82 points transformed
+Pose[1] optimized: x=-8.04 y=8.29 theta=-0.717 | 86 points transformed
+Pose[2] optimized: x=197.49 y=257.00 theta=0.066 | 84 points transformed
+Pose[3] optimized: x=130.57 y=612.98 theta=0.914 | 81 points transformed
+Pose[4] optimized: x=110.84 y=426.73 theta=2.436 | 77 points transformed
+Pose[5] optimized: x=-13.07 y=468.78 theta=3.073 | 75 points transformed
+Current (most recent) pose: x=-13.07 y=468.78 theta=3.073
+
+
+
+
+
+
+
+
+POSE,-149.63,447.44,-2.95
+SCAN_START
+Scan 6: 79 points
+  mean_error=26.710, error_conf=0.641, match_ratio=0.680, confidence=0.436
+Constraint 5->6: total=(-108.73,-58.26,0.251) mag=123.4 conf=0.44 [ADDED]
+  mean_error=32.670, error_conf=0.580, match_ratio=0.633, confidence=0.367
+
+*** LOOP CLOSURE DETECTION ***
+
+
+
+
+
+
+
+
+
+
+
+POSE,-286.54,353.39,-2.24
+SCAN_START
+Scan 7: 82 points
+  mean_error=19.831, error_conf=0.719, match_ratio=0.835, confidence=0.600
+Constraint 6->7: total=(-13.37,-226.90,0.695) mag=227.3 conf=0.60 [ADDED]
+  mean_error=44.923, error_conf=0.473, match_ratio=0.439, confidence=0.208
+  mean_error=43.182, error_conf=0.487, match_ratio=0.415, confidence=0.202
+
+*** LOOP CLOSURE DETECTION ***
+
+Optimizing graph...
+Cholesky failed at iteration 0
+Pose[0] optimized: x=-0.00 y=-0.00 theta=-0.000 | 82 points transformed
+Pose[1] optimized: x=-8.04 y=8.29 theta=-0.717 | 86 points transformed
+Pose[2] optimized: x=197.49 y=257.00 theta=0.066 | 84 points transformed
+Pose[3] optimized: x=130.57 y=612.98 theta=0.914 | 81 points transformed
+Pose[4] optimized: x=110.84 y=426.73 theta=2.436 | 77 points transformed
+Pose[5] optimized: x=-13.07 y=468.78 theta=3.073 | 75 points transformed
+Pose[6] optimized: x=-149.63 y=447.44 theta=-2.955 | 79 points transformed
+Pose[7] optimized: x=-286.54 y=353.39 theta=-2.244 | 82 points transformed
+Current (most recent) pose: x=-286.54 y=353.39 theta=-2.244
+
+
+
+
+
+
+
+
+POSE,-339.97,177.52,-1.36
+SCAN_START
+Scan 8: 85 points
+  mean_error=56.488, error_conf=0.390, match_ratio=0.329, confidence=0.128
+Constraint 7->8: total=(183.82,-116.24,1.038) mag=217.5 conf=0.13 [ADDED]
+  mean_error=34.932, error_conf=0.559, match_ratio=0.353, confidence=0.197
+  mean_error=31.804, error_conf=0.589, match_ratio=0.388, confidence=0.229
+  mean_error=59.161, error_conf=0.373, match_ratio=0.341, confidence=0.127
+
+*** LOOP CLOSURE DETECTION ***
+
+
+
+
+
+
+
+
+
+POSE,-225.79,27.74,-0.47
+SCAN_START
+Scan 9: 78 points
+  mean_error=52.907, error_conf=0.414, match_ratio=0.565, confidence=0.234
+Constraint 8->9: total=(204.87,61.95,1.504) mag=214.0 conf=0.23 [ADDED]
+  mean_error=53.104, error_conf=0.413, match_ratio=0.308, confidence=0.127
+  mean_error=55.816, error_conf=0.394, match_ratio=0.308, confidence=0.121
+  mean_error=40.817, error_conf=0.506, match_ratio=0.321, confidence=0.162
+  mean_error=46.365, error_conf=0.462, match_ratio=0.269, confidence=0.124
+
+*** LOOP CLOSURE DETECTION ***
+
+Optimizing graph...
+Cholesky failed at iteration 0
+Pose[0] optimized: x=-0.00 y=-0.00 theta=-0.000 | 82 points transformed
+Pose[1] optimized: x=-8.04 y=8.29 theta=-0.717 | 86 points transformed
+Pose[2] optimized: x=197.49 y=257.00 theta=0.066 | 84 points transformed
+Pose[3] optimized: x=130.57 y=612.98 theta=0.914 | 81 points transformed
+Pose[4] optimized: x=110.84 y=426.73 theta=2.436 | 77 points transformed
+Pose[5] optimized: x=-13.07 y=468.78 theta=3.073 | 75 points transformed
+Pose[6] optimized: x=-149.63 y=447.44 theta=-2.955 | 79 points transformed
+Pose[7] optimized: x=-286.54 y=353.39 theta=-2.244 | 82 points transformed
+Pose[8] optimized: x=-339.97 y=177.52 theta=-1.364 | 85 points transformed
+Pose[9] optimized: x=-225.79 y=27.74 theta=-0.471 | 78 points transformed
+Current (most recent) pose: x=-225.79 y=27.74 theta=-0.471
+
+
+
+
+
+
+
+
+
+
+POSE,-96.00, 6.21,-0.02
+SCAN_START
+Scan 10: 86 points
+  mean_error=26.373, error_conf=0.644, match_ratio=0.769, confidence=0.496
+Constraint 9->10: total=(-81.62,-124.02,0.479) mag=148.5 conf=0.50 [ADDED]
+  mean_error=22.770, error_conf=0.684, match_ratio=0.930, confidence=0.636
+ --> *** LOOP CLOSURE DETECTED: pose 10 matches pose 0! ***
+
+*** LOOP CLOSURE DETECTION *** --> *** LOOP CLOSURE DETECTED! ***
+
+
+
+
+
+
+
+
+
+POSE,-96.00, 6.21,-0.02
+SCAN_START
+Scan 11: 86 points
+  mean_error=19.566, error_conf=0.722, match_ratio=0.930, confidence=0.671
+Constraint 10->11: total=(-4.69,4.20,-0.012) mag=6.3 conf=0.67->0.01 [LOW CONF]
+  mean_error=21.105, error_conf=0.703, match_ratio=0.860, confidence=0.605
+ --> *** LOOP CLOSURE DETECTED: pose 11 matches pose 0! ***
+
+*** LOOP CLOSURE DETECTION *** --> *** LOOP CLOSURE DETECTED! ***
+
+Optimizing graph...
+Pose[0] optimized: x=-0.00 y=0.00 theta=-0.000 | 82 points transformed
+Pose[1] optimized: x=-18.76 y=19.34 theta=-0.670 | 86 points transformed
+Pose[2] optimized: x=516.47 y=707.41 theta=0.015 | 84 points transformed
+Pose[3] optimized: x=294.21 y=1664.58 theta=0.754 | 81 points transformed
+Pose[4] optimized: x=215.55 y=1127.89 theta=2.875 | 77 points transformed
+Pose[5] optimized: x=-197.08 y=1082.35 theta=3.502 | 75 points transformed
+Pose[6] optimized: x=-599.77 y=932.21 theta=-2.551 | 79 points transformed
+Pose[7] optimized: x=-859.70 y=453.33 theta=-1.799 | 82 points transformed
+Pose[8] optimized: x=-720.51 y=101.97 theta=-0.859 | 85 points transformed
+Pose[9] optimized: x=-502.41 y=-32.20 theta=-0.444 | 78 points transformed
+Pose[10] optimized: x=-111.29 y=0.77 theta=0.020 | 86 points transformed
+Pose[11] optimized: x=-116.92 y=3.42 theta=0.007 | 86 points transformed
+Current (most recent) pose: x=-116.92 y=3.42 theta=0.007
+
+
+
+
+

@@ -57,6 +57,8 @@
 #include "inc/Tachometer.h"
 #include "inc/GPIO_Utilities.h"
 
+#include "inc/ICM_20948.h"
+
 
 #ifdef DEBUG_OUTPUT
 #include "inc/Profiler.h"
@@ -637,7 +639,7 @@ extern C1_States cfg;
 
 
 /**
- * @brief Angle_Filter function that verifies +/- 60 degrees to the front
+ * @brief Angle_Filter function that scans +/- 60 degrees
  */
 uint8_t Front_Scan(uint32_t data) {
 
@@ -886,8 +888,6 @@ void Get_Pose(
         radius  = delta_s / delta_theta;
         x_local = radius * sin(delta_theta);
         y_local = radius * (1.0f - cos(delta_theta));
-
-
     }
 
 
@@ -947,12 +947,38 @@ void main(void) {
 
     // use Timer_A1_Interrupt to get the odometry measurements
     // resulting output will be measured in increments of 10 ticks per second
-    Timer_A1_Interrupt_Init(&Task_Selector, TIMER_A1_CCR0_VALUE);
+    Timer_A1_Interrupt_Init(&Timer_A1_Task_Selector,
+                            TIMER_A1_CCR0_VALUE);
 
 
     // Initialize the tachometers as a function of Timer A3
     Tachometer_Init();
     Reset_Pose_Accumulator(pose_ptr);
+
+
+    // Initialize the ICM20948
+    EUSCI_B1_I2C_Init();
+
+    icm20948_config_t config = {.addr_accel_gyro    = ICM20948_ADDR_ACCEL_GYRO,
+                                .addr_mag           = ICM20948_ADDR_MAG};
+
+    
+    if (icm20948_init(&config) == 0)
+        printf("ICM-20948 successfully initialized!\n");
+    else
+        printf("ICM-20948 unsuccessfully initialized!\n");
+
+
+
+    int16_t accel_raw[3]    = {0},
+            gyro_raw[3]     = {0},
+            mag_raw[3]      = {0},
+            temp_raw        =  0;
+
+    float   accel_g[3]      = {0},
+            gyro_dps[3]     = {0},
+            mag_ut[3]       = {0},
+            temp_c          =  0;
 
 
     // Initialize the DC motors
@@ -969,7 +995,7 @@ void main(void) {
     /** ----------------------------------------------------------------------
      * Initialize RPLiDAR C1 configuration struct instance
      */
-    Initialize_RPLiDAR_C1(&cfg);
+//    Initialize_RPLiDAR_C1(&cfg);
 
 #ifdef DEBUG_OUTPUT
     // printf("C1 initialized\n\n");
@@ -1050,10 +1076,48 @@ void main(void) {
 
 #ifdef TASK_1_FLAG
         /**
-         * @note TASK 1: increment local_counter
+         * @note TASK 1: access ICM20948
          */
         if (task_flag & TASK_1_FLAG) {
             task_flag  &= ~TASK_1_FLAG;
+
+            // counter variable
+            uint32_t i;
+
+            icm20948_read_raw_accel(&config, accel_raw);
+            icm20948_read_raw_gyro(&config, gyro_raw);
+            icm20948_read_raw_mag(&config, mag_raw);
+            icm20948_read_temp_c(&config, &temp_c);
+
+            for (i = 0; i < 3; i++) {
+                accel_g[i]  = (float)accel_raw[i] / 16384.0f;
+                gyro_dps[i] = (float)gyro_raw[i] / 131.0f;
+                mag_ut[i]   = ((float)mag_raw[i] / 20) * 3;
+            }
+
+            // accel(g)   = raw_value / (65535 / full_scale)
+            // ex) if full_scale == +-4g then accel = raw_value / (65535 / 8) = raw_value / 8192
+            // gyro(dps)  = raw_value / (65535 / full_scale)
+            // ex) if full_scale == +-250dps then gyro = raw_value / (65535 / 500) = raw_value / 131
+            // mag(uT)    = raw_value / (32752 / 4912) = (approx) (raw_value / 20) * 3
+            // temp  = ((raw_value - ambient_temp) / speed_of_sound) + 21
+            printf("accel. x: %+2.5f, y: %+2.5f, z:%+2.5f\n",
+                    accel_g[0],
+                    accel_g[1],
+                    accel_g[2]);
+
+            printf("gyro.  x: %+2.5f, y: %+2.5f, z:%+2.5f\n",
+                    gyro_dps[0],
+                    gyro_dps[1],
+                    gyro_dps[2]);
+
+            printf("mag.   x: %+2.5f, y: %+2.5f, z:%+2.5f\n",
+                    mag_ut[0],
+                    mag_ut[1],
+                    mag_ut[2]);
+
+            printf("temp: %+2.5f\n", temp_c);
+
         }
 #endif
 
@@ -1162,7 +1226,8 @@ void main(void) {
                  *      transformation, and then reset the accumulator.
                  */
     #ifdef DEBUG_OUTPUT
-//                uint32_t num_samples = pose_ptr->num_elements;  // Save before reset
+                // Save before reset
+//                uint32_t num_samples = pose_ptr->num_elements;
     #endif
                 // Get incremental motion since last scan
                 Accumulate_Poses(pose_ptr, &incremental_pose);

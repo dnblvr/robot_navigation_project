@@ -112,8 +112,8 @@ def simulate():
         t = k * dt
 
         # -------- Ground truth motion --------
-        ax = 0.2 * np.cos(0.1 * t)
-        ay = 0.0
+        ax      = 0.2 * np.cos(0.1 * t)
+        ay      = 0.0
         yaw_rate = 0.1
 
         psi = x_gt[2]

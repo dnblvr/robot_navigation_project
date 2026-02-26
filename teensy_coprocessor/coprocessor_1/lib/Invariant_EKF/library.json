@@ -1,0 +1,15 @@
+{
+  "name": "Invariant_EKF",
+  "version": "1.0.0",
+  "description": "MCU-invariant C implementation of the invariant EKF for SE(2) estimation, designed for use in embedded systems like the Teensy microcontroller.",
+  "keywords": ["EKF", "SE(2)", "invariant", "Lie Theory", "teensy"],
+  "authors": [
+    {
+      "name": "Gian Fajardo",
+      "email": "gianfajardo.prim@gmail.com"
+    }
+  ],
+  "license": "MIT",
+  "frameworks": ["arduino"],
+  "platforms": ["teensy", "espressif32", "atmelavr"]
+}

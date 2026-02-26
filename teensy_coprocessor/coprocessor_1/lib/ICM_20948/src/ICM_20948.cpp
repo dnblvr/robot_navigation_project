@@ -24,6 +24,13 @@
 //
 // ----------------------------------------------------------------------------
 
+
+/**
+ * @brief macro that waits until the LPI2C1 transmit FIFO has space for more
+ *  data (less than 4 entries)
+ */
+#define wait_for_LPI2C1_FIFO_space() while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4)
+
 /**
  * @brief Sends multiple bytes over I2C via direct LPI2C1 hardware access
  * 
@@ -57,14 +64,14 @@ void I2C_send_multiple(
     for (size_t i = 0; i < length; i++) {
 
         // wait until FIFO has space i.e. less than 4 bytes
-        while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
+        wait_for_LPI2C1_FIFO_space();
 
         // Write data byte with TRANSMIT command
         IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_TRANSMIT | data[i];
     }
 
     // Ensure FIFO space, then write STOP condition
-    while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
+    wait_for_LPI2C1_FIFO_space();
     IMXRT_LPI2C1.MTDR       = LPI2C_MTDR_CMD_STOP;
 
 
@@ -117,19 +124,19 @@ void I2C_read_register(
     IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_START | (address << 1);
 
     // Wait for TX FIFO space, then write register address with TRANSMIT command
-    while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
+    wait_for_LPI2C1_FIFO_space();
     IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_TRANSMIT | reg_addr;
 
     // Write repeated START + 7-bit address (shifted left with R/W=1 for read)
-    while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
+    wait_for_LPI2C1_FIFO_space();
     IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_START | (address << 1) | 1;
 
     // Write RECEIVE command (length - 1)
-    while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
+    wait_for_LPI2C1_FIFO_space();
     IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_RECEIVE | (length - 1);
 
     // Write STOP condition
-    while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4);
+    wait_for_LPI2C1_FIFO_space();
     IMXRT_LPI2C1.MTDR   = LPI2C_MTDR_CMD_STOP;
 
 

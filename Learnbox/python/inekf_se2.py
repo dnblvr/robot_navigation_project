@@ -279,6 +279,7 @@ class InEKF_SE2:
         Ad      = adjoint_se2(X_delta)
         self.P  = Ad @ self.P @ Ad.T + self.Q
     
+    
     def update_magnetometer(self, psi_mag, mag_norm):
         """
         Magnetometer heading measurement update with gating.

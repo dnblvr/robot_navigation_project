@@ -42,6 +42,107 @@ def chi2_threshold_1dof(
 
 
 # ============================================================
+# Bézier Curve Helpers
+# ============================================================
+
+# Control points for a 3-segment piecewise cubic Bézier loop.
+# C1 continuity is enforced at every junction by the reflection rule:
+#   first control point of segment N+1 = 2*junction - last control of segment N
+#
+# Segment 1: straight launch → gentle right-climbing arc
+# Segment 2: tight S-bend at top  (high curvature → EKF stress region)
+# Segment 3: long descending sweep back to origin (smooth loop closure)
+#
+# Initial tangent: B'(0) = 3*(P1-P0) = (3,0) → heading = 0  ✓ matches state[2]=0
+# Loop closure:   B'(1,seg3) = 3*(P9-P8) = (3,0) = B'(0,seg1)  ✓ smooth
+_BEZIER_SEGMENTS = [
+    (np.array([0.0, 0.0]), np.array([1.0, 0.0]),   # seg 1
+     np.array([5.0, 2.0]), np.array([5.0, 5.0])),
+    (np.array([5.0, 5.0]), np.array([5.0, 8.0]),   # seg 2  (P4 = 2*P3 - P2)
+     np.array([2.0, 9.0]), np.array([-1.0, 7.0])),
+    (np.array([-1.0, 7.0]), np.array([-4.0, 5.0]), # seg 3  (P7 = 2*P6 - P5)
+     np.array([-1.0, 0.0]), np.array([0.0, 0.0])),
+]
+
+
+def _bezier_cubic(P0, P1, P2, P3, t):
+    """
+    Cubic Bézier position + first two parametric derivatives at t ∈ [0, 1].
+
+    Returns
+    -------
+    B   : (2,) position
+    Bd  : (2,) first derivative  dB/dt
+    Bdd : (2,) second derivative d²B/dt²
+    """
+    mt  = 1.0 - t
+    B   =  mt**3*P0 + 3*mt**2*t*P1 + 3*mt*t**2*P2 + t**3*P3
+    Bd  =  3*(mt**2*(P1 - P0) + 2*mt*t*(P2 - P1) + t**2*(P3 - P2))
+    Bdd =  6*(mt*(P2 - 2*P1 + P0) +  t*(P3 - 2*P2 + P1))
+    return B, Bd, Bdd
+
+
+def _piecewise_bezier_commands(num_steps, dt,
+                               segments=None,
+                               target_speed=1.0):
+    """
+    Pre-compute (v_true, omega_true) for every simulation step from a
+    piecewise cubic Bézier loop.
+
+    Curvature κ = (Bd x Bdd) / |Bd|³ is exact (no linearisation).
+    The whole path is then time-rescaled uniformly so mean linear speed
+    equals target_speed — this preserves the omega/v ratio (curvature).
+
+    The path is traversed once across the full num_steps window.
+
+    Parameters
+    ----------
+    num_steps    : int
+    dt           : float   simulation timestep (s)
+    segments     : list of (P0,P1,P2,P3) ndarrays, or None → _BEZIER_SEGMENTS
+    target_speed : float   desired mean linear speed (m/s)
+
+    Returns
+    -------
+    v_arr, omega_arr : (num_steps,) float arrays
+    """
+    if segments is None:
+        segments = _BEZIER_SEGMENTS
+
+    n_seg     = len(segments)
+    v_arr     = np.zeros(num_steps)
+    omega_arr = np.zeros(num_steps)
+
+    for k in range(num_steps):
+        # t_global ∈ [0, n_seg) spans one full loop over num_steps steps
+        t_global = k / num_steps * n_seg
+        seg_idx  = min(int(t_global), n_seg - 1)
+        t_local  = t_global - int(t_global)          # ∈ [0, 1)
+
+        P0, P1, P2, P3 = segments[seg_idx]
+        _, Bd, Bdd = _bezier_cubic(P0, P1, P2, P3, t_local)
+
+        speed_param = np.linalg.norm(Bd)
+        if speed_param < 1e-9:
+            continue
+
+        # Parametric → simulation-time scale factor
+        scale         = n_seg / (num_steps * dt)
+        v_arr[k]     = speed_param * scale
+        # Signed curvature × speed = omega   (κ = cross / |Bd|³, ω = κ·v = cross/|Bd|²·scale)
+        omega_arr[k] = (Bd[0]*Bdd[1] - Bd[1]*Bdd[0]) / (speed_param**2) * scale
+
+    # Uniform time-rescale to hit target_speed
+    mask   = v_arr > 1e-9
+    mean_v = np.mean(v_arr[mask]) if mask.any() else 1.0
+    ratio       = target_speed / mean_v
+    v_arr      *= ratio
+    omega_arr  *= ratio          # keeps ω/v = κ unchanged
+
+    return v_arr, omega_arr
+
+
+# ============================================================
 # Ground Truth Simulation
 # ============================================================
 
@@ -61,7 +162,7 @@ def simulate_ground_truth(
     num_steps : int
         Number of simulation steps
     path_type : str
-        'circular', 'figure8', 'straight', or 'custom'
+        'circular', 'figure8', 'straight', 'bezier', or 'custom'
     custom_velocities : callable or None
         Function(t, state) -> (v, omega) for custom trajectories
     wheelbase_L : float
@@ -86,6 +187,12 @@ def simulate_ground_truth(
     psi_meas        = np.zeros(num_steps)
     mag_norms       = np.zeros(num_steps)
     
+    # Pre-compute Bézier velocity commands (avoids recomputing inside the loop)
+    if path_type == 'bezier':
+        _bz_v, _bz_omega = _piecewise_bezier_commands(num_steps, dt)
+    else:
+        _bz_v = _bz_omega = None
+
     # Noise parameters
     wheel_noise       = 0.02   # Per-wheel velocity noise (m/s)
     gyro_noise        = 0.01   # Gyro noise (rad/s)
@@ -100,17 +207,21 @@ def simulate_ground_truth(
         
         # Generate true velocities based on path type
         if path_type == 'circular':
-            v_true = 1.0 + 0.3 * np.sin(0.5 * t)
-            omega_true = 0.2
+            v_true      = 1.0 + 0.3 * np.sin(0.5 * t)
+            omega_true  = 0.2
             
         elif path_type == 'figure8':
-            v_true = 1.0
-            omega_true = 0.4 * np.sin(0.3 * t)
+            v_true      = 1.0
+            omega_true  = 0.4 * np.sin(0.3 * t)
             
         elif path_type == 'straight':
-            v_true = 1.0
-            omega_true = 0.05 * np.sin(0.1 * t)  # Small oscillations
+            v_true      = 1.0
+            omega_true  = 0.05 * np.sin(0.1 * t)  # Small oscillations
             
+        elif path_type == 'bezier':
+            v_true      = _bz_v[k]
+            omega_true  = _bz_omega[k]
+
         elif path_type == 'custom' and custom_velocities is not None:
             v_true, omega_true = custom_velocities(t, state)
             
@@ -128,11 +239,11 @@ def simulate_ground_truth(
         
         # -------- Differential Drive Wheel Velocities --------
         # v_L = v - omega * L/2,  v_R = v + omega * L/2
-        v_L_true = v_true - omega_true * wheelbase_L / 2.0
-        v_R_true = v_true + omega_true * wheelbase_L / 2.0
+        v_L_true    = v_true - omega_true * wheelbase_L / 2.0
+        v_R_true    = v_true + omega_true * wheelbase_L / 2.0
         
-        v_L_meas[k]        = v_L_true  + np.random.randn() * wheel_noise
-        v_R_meas[k]        = v_R_true  + np.random.randn() * wheel_noise
+        v_L_meas[k]        = v_L_true   + np.random.randn() * wheel_noise
+        v_R_meas[k]        = v_R_true   + np.random.randn() * wheel_noise
         omega_gyro_meas[k] = omega_true + np.random.randn() * gyro_noise
         
         # Magnetometer heading (with bias and noise)
@@ -271,9 +382,9 @@ if __name__ == "__main__":
 
     # Simulation parameters
     dt          = 0.01      # 100 Hz
-    num_steps   = 7000      # 10 seconds
-    path_type   = 'circular' # Options: 'circular', 'figure8', 'straight'
-    update_rate = 5
+    num_steps   = 5000      # 50 s  — covers ~2 full Bézier loops at 1 m/s
+    path_type   = 'bezier'  # 'circular' | 'figure8' | 'straight' | 'bezier'
+    update_rate = 3         # magnetometer update every 5 steps → 20 Hz
 
     # Set random seed for reproducibility
     np.random.seed(42)
@@ -349,9 +460,21 @@ if __name__ == "__main__":
     
 
     # Plot 1: Trajectories
-    axes[0].plot(gt_states[:, 0], gt_states[:, 1], 'k-', label='Ground Truth', linewidth=2)
-    axes[0].plot(ekf_states[:, 0], ekf_states[:, 1], 'r--', label='EKF', alpha=0.7)
-    axes[0].plot(inekf_states[:, 0], inekf_states[:, 1], 'b--', label='InEKF', alpha=0.7)
+    axes[0].plot(gt_states[:, 0],
+                 gt_states[:, 1],
+                 'k-',
+                 label='Ground Truth',
+                 linewidth=2)
+    axes[0].plot(ekf_states[:, 0],
+                 ekf_states[:, 1],
+                 'r--',
+                 label='EKF',
+                 alpha=0.7)
+    axes[0].plot(inekf_states[:, 0],
+                 inekf_states[:, 1],
+                 'b--',
+                 label='InEKF',
+                 alpha=0.7)
     axes[0].set_xlabel('x [m]')
     axes[0].set_ylabel('y [m]')
     axes[0].set_title('2D Trajectories')
@@ -365,9 +488,7 @@ if __name__ == "__main__":
     inekf_heading_error = wrap_angle(inekf_states[:, 2] - gt_states[:, 2])  # Signed error
     axes[1].plot(time, np.rad2deg(ekf_heading_error), 'r-', label='EKF', linewidth=1.5, alpha=0.8)
     axes[1].plot(time, np.rad2deg(inekf_heading_error), 'b-', label='InEKF', linewidth=1.5, alpha=0.8)
-    axes[1].axhline(y=np.rad2deg(0.1), color='k', linestyle='--', linewidth=1, 
-                     label='Expected Bias (5.7°)', alpha=0.5)
-    axes[1].axhline(y=0, color='gray', linestyle='-', linewidth=0.5, alpha=0.3)
+    axes[1].axhline(y=0, color='k', linestyle='--', linewidth=1, label='Zero error', alpha=0.5)
     axes[1].set_xlabel('Time [s]')
     axes[1].set_ylabel('Heading Error [deg]')
     axes[1].set_title('Heading Estimation Error (Signed)')
@@ -391,10 +512,10 @@ if __name__ == "__main__":
     
     # Mark gate rejections as vertical lines
     # Only flag timesteps where an update was ATTEMPTED but rejected
-    update_mask        = np.array(
-            [(k % update_rate == 0) for k in range(num_steps)])
-    reject_times_ekf   = time[~ekf_gates]
-    reject_times_inekf = time[~inekf_gates]
+    update_mask        = np.zeros(num_steps, dtype=bool)
+    update_mask[::update_rate] = True
+    reject_times_ekf   = time[update_mask & ~ekf_gates]
+    reject_times_inekf = time[update_mask & ~inekf_gates]
 
     if len(reject_times_ekf) > 0:
         axes[3].vlines(reject_times_ekf, 0, max(ekf_unc), colors='r', alpha=0.2, 

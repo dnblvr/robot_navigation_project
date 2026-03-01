@@ -1,86 +1,14 @@
 /**
- * @file inEKF_se2.h
+ * @file inEKF_se2.c
  * @author your name (you@domain.com)
  * @brief 
  * @version 0.1
  * @date 2026-03-01
  * 
  * @copyright Copyright (c) 2026
- * 
  */
 
-#ifndef __INC_INEKF_SE2_H__
-#define __INC_INEKF_SE2_H__
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-
-#define DIMS 3
-#define TOTAL DIMS*DIMS
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-
-/**
- * @brief SE(2) state struct for a differential-drive robot with a 2D
- *  magnetometer for heading measurements
- * 
- * @param x x-position in the plane
- * @param y y-position in the plane
- * @param theta heading angle in the plane
- */
-typedef struct {
-    float x;
-    float y;
-    float theta;
-} state_se2_t;
-
-
-/**
- * @brief struct to hold all variables related to the invariant EKF for SE(2)
- *  state estimation and specifically for a differential-drive robot with a 2D
- *  magnetometer for heading measurements
- * 
- * @details The state is stored as a 1D array for ease of use in C, but the
- *  order of the elements is [x, y, theta] to match the state_se2_t struct
- */
-typedef struct {
-
-    // invariant filter parameters -------------------------------------------
-    float dt;
-
-    // length of the differential-drive robot's wheelbase
-    float L; 
-
-    // complementary filter parameter for fusing gyro and encoder measurements
-    float alpha;
-
-
-    // limits for magnetometer norm to reject outliers
-    float mag_norm_min; // usually 2000 for AK09916
-    float mag_norm_max; // usually 6500 for AK09916
-
-
-    // filter variables -------------------------------------------
-    state_se2_t state;
-
-    // process noise covariance matrix, aka Q
-    state_se2_t process_noise;
-
-    // innovation gate threshold for outlier rejection
-    float chi2_threshold;
-
-    // covariance in tangent space, aka P
-    state_se2_t covariance;
-
-    // measurement noise covariance matrix, aka R
-    state_se2_t measurement_noise;
-
-} InEKF_SE2_t;
-
+ #include "inEKF_se2.h"
 
 // ----------------------------------------------------------------------------
 //
@@ -88,21 +16,24 @@ typedef struct {
 //
 // ----------------------------------------------------------------------------
 
-/**
- * @brief hat operator for SE(2) Lie algebra
- * 
- * @details maps the Lie algebra element tau in the tangent space to a matrix
- *  in the Lie group SE(2) with generators corresponding to the order of the
- *  state vector, i.e. [x, y, theta]
- * 
- * @note tau_wedge is a 3x3 skew-symmetric matrix in the Lie group SE(2)
- * 
- * @param tau state_se2_t vector in the tangent space, aka the Lie algebra se(2)
- * @param tau_wedge 3x3 matrix in the Lie group SE(2)
- */
+
 void wedge_se2(
         state_se2_t*    tau,
-        float           tau_wedge[TOTAL]);
+        float           tau_wedge[TOTAL])
+{
+    tau_wedge[3*0 + 0] = 0.0f;
+    tau_wedge[3*0 + 1] = -tau->theta;
+    tau_wedge[3*0 + 2] = tau->x;
+
+    tau_wedge[3*1 + 0] = tau->theta;
+    tau_wedge[3*1 + 1] = 0.0f;
+    tau_wedge[3*1 + 2] = tau->y;
+
+    tau_wedge[3*2 + 0] = 0.0f;
+    tau_wedge[3*2 + 1] = 0.0f;
+    tau_wedge[3*2 + 2] = 0.0f;
+
+}
 
 
 /**
@@ -192,7 +123,10 @@ void inEKF_SE2_init(
         float dt,
         state_se2_t process_noise,
         float mag_noise,
-        float chi2_threshold);
+        float chi2_threshold)
+{
+    
+}
 
 /**
  * @brief InEKF prediction step along the SE(2) manifold for a differential-
@@ -259,8 +193,3 @@ void inEKF_SE2_get_state(
 inline void inEKF_SE2_wrap_angle(
         float* theta);
 
-#ifdef __cplusplus
-}
-#endif
-
-#endif /* __INC_INEKF_SE2_H__ */

@@ -188,11 +188,12 @@ void adjoint_se2(
  * @param chi2_threshold Chi-squared threshold for outlier rejection
  */
 void inEKF_SE2_init(
-        InEKF_SE2_t* filter,
-        float dt,
-        state_se2_t process_noise,
-        float mag_noise,
-        float chi2_threshold);
+        InEKF_SE2_t*    filter,
+
+        float           dt,
+        state_se2_t*    process_noise,
+        float           mag_noise,
+        float           chi2_threshold);
 
 /**
  * @brief InEKF prediction step along the SE(2) manifold for a differential-
@@ -207,9 +208,9 @@ void inEKF_SE2_init(
 void inEKF_SE2_predict(
         InEKF_SE2_t* filter,
 
-        float v_L,
-        float v_R,
-        float omega_gyro);
+        float   v_L,
+        float   v_R,
+        float   omega_gyro);
 
 /**
  * @brief InEKF update step using magnetometer measurements
@@ -227,8 +228,9 @@ void inEKF_SE2_predict(
  */
 uint8_t inEKF_SE2_update_mag(
         InEKF_SE2_t* filter,
-        float theta_mag,
-        float mag_norm);
+
+        float   theta_mag,
+        float   mag_norm);
 
 /** ---------------------------------------------------------
  *  HELPER FUNCTIONS
@@ -242,8 +244,8 @@ uint8_t inEKF_SE2_update_mag(
  * @param state_out state_se2_t struct to store the retrieved state estimate
  */
 void inEKF_SE2_get_state(
-        InEKF_SE2_t* filter,
-        state_se2_t* state_out);
+        InEKF_SE2_t*    filter,
+        state_se2_t*    state_out);
 
 
 // void inEKF_SE2_get_covariance_trace(
@@ -257,7 +259,7 @@ void inEKF_SE2_get_state(
  * @param theta pointer to the angle to be wrapped
  */
 inline void inEKF_SE2_wrap_angle(
-        float* theta);
+        float*  theta);
 
 #ifdef __cplusplus
 }

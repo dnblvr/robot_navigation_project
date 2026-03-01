@@ -120,12 +120,38 @@ void adjoint_se2(
  */
 void inEKF_SE2_init(
         InEKF_SE2_t* filter,
-        float dt,
-        state_se2_t process_noise,
-        float mag_noise,
-        float chi2_threshold)
+
+        float           dt,
+        state_se2_t*    process_noise,
+        float           mag_noise,
+        float           chi2_threshold)
 {
+    filter->dt = dt;
+
+    filter->L = 0.3f; // m; length of the differential-drive robot's wheelbase
+
+    filter->alpha = 0.5f; // complementary filter parameter for fusing gyro and
+                          // encoder measurements; can be tuned based on the
+                          // expected noise characteristics of the sensors
+
+    filter->mag_norm_min = 2000.0f; // minimum magnetometer norm for outlier
+    filter->mag_norm_max = 6500.0f; // maximum magnetometer norm for outlier
+
     
+    filter->chi2_threshold = chi2_threshold;
+
+    // initialize state to identity, or (x, y, \theta) = (0, 0, 0)
+    filter->state.x     = 0.0f;
+    filter->state.y     = 0.0f;
+    filter->state.theta = 0.0f;
+
+    // set process noise covariance matrix Q as diagonal with provided values
+    filter->process_noise.x     = process_noise->x;
+    filter->process_noise.y     = process_noise->y;
+    filter->process_noise.theta = process_noise->theta;
+
+
+    // ... TO BE CONTINUED IN LATER COMMITS
 }
 
 /**
@@ -141,9 +167,9 @@ void inEKF_SE2_init(
 void inEKF_SE2_predict(
         InEKF_SE2_t* filter,
 
-        float v_L,
-        float v_R,
-        float omega_gyro);
+        float   v_L,
+        float   v_R,
+        float   omega_gyro);
 
 /**
  * @brief InEKF update step using magnetometer measurements
@@ -161,8 +187,9 @@ void inEKF_SE2_predict(
  */
 uint8_t inEKF_SE2_update_mag(
         InEKF_SE2_t* filter,
-        float theta_mag,
-        float mag_norm);
+        
+        float   theta_mag,
+        float   mag_norm);
 
 /** ---------------------------------------------------------
  *  HELPER FUNCTIONS
@@ -176,8 +203,8 @@ uint8_t inEKF_SE2_update_mag(
  * @param state_out state_se2_t struct to store the retrieved state estimate
  */
 void inEKF_SE2_get_state(
-        InEKF_SE2_t* filter,
-        state_se2_t* state_out);
+        InEKF_SE2_t*    filter,
+        state_se2_t*    state_out);
 
 
 // void inEKF_SE2_get_covariance_trace(

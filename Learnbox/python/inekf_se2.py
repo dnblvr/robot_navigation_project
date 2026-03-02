@@ -235,11 +235,17 @@ class InEKF_SE2:
         self.R = np.array([[mag_noise**2]])
         
         # Magnitude gate limits
-        self.mag_norm_min = 2000.0
-        self.mag_norm_max = 6500.0
+        self.mag_norm_min   = 2000.0
+        self.mag_norm_max   = 6500.0
 
     
-    def predict(self, v_L, v_R, omega_gyro, L=0.3, alpha=0.5):
+    def predict(
+                self,
+                v_L,
+                v_R,
+                omega_gyro,
+                L=0.3,
+                alpha=0.5):
         """
         InEKF prediction step on SE(2) manifold using differential drive
         kinematics with complementary gyro + encoder omega fusion.
@@ -279,7 +285,7 @@ class InEKF_SE2:
         Ad      = adjoint_se2(X_delta)
         self.P  = Ad @ self.P @ Ad.T + self.Q
     
-    
+
     def update_magnetometer(self, psi_mag, mag_norm):
         """
         Magnetometer heading measurement update with gating.

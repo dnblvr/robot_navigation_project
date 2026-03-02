@@ -99,6 +99,7 @@ typedef struct {
  * 
  * @param tau state_se2_t vector in the tangent space, aka the Lie algebra se(2)
  * @param tau_wedge 3x3 matrix in the Lie group SE(2)
+ * 
  */
 void wedge_se2(
         state_se2_t*    tau,

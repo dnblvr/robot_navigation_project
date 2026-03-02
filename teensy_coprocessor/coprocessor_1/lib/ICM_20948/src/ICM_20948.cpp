@@ -29,7 +29,7 @@
  * @brief macro that waits until the LPI2C1 transmit FIFO has space for more
  *  data (less than 4 entries)
  */
-#define wait_for_LPI2C1_FIFO_space() while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4)
+#define wait_for_LPI2C1_FIFO_space()  while ((IMXRT_LPI2C1.MFSR & 0x07) >= 4)
 
 /**
  * @brief Sends multiple bytes over I2C via direct LPI2C1 hardware access

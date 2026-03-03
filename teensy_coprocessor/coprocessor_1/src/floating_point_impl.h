@@ -256,7 +256,6 @@ void setup() {
 
 void loop() {
 
-    //Serial.println("in loop()");
 
 #ifndef CALIBRATION_MODE
 

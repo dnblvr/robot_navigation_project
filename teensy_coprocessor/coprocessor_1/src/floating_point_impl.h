@@ -12,7 +12,7 @@
 
 
 
-// #define DEBUG_OUTPUT
+#define DEBUG_OUTPUT
 // #define DEBUG_FINAL_OUTPUT
 #define VISUALIZE_ORIENTATION
 
@@ -24,7 +24,7 @@
 #define MSP432_Serial   Serial7
 
 
-#define RTS_Pin 22
+#define RTS_Pin 15
 #define SDA_PIN 18
 #define SCL_PIN 19
 
@@ -163,10 +163,16 @@ void setup() {
     // MSP432_Serial.begin(9600);
     // while (!MSP432_Serial);
 
-    // T4.1 --> BLE UART Friend
-    // initialize_BLE_UART();
     
+    //Serial.println("belfore BLE UART init");
 
+    // T4.1 --> BLE UART Friend
+    initialize_BLE_UART();
+
+    
+    //Serial.println("after BLE UART init");
+    
+/*
     // I2C initialization -----------------------------------------------------
     Wire.setSDA(SDA_PIN);
     Wire.setSCL(SCL_PIN);
@@ -239,7 +245,10 @@ void setup() {
     // 400 iters
     // gyro = [        75,         79,        -50]
 
-#endif 
+#endif
+*/
+
+    Serial.println("out setup()");
 
 }
 
@@ -247,33 +256,51 @@ void setup() {
 
 void loop() {
 
+    //Serial.println("in loop()");
+
 #ifndef CALIBRATION_MODE
 
     // Serial.printf("Loop count: %lu\n", num_counts);
 
     // Wait for interrupt
-    WaitForInterrupt();
+    // WaitForInterrupt();
 
     // if the task flag is not set, return and do not perform any tasks
-    if (task_flag & DATA_READY_FLAG) {
+    // if (task_flag & DATA_READY_FLAG) {
 
         // clear the task flag
-        task_flag  &= ~DATA_READY_FLAG;
+        // task_flag  &= ~DATA_READY_FLAG;
 
         // indicate data read in progress
-        digitalWrite(LED_BUILTIN, HIGH);
+        // digitalWrite(LED_BUILTIN, HIGH);
 
-        record_data_task();
+        // record_data_task();
 
         // indicate data read complete
-        digitalWrite(LED_BUILTIN, LOW);
+        // digitalWrite(LED_BUILTIN, LOW);
         
+    // }
+
+    if (BLE_Serial.available())
+    {
+        static char buffer[20];
+        size_t len = BLE_Serial.readBytesUntil('!', buffer, sizeof(buffer) - 1);
+        // Serial.println(len);
+
+        buffer[len] = '\0';
+
+        if (len > 0)
+            // enqueue_command(handle_BLE_command, buffer);
+            Serial.println(buffer);
+
     }
 
-    // Process queued function calls from serial events
+    //Process queued function calls from serial events
     // process_function_queue();
 
 #endif
+
+delay(10);
 
 }
 

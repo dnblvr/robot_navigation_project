@@ -39,6 +39,25 @@ typedef struct {
 } state_se2_t;
 
 
+#define IDENTITY_SE2 {0.0f, 0.0f, 0.0f}
+
+/**
+ * @brief common indices for the rotation matrix elements in the SE(2) exponential map and adjoint map
+ */
+#define R_00 (3*0 + 0)  // 0
+#define R_01 (3*0 + 1)  // 1
+#define R_10 (3*1 + 0)  // 3
+#define R_11 (3*1 + 1)  // 4
+
+#define T_x  (3*0 + 2)  // 2
+#define T_y  (3*1 + 2)  // 5
+
+#define Z_20 (3*2 + 0)  // 6
+#define Z_21 (3*2 + 1)  // 7
+#define I_22 (3*2 + 2)  // 8
+
+#define SMALL_ANGLE(angle) (fabsf(angle) < 1e-6f)
+
 /**
  * @brief struct to hold all variables related to the invariant EKF for SE(2)
  *  state estimation and specifically for a differential-drive robot with a 2D
@@ -77,7 +96,8 @@ typedef struct {
     state_se2_t covariance;
 
     // measurement noise covariance matrix, aka R
-    state_se2_t measurement_noise;
+    // state_se2_t measurement_noise;
+    float mag_noise;
 
 } InEKF_SE2_t;
 
@@ -101,7 +121,7 @@ typedef struct {
  * @param tau_wedge 3x3 matrix in the Lie group SE(2)
  * 
  */
-void wedge_se2(
+inline void wedge_se2(
         state_se2_t*    tau,
         float           tau_wedge[TOTAL]);
 
@@ -116,7 +136,7 @@ void wedge_se2(
  * @param tau_wedge 3x3 matrix in the Lie group SE(2)
  * @param tau state_se2_t vector in the tangent space, aka the Lie algebra se(2)
  */
-void vee_se2(
+inline void vee_se2(
         float           tau_wedge[TOTAL],
         state_se2_t*    tau);
 

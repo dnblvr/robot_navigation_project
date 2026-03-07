@@ -21,28 +21,28 @@ void wedge_se2(
         state_se2_t*    tau,
         float           tau_wedge[TOTAL])
 {
-    tau_wedge[3*0 + 0]  =  0.0f;
-    tau_wedge[3*0 + 1]  = -tau->theta;
-    tau_wedge[3*0 + 2]  =  tau->x;
+    tau_wedge[R_00]  =  0.f;
+    tau_wedge[R_01]  = -tau->theta;
+    tau_wedge[R_10]  =  tau->theta;
+    tau_wedge[R_11]  =  0.f;
+    
+    tau_wedge[T_x]   =  tau->x;
+    tau_wedge[T_y]   =  tau->y;
 
-    tau_wedge[3*1 + 0]  =  tau->theta;
-    tau_wedge[3*1 + 1]  =  0.0f;
-    tau_wedge[3*1 + 2]  =  tau->y;
-
-    tau_wedge[3*2 + 0]  =  0.0f;
-    tau_wedge[3*2 + 1]  =  0.0f;
-    tau_wedge[3*2 + 2]  =  0.0f;
+    tau_wedge[Z_20]  =  0.f;
+    tau_wedge[Z_21]  =  0.f;
+    tau_wedge[I_22]  =  0.f;
 
 }
 
 
-void vee_se2(
+inline void vee_se2(
         float           tau_wedge[TOTAL],
         state_se2_t*    tau)
 {
-    tau->x      = tau_wedge[3*0 + 2];
-    tau->y      = tau_wedge[3*1 + 2];
-    tau->theta  = tau_wedge[3*1 + 0];
+    tau->x      = tau_wedge[T_x];
+    tau->y      = tau_wedge[T_y];
+    tau->theta  = tau_wedge[R_10];
 }
 
 
@@ -57,7 +57,59 @@ void vee_se2(
  */
 void exp_se2(
         state_se2_t*    tau,
-        float           exp_tau[TOTAL]);
+        float           exp_tau[TOTAL])
+{
+    float v_x   = tau->x;
+    float v_y   = tau->y;
+    float omega = tau->theta;
+
+
+    // for a small angular rate, use first-order Taylor expansion
+    if ( SMALL_ANGLE(omega) ) {
+
+        exp_tau[R_00]   =  1.f;
+        exp_tau[R_01]   = -omega;
+        exp_tau[R_10]   =  omega;
+        exp_tau[R_11]   =  1.f;
+
+        exp_tau[T_x]    =  v_x;
+        exp_tau[T_y]    =  v_y;
+
+    
+    } else {
+
+        float s = sinf(omega);
+        float c = cosf(omega);
+                
+        // calculate the V matrix for the translation part of the exponential
+        // map. to see the origins, it is well known in the literature
+        float V[4] = {        s/omega, -(1.f - c)/omega,
+                      (1.f - c)/omega,          s/omega};
+        
+        // calculate the velocity vector in the tangent space
+        float v_vec[2] = {v_x,
+                          v_y};
+
+        
+        // fill in the exponential map matrix:
+        //  - rotational part: R(theta)
+        exp_tau[R_00]   =  c;
+        exp_tau[R_01]   = -s;
+        exp_tau[R_10]   =  s;
+        exp_tau[R_11]   =  c;
+        
+        //  - translation part: V @ v_vec
+        exp_tau[T_x]    = V[0*2 + 0]*v_vec[0] + V[0*2 + 1]*v_vec[1];
+        exp_tau[T_y]    = V[1*2 + 0]*v_vec[0] + V[1*2 + 1]*v_vec[1];
+        
+    }
+
+    // pre-fill the exponential map matrix with the common elements
+    exp_tau[Z_20]   =  0.f;
+    exp_tau[Z_21]   =  0.f;
+    exp_tau[I_22]   =  1.f;
+
+}
 
 
 /**
@@ -71,7 +123,46 @@ void exp_se2(
  */
 void log_se2(
         float           exp_tau[TOTAL],
-        state_se2_t*    tau);
+        state_se2_t*    tau)
+{
+    
+    float omega = atan2f(exp_tau[R_10], exp_tau[R_00]);
+
+    // translation part of the logarithm map
+    float t_x = exp_tau[T_x];
+    float t_y = exp_tau[T_y];
+
+    
+    // for a small angular rate, use first-order Taylor expansion
+    if ( SMALL_ANGLE(omega) ) {
+
+        tau->x      = t_x;
+        tau->y      = t_y;
+
+    } else {
+
+        // common factors for the logarithm map
+        float s = sinf(omega);
+        float c = cosf(omega);
+        float f = omega / (2*(1.f - c));
+
+        // calculate the V_inv matrix for the translation part of the logarithm
+        // map. to see the origins, it is well known in the literature
+        float V_inv[4] = { f*s,         f*(1.f - c),
+                          -f*(1.f - c), f*s         };
+
+        
+        // fill in the logarithm map / tangent space element:
+        //  - translational part: V_inv @ t_vec
+        tau->x  = V_inv[0*2 + 0]*t_x + V_inv[0*2 + 1]*t_y;
+        tau->y  = V_inv[1*2 + 0]*t_x + V_inv[1*2 + 1]*t_y;
+
+    }
+
+    // pre-fill the exponential map matrix with the common elements
+    tau->theta  = omega;
+
+}
 
 
 /**
@@ -86,7 +177,26 @@ void log_se2(
  */
 void adjoint_se2(
         float           exp_tau[TOTAL],
-        float           adj_exp_tau[TOTAL]);
+        float           adj_exp_tau[TOTAL])
+{
+    // rotation matrix part of the adjoint map is the same as the rotation
+    // matrix part of the exponential map
+    adj_exp_tau[R_00]  =  exp_tau[R_00];
+    adj_exp_tau[R_01]  =  exp_tau[R_01];
+    adj_exp_tau[R_10]  =  exp_tau[R_10];
+    adj_exp_tau[R_11]  =  exp_tau[R_11];
+
+    // translation part of the adjoint map is given by the skew-symmetric matrix
+    // formed by the translation part of the exponential map
+    adj_exp_tau[T_x]   = -exp_tau[T_y];
+    adj_exp_tau[T_y]   =  exp_tau[T_x];
+
+    // pre-fill the adjoint map matrix with the common elements
+    adj_exp_tau[Z_20]  =  0.f;
+    adj_exp_tau[Z_21]  =  0.f;
+    adj_exp_tau[I_22]  =  1.f;
+
+}
 
 
 // ----------------------------------------------------------------------------

@@ -1,0 +1,23 @@
+{
+    "name": "RPLiDAR_C1",
+    "version": "1.0.0",
+    "description": "Arduino/Teensy port of the RPLiDAR C1 UART driver. Provides the same FSM-based scan acquisition pipeline as the MSP432 implementation, with all hardware-specific UART calls replaced by a configurable HardwareSerial reference.",
+    "keywords": ["rplidar", "lidar", "uart", "robotics"],
+    "authors": [
+        {
+            "name": "Gian Fajardo",
+            "maintainer": true
+        }
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/dnblvr/robot_navigation_project"
+    },
+    "license": "MIT",
+    "frameworks": "arduino",
+    "platforms": ["teensy", "atmelavr", "espressif32"],
+    "build": {
+        "includeDir": "include",
+        "srcDir": "src"
+    }
+}

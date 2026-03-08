@@ -23,6 +23,12 @@
 
 #include "RPLiDAR_Arduino_UART.h"
 
+// Forward-declaration: defined in Timer_A1_Tasks.h (included by main via
+// rplidar_impl.h).  RPLiDAR_Arduino_UART.cpp manipulates this flag from inside
+// the ISR without pulling in the full scheduler header, which would cause
+// duplicate-definition link errors.
+extern volatile uint8_t timer_ignore_flag;
+
 
 // ----------------------------------------------------------------------------
 //
@@ -99,10 +105,13 @@ static void            End_Record(void);
 // timer management is needed here.  The stubs are defined to satisfy the
 // linker if any template code references them.
 //
-// Replace these with IntervalTimer calls if you later add a timer.
+// These write timer_ignore_flag, which is read by Task_Selector() (in the
+// IntervalTimer ISR) to suppress task_flag assignments while the FSM is
+// mid-recording.  A volatile byte write is safe from interrupt context —
+// no need to stop/restart the IntervalTimer itself.
 
-static inline void _timer_ignore(void)      { /* no-op — poll from loop() */ }
-static inline void _timer_acknowledge(void) { /* no-op — poll from loop() */ }
+static inline void _timer_ignore(void)      { timer_ignore_flag = 1; }
+static inline void _timer_acknowledge(void) { timer_ignore_flag = 0; }
 
 
 // ============================================================================
@@ -161,6 +170,50 @@ void Start_Record(Angle_Filter filter)
 
 // ============================================================================
 //
+//  BARE-METAL LPUART6 RX ISR
+//  (replaces EUSCIA2_IRQHandler on MSP432)
+//
+// ============================================================================
+//
+// Strategy: call Serial1.begin(RPLIDAR_BAUD) to let HardwareSerial configure
+// the baud rate, I/O pins, FIFO, and CTRL enable bits, then overwrite the
+// single function-pointer HardwareSerial installed in _VectorsRam with our
+// own handler.  The hardware configuration is identical — we only change
+// who is called on each interrupt.
+//
+// FIFO drain: the iMXRT1062 LPUART6 has a 4-byte RX FIFO.  HardwareSerial
+// configures the watermark to 2, so RDRF fires when ≥2 bytes are waiting.
+// Reading (WATER >> 24) & 0x7 gives the exact count so we drain all
+// available bytes in one ISR invocation — equivalent to the MSP432 scheme
+// where every byte triggers EUSCIA2_IRQHandler individually, but without
+// the extra interrupt overhead per byte.
+
+FASTRUN void LPUART6_RX_ISR(void)
+{
+    // Drain the RX FIFO one byte at a time.
+    //
+    // Each read of IMXRT_LPUART6.DATA is atomic: the hardware returns the
+    // next FIFO entry in bits [7:0] AND simultaneously sets bit 12
+    // (LPUART_DATA_RXEMPT) when the FIFO was already empty at the time of
+    // the read.  Checking RXEMPT on the same read avoids the race that
+    // existed with the WATER-count approach: reading WATER and then reading
+    // DATA were two separate bus cycles, so a stale count could either
+    // under-drain (miss bytes) or inject a garbage byte into the FSM.
+    uint32_t d;
+    while (!((d = IMXRT_LPUART6.DATA) & LPUART_DATA_RXEMPT)) {
+        RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
+    }
+
+    // Clear idle-line flag (W1C) so ILIE does not re-enter immediately
+    if (IMXRT_LPUART6.STAT  & LPUART_STAT_IDLE) {
+        IMXRT_LPUART6.STAT |= LPUART_STAT_IDLE;
+    }
+    
+}
+
+
+// ============================================================================
+//
 //  UART LIFECYCLE
 //
 // ============================================================================
@@ -168,7 +221,36 @@ void Start_Record(Angle_Filter filter)
 void RPLiDAR_UART_Init(void)
 {
     if (_serial == nullptr) return;
+
+    // Let HardwareSerial configure baud, pins, FIFO, and CTRL.RIE/ILIE.
+    // Do NOT replace the IRQ vector here — the protocol init commands
+    // (STOP / RESET / GET_HEALTH / SCAN) are transmitted after this call
+    // using HardwareSerial's TX path, which needs its own ISR to drain the
+    // TX ring buffer.  Call RPLiDAR_UART_AttachISR() from setup() once all
+    // init commands have been sent.
     _serial->begin(RPLIDAR_BAUD);
+}
+
+
+void RPLiDAR_UART_AttachISR(void)
+{
+    if (_serial == nullptr) return;
+
+    // Block until the TX ring buffer is empty and the LPUART shift register
+    // is idle.  After flush() returns, HardwareSerial has already cleared
+    // CTRL.TIE, so no TX interrupt is pending.
+    _serial->flush();
+
+    // Belt-and-suspenders: explicitly clear TX interrupt enables so that no
+    // future HardwareSerial TX path can re-arm the TX interrupt and enter
+    // our RX-only ISR.
+    IMXRT_LPUART6.CTRL &= ~(LPUART_CTRL_TIE | LPUART_CTRL_TCIE);
+
+    // Safe to replace the vector now.  From this point all LPUART6
+    // interrupts are handled by LPUART6_RX_ISR.
+    attachInterruptVector(IRQ_LPUART6, LPUART6_RX_ISR);
+    NVIC_SET_PRIORITY(IRQ_LPUART6, 64);  // match HardwareSerial default
+    NVIC_ENABLE_IRQ(IRQ_LPUART6);
 }
 
 

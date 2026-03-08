@@ -178,8 +178,25 @@ void Start_Record(Angle_Filter filter);
 
 /**
  * @brief Open the serial port at RPLIDAR_BAUD (460 800).
+ *
+ * @note  Does NOT install the bare-metal RX ISR.  Call
+ *        RPLiDAR_UART_AttachISR() from setup() once all protocol init
+ *        commands (STOP / RESET / GET_HEALTH / SCAN) have been sent.
  */
 void RPLiDAR_UART_Init(void);
+
+
+/**
+ * @brief Flush TX, disable TX interrupts, then replace HardwareSerial's
+ *        LPUART6 vector with the bare-metal LPUART6_RX_ISR.
+ *
+ * @details Must be called from setup() AFTER Initialize_RPLiDAR_C1()
+ *  returns.  Calling it earlier causes a TX-interrupt infinite loop:
+ *  HardwareSerial re-enables CTRL.TIE when it queues TX bytes, but our
+ *  RX-only ISR never clears TIE, so LPUART6_IRQ fires endlessly and
+ *  starves the CPU (including USB serial).
+ */
+void RPLiDAR_UART_AttachISR(void);
 
 
 /**

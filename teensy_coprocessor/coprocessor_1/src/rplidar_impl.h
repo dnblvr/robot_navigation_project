@@ -138,12 +138,18 @@ void setup()
     //  - Configure_RPLiDAR_Struct(&rplidar_cfg)
     //  - RPLiDAR_UART_Init()   → Serial1.begin(460800)
     //  - STOP → RESET → GET_HEALTH → SCAN
-    Serial.println("[1/2] Initialising RPLiDAR C1...");
+    Serial.println("[1/3] Initializing RPLiDAR C1...");
     Initialize_RPLiDAR_C1(&rplidar_cfg);
 
     // Arm the acquisition FSM (IDLING → READY)
-    Serial.println("[2/2] Arming FSM...");
-    Start_Record(NULL);     // NULL → Scan_All (accept every angle)
+    Serial.println("[2/3] Arming FSM...");
+    Start_Record(NULL);     // NULL --> Scan_All function by default
+
+    // Now that all TX commands are sent, flush TX and replace HardwareSerial's
+    // LPUART6 vector with our bare-metal RX ISR.  Must happen AFTER init so
+    // that HardwareSerial's TX-interrupt path is no longer needed.
+    Serial.println("[3/3] Attaching bare-metal LPUART6 RX ISR...");
+    RPLiDAR_UART_AttachISR();
 
     Serial.println("Setup complete. Streaming scan frames:");
     Serial.println("----------------------------------------------");
@@ -158,82 +164,64 @@ void setup()
 
 void loop()
 {
-    // WaitForInterrupt();  // sleep until the next loop interval timer interrupt
 
-
-    // -------------------------------------------------------------------------
-    // Feed incoming bytes into the acquisition FSM.
-    //
-    // Polling approach — explicit and easy to debug during bring-up.
-    //
-    // Alternative once confirmed working:
-    //   Remove this while-loop and add instead:
-    //
-    //   void serialEvent1() {
-    //       while (Serial1.available())
-    //           RPLiDAR_ProcessByte(Serial1.read());
-    //   }
-    //
-    //   The serialEvent1 callback is automatically invoked by the Arduino
-    //   framework after each loop() return when bytes are available.
-    // -------------------------------------------------------------------------
-
-    while (RPLIDAR_Serial.available())
-        RPLiDAR_ProcessByte((uint8_t)RPLIDAR_Serial.read());
-
+    // Sleep until the next interrupt (LPUART6_RX_ISR or IntervalTimer).
+    // The Cortex-M7 wfi instruction resumes as soon as any unmasked
+    // interrupt fires, so byte processing latency is interrupt latency
+    // rather than polling latency.
+    WaitForInterrupt();
 
     // -------------------------------------------------------------------------
-    // Check if a complete scan frame has been captured
+    // TASK_4: process a complete scan frame (gated by the task scheduler)
+    //
+    // task_flag is set by Task_Selector() (IntervalTimer ISR) only when
+    // timer_ignore_flag == 0.  The LiDAR FSM sets timer_ignore_flag = 1
+    // via _timer_ignore() at recording start and clears it via
+    // _timer_acknowledge() when End_Record() transitions the state to
+    // PROCESSING.  So TASK_4_FLAG arrives only after a full frame is ready.
     // -------------------------------------------------------------------------
 
-    if (rplidar_cfg.current_state == PROCESSING) {
+    if (task_flag & TASK_4_FLAG) {
+        task_flag &= ~TASK_4_FLAG;
 
-        Process_RPLiDAR_Data(&rplidar_cloud);
+        if (rplidar_cfg.current_state == PROCESSING) {
 
-        rplidar_frame_count++;
+            Process_RPLiDAR_Data(&rplidar_cloud);
 
-        // --- Summary line ------------------------------------------------------
-        // Serial.printf("Frame %4u | %3u pts\n",
-        //               rplidar_frame_count,
-        //               rplidar_cloud.num_pts);
+            rplidar_frame_count++;
 
-        
+            Serial.printf("POSE,%5.2f,%5.2f,%5.2f\n",
+                        //   global_pose.x,
+                        //   global_pose.y,
+                        //   global_pose.theta);
+                          0.f,
+                          0.f,
+                          0.f);   
+            Serial.println("SCAN_START");
 
-        printf("POSE,%5.2f,%5.2f,%5.2f\n",
-        //         global_pose.x,
-        //         global_pose.y,
-        //         global_pose.theta);
-                0,
-                0,
-                0);
-
-        printf("SCAN_START\n");
-
-        // --- Optional per-point sample -----------------------------------------
 #if RPLIDAR_PRINT_POINTS > 0
-        uint32_t print_n = min((uint32_t)RPLIDAR_PRINT_POINTS,
-                               rplidar_cloud.num_pts);
+            uint32_t print_n = min((uint32_t)RPLIDAR_PRINT_POINTS,
+                                   rplidar_cloud.num_pts);
 
-        for (uint32_t i = 0; i < print_n; i++) {
-            // Serial.printf("  [%3u]  x = %8.2f mm   y = %8.2f mm\n",
-            //               i,
-            //               rplidar_cloud.points[i].x,
-            //               rplidar_cloud.points[i].y);
+            for (uint32_t i = 0; i < rplidar_cloud.num_pts; i++) {
+                
+    #ifdef PROCESSING4_OUTPUT
+                Serial.printf("P,%5.2f,%5.2f\n",
+                              rplidar_cloud.points[i].x,
+                              rplidar_cloud.points[i].y);
+    #endif
+                
+            }
 
     #ifdef PROCESSING4_OUTPUT
-            Serial.printf("P,%5.2f,%5.2f\n",
-                          rplidar_cloud.points[i].x,
-                          rplidar_cloud.points[i].y);
+            Serial.println("SCAN_END");
     #endif
-        }
-
-    #ifdef PROCESSING4_OUTPUT
-        printf("SCAN_END\n");
-    #endif
-
 #endif
 
-        // --- Re-arm for next frame ---------------------------------------------
-        RPLiDAR_ReArm();
-    }
+            // --- Re-arm for next frame -----------------------------------------
+            RPLiDAR_ReArm();
+
+        } // if (state == PROCESSING)
+
+    } // if (task_flag & TASK_4_FLAG)
 }

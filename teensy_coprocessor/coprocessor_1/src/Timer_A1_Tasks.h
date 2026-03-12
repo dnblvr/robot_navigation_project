@@ -28,7 +28,7 @@
  *      TASK 5: blank
  */
 
-#define MAX_DIV_FREQ    10
+#define MAX_DIV_FREQ    20
 
 //#define TASK_0_FLAG     0x01 << 0
 //#define TASK_0_DIV_FREQ 1

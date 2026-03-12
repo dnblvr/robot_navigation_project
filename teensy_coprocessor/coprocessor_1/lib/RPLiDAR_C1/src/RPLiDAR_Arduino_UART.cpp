@@ -40,7 +40,7 @@ extern volatile uint8_t timer_ignore_flag;
 static HardwareSerial* _serial = nullptr;
 
 /** Non-owning pointer to the caller's C1_States struct */
-C1_States* config = nullptr;
+C1_States* config       = nullptr;
 
 /** Pointer into the raw 5-byte staging buffer */
 uint8_t*  RX_POINTER    = nullptr;
@@ -81,11 +81,11 @@ static uint8_t  lidar_uart_buffer[FIND_INDEX];
 static uint32_t angle_distance_buffer[PROCESS_BUFFER_SIZE];
 
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 //
 //  DEBUG INSTRUMENTATION  (compiled only when RPLIDAR_DEBUG is defined)
 //
-// ============================================================================
+// ----------------------------------------------------------------------------
 //
 // All counters are written exclusively from ISR context so plain volatile
 // uint32_t increments are race-free (ISR can't preempt itself).
@@ -172,31 +172,31 @@ static inline void _timer_ignore(void)      { timer_ignore_flag = 1; }
 static inline void _timer_acknowledge(void) { timer_ignore_flag = 0; }
 
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 //
 //  DEFAULT ANGLE FILTER
 //
-// ============================================================================
+// ----------------------------------------------------------------------------
 
 uint8_t Scan_All(uint32_t /*data*/) { return 1; }
 
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 //
 //  PORT INJECTION
 //
-// ============================================================================
+// ----------------------------------------------------------------------------
 
 void RPLiDAR_UART_SetPort(HardwareSerial* port) {
     _serial = port;
 }
 
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 //
 //  PUBLIC CONFIGURATION FUNCTIONS
 //
-// ============================================================================
+// ----------------------------------------------------------------------------
 
 void Configure_RPLiDAR_Struct(const C1_States* input_config)
 {
@@ -217,7 +217,7 @@ void Configure_RPLiDAR_Struct(const C1_States* input_config)
 
 void Start_Record(Angle_Filter filter)
 {
-    // Install the angle filter (NULL → accept all)
+    // Install the angle filter (NULL --> accept all)
     config->angle_filter = (filter == nullptr) ? &Scan_All : filter;
 
     // Only arm if we are currently idling
@@ -226,13 +226,12 @@ void Start_Record(Angle_Filter filter)
 }
 
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 //
 //  BARE-METAL LPUART6 RX ISR
-//  (replaces EUSCIA2_IRQHandler on MSP432)
 //
-// ============================================================================
-//
+// ----------------------------------------------------------------------------
+
 // Strategy: call Serial1.begin(RPLIDAR_BAUD) to let HardwareSerial configure
 // the baud rate, I/O pins, FIFO, and CTRL enable bits, then overwrite the
 // single function-pointer HardwareSerial installed in _VectorsRam with our
@@ -288,6 +287,7 @@ FASTRUN void LPUART6_RX_ISR(void)
     } else {
 
         RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
+
         while (!((d = IMXRT_LPUART6.DATA) & LPUART_DATA_RXEMPT)) {
             RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
         }
@@ -295,10 +295,13 @@ FASTRUN void LPUART6_RX_ISR(void)
     }
 #else
     if (!(d & LPUART_DATA_RXEMPT)) {
+
         RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
+
         while (!((d = IMXRT_LPUART6.DATA) & LPUART_DATA_RXEMPT)) {
             RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
         }
+
     }
 #endif
 
@@ -306,11 +309,11 @@ FASTRUN void LPUART6_RX_ISR(void)
 }
 
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 //
 //  UART LIFECYCLE
 //
-// ============================================================================
+// ----------------------------------------------------------------------------
 
 void RPLiDAR_UART_Init(void)
 {
@@ -330,10 +333,15 @@ void RPLiDAR_UART_AttachISR(void)
 {
     if (_serial == nullptr) return;
 
-    // Block until the TX ring buffer is empty and the LPUART shift register
-    // is idle.  After flush() returns, HardwareSerial has already cleared
-    // CTRL.TIE, so no TX interrupt is pending.
-    _serial->flush();
+    _serial->flush();  // wait for any pending TX to finish before hijacking the vector
+
+    // Wait-blocks for TX FIFO to empty (WATER[19:16] = TXCOUNT)
+    //  - `7u`: this register holds 0b111 bits
+    // while (IMXRT_LPUART6.WATER & LPUART_WATER_TXCOUNT(7u));
+
+    // Then wait for shift register to finish
+    // while (!(IMXRT_LPUART6.STAT & LPUART_STAT_TC));
+
 
     // Disable the transmitter and receiver before making other CTRL changes
     IMXRT_LPUART6.CTRL &= ~(    LPUART_CTRL_TE
@@ -387,11 +395,11 @@ void RPLiDAR_UART_Restart(void)
 }
 
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 //
 //  BYTE-LEVEL I/O
 //
-// ============================================================================
+// ----------------------------------------------------------------------------
 
 void RPLiDAR_UART_OutChar(uint8_t byte)
 {
@@ -408,18 +416,19 @@ uint8_t RPLiDAR_UART_InChar(void)
 }
 
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 //
-//  FSM ACTION FUNCTIONS   (lifted verbatim from RPLiDAR_A2_UART.c)
+//  FSM ACTION FUNCTIONS
 //
-// ============================================================================
+// ----------------------------------------------------------------------------
 
 static void Hold_Action(void)
 {
+    // early-return if isr_counter has not yet reached `WAIT_INDEX`
     config->isr_counter++;
-
     if (config->isr_counter < WAIT_INDEX)   return;
 
+    // otherwise, transition to FIND_PATTERN and prepare for the search
     config->isr_counter = 0;
 
     if (config->current_state == READY) {
@@ -435,41 +444,43 @@ static void Hold_Action(void)
 
 static void Find_Pattern_Action(void)
 {
-    *(config->buffer_pointer++) = (uint8_t)data;
-
-    config->isr_counter++;
-
-    if (config->isr_counter < FIND_INDEX)   return;
-
-    config->isr_counter = 0;
-
+    // instantiate the pattern-matching variables
     uint32_t found = 0;
 
+
+    // Write the incoming byte into the staging buffer
+    *(config->buffer_pointer++) = (uint8_t)data;
+
+
+    // early-return if isr_counter does not exceed `FIND_INDEX` 
+    config->isr_counter++;
+    if (config->isr_counter < FIND_INDEX)   return;
+
+
+    // otherwise, reset the counter and search 
+    config->isr_counter = 0;
+
+
+    // pattern-search
     for (offset = 0; offset < MSG_LENGTH; offset++) {
 
-        if ( pattern(RX_POINTER + MSG_LENGTH*0 + offset) )
-            // Check all 4 packet starts within the 20-byte window
+        // Check all 4 packet starts within the 20-byte window
+        if ( pattern(RX_POINTER + MSG_LENGTH*0 + offset) ) {
             found =     pattern(RX_POINTER + MSG_LENGTH*1 + offset)
                      && pattern(RX_POINTER + MSG_LENGTH*2 + offset)
                      && pattern(RX_POINTER + MSG_LENGTH*3 + offset);
+        }
 
         if (!found) continue;
 
+        // Assuming `offset` is found at 0, it transitions to `RECORD` as the
+        // pattern is already aligned; otherwise it transitions to `ADD_OFFSET`
+        // to discard the first `offset` bytes.
         config->limit_status = (offset == 0) ? RECORD : ADD_OFFSET;
         break;
     }
 
-#ifdef RPLIDAR_DEBUG
-    
-    // If no pattern was found at any offset, count this as a find failure for post-mortem correlation with anomaly frames.
-    if (!found) {
-        dbg_find_fail++;
-    // otherwise, record at which offset this was found at
-    } else if (offset < (uint32_t)MSG_LENGTH) {
-        dbg_find_offsets[offset]++;
-    }
-#endif
-
+    // Prepare the common states for all three branches
     config->buffer_pointer          = RX_POINTER;
     config->interm_buffer_pointer   = INTERM_POINTER;
     config->interm_buffer_counter   = 0;
@@ -478,10 +489,11 @@ static void Find_Pattern_Action(void)
 
 static void Add_Offset_Action(void)
 {
+    // early-return if isr_counter has not yet reached `offset`
     config->isr_counter++;
-
     if (config->isr_counter < offset)   return;
 
+    // otherwise, reset the counter and begin recording
     config->isr_counter  = 0;
     config->limit_status = RECORD;
 }
@@ -500,11 +512,13 @@ static void Skip_Action(void)
         }
     }
 
+    // early-return if isr_counter has not yet reached `SKIP_INDEX`
     config->isr_counter++;
-
     if (config->isr_counter < SKIP_INDEX)   return;
 
+    // otherwise, reset the counter and wait, or process the frame if full
     config->isr_counter = 0;
+
 
     if (config->interm_buffer_counter > PROCESS_BUFFER_SIZE) {
 
@@ -524,12 +538,14 @@ static void Skip_Action(void)
 
 static void Record_Action(void)
 {
+    // Write the incoming byte into the staging buffer
     *(config->buffer_pointer++) = (uint8_t)data;
 
+    // early-return if isr_counter has not yet reached `MSG_LENGTH`
     config->isr_counter++;
-
     if (config->isr_counter < MSG_LENGTH)   return;
 
+    // otherwise, reset the counter and prepare for the next packet
     config->isr_counter     = 0;
     config->buffer_pointer  = RX_POINTER;
     config->limit_status    = SKIP;
@@ -565,7 +581,7 @@ static void Record_Action(void)
 
 // ----------------------------------------------------------------------------
 //
-//  FSM DISPATCH TABLE   (mirrors MSP432 FSM_Table[])
+//  FSM DISPATCH TABLE
 //
 // ----------------------------------------------------------------------------
 
@@ -581,26 +597,26 @@ static RPLiDAR_State_t FSM_Table[5] = {
 };
 
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 //
-//  BYTE PROCESSOR   (replaces EUSCIA2_IRQHandler)
+//  BYTE PROCESSOR
 //
-// ============================================================================
+// ----------------------------------------------------------------------------
 
 void RPLiDAR_ProcessByte(uint8_t b)
 {
     if (config == nullptr) return;
 
-    data = b;                                       // MSP432: data = RXBUF
-    FSM_Table[config->limit_status].action();       // same dispatch as ISR
+    data = b;                                   // MSP432: data = RXBUF
+    FSM_Table[config->limit_status].action();   // same dispatch as ISR
 }
 
 
-// ============================================================================
+// ----------------------------------------------------------------------------
 //
 //  PRIVATE HELPER IMPLEMENTATIONS
 //
-// ============================================================================
+// ----------------------------------------------------------------------------
 
 /**
  * @brief Check whether msg_ptr points to a valid RPLiDAR C1 5-byte packet

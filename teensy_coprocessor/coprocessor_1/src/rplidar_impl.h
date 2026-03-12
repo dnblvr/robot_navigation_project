@@ -75,11 +75,31 @@ static PointCloud rplidar_cloud;
 static uint32_t rplidar_frame_count = 0;
 
 
+// ----------------------------------------------------------------------------
+//  Re-arm helper
+// ----------------------------------------------------------------------------
+
+/**
+ * @brief Reset the acquisition FSM to READY after a PROCESSING frame.
+ *
+ * @details Call immediately after Process_RPLiDAR_Data() returns.
+ *  End_Record() (called internally when the buffer fills) leaves
+ *  limit_status == HOLD and buffer_pointer == RX_POINTER; we just need to
+ *  reset the byte counter and transition current_state back to READY.
+ */
+static inline void RPLiDAR_ReArm(void)
+{
+    rplidar_cfg.isr_counter   = 0;
+    rplidar_cfg.current_state = READY;
+    rplidar_cfg.limit_status  = HOLD;
+    // buffer_pointer is already == RX_POINTER (set by End_Record)
+    // interm_buffer_pointer and counter are reset by Find_Pattern_Action
+    //   on the next acquisition cycle
+}
 
 IntervalTimer loop_timer;
 
 #define LOOP_INTERVAL_MS 100
-#define MS_TO_US 1000
 
 
 
@@ -131,7 +151,7 @@ void setup()
     
     
     Serial.println("[3/3] Starting loop timer...");
-    loop_timer.begin(Task_Selector, LOOP_INTERVAL_MS * MS_TO_US); // convert ms to us
+    loop_timer.begin(Task_Selector, LOOP_INTERVAL_MS * 1000); // convert ms to us
 
     Serial.println("Setup complete. Streaming scan frames:");
     Serial.println("----------------------------------------------");
@@ -298,7 +318,7 @@ void loop()
 #endif  // RPLIDAR_DEBUG
 
             // --- Re-arm for next frame -----------------------------------------
-            // RPLiDAR_ReArm();
+            RPLiDAR_ReArm();
 
         } // if (state == PROCESSING)
 

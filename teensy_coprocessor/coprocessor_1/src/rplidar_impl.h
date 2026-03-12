@@ -26,13 +26,12 @@
 
 #pragma once
 
+
 #include <Arduino.h>
 
 #include <RPLiDAR_C1.h>
 
 #include "Timer_A1_Tasks.h"
-
-#define PROCESSING4_OUTPUT 1
 
 
 // ----------------------------------------------------------------------------
@@ -134,21 +133,21 @@ void setup()
 
     loop_timer.begin(Task_Selector, LOOP_INTERVAL_MS * 1000); // convert ms to us
 
-    // Initialise scanner:
+    // Initialize scanner:
     //  - Configure_RPLiDAR_Struct(&rplidar_cfg)
-    //  - RPLiDAR_UART_Init()   → Serial1.begin(460800)
-    //  - STOP → RESET → GET_HEALTH → SCAN
-    Serial.println("[1/3] Initializing RPLiDAR C1...");
+    //  - RPLiDAR_UART_Init()   --> Serial1.begin(460800)
+    //  - STOP --> RESET --> GET_HEALTH --> SCAN
+    Serial.println("Initializing RPLiDAR C1...");
     Initialize_RPLiDAR_C1(&rplidar_cfg);
 
-    // Arm the acquisition FSM (IDLING → READY)
-    Serial.println("[2/3] Arming FSM...");
+    // Arm the acquisition FSM (IDLING --> READY)
+    Serial.println("Arming FSM...");
     Start_Record(NULL);     // NULL --> Scan_All function by default
 
     // Now that all TX commands are sent, flush TX and replace HardwareSerial's
     // LPUART6 vector with our bare-metal RX ISR.  Must happen AFTER init so
     // that HardwareSerial's TX-interrupt path is no longer needed.
-    Serial.println("[3/3] Attaching bare-metal LPUART6 RX ISR...");
+    Serial.println("Attaching bare-metal LPUART6 RX ISR...");
     RPLiDAR_UART_AttachISR();
 
     Serial.println("Setup complete. Streaming scan frames:");
@@ -164,6 +163,7 @@ void setup()
 
 void loop()
 {
+    // Serial.println("Entering loop()...");
 
     // Sleep until the next interrupt (LPUART6_RX_ISR or IntervalTimer).
     // The Cortex-M7 wfi instruction resumes as soon as any unmasked
@@ -189,7 +189,8 @@ void loop()
             Process_RPLiDAR_Data(&rplidar_cloud);
 
             rplidar_frame_count++;
-
+            
+            #ifdef PROCESSING4_OUTPUT
             Serial.printf("POSE,%5.2f,%5.2f,%5.2f\n",
                         //   global_pose.x,
                         //   global_pose.y,
@@ -198,6 +199,7 @@ void loop()
                           0.f,
                           0.f);   
             Serial.println("SCAN_START");
+            #endif
 
 #if RPLIDAR_PRINT_POINTS > 0
             uint32_t print_n = min((uint32_t)RPLIDAR_PRINT_POINTS,
@@ -217,6 +219,64 @@ void loop()
             Serial.println("SCAN_END");
     #endif
 #endif
+
+            // ----------------------------------------------------------------
+            // DEBUG STATS  (printed every frame under RPLIDAR_DEBUG)
+            // ----------------------------------------------------------------
+            // Each metric answers one diagnostic question:
+            //   empty_fifo  — ISR fired but FIFO was already empty on entry
+            //                 (RXEMPT on first read); should always be 0.
+            //   find[0..4]  — how many times each byte-offset was used to
+            //                 re-align the stream; normally only offset 0 fires.
+            //   find_fail   — times no valid packet boundary was found in a
+            //                 20-byte window; 0 = data stream is clean.
+            //   bad_start   — times Record_Action byte-0 had wrong start bits;
+            //                 any value > 0 means the FSM byte counter drifted.
+            //   interm      — points stored before End_Record; expected ~100.
+            // ----------------------------------------------------------------
+#ifdef RPLIDAR_DEBUG
+            // Serial.printf("[DBG F=%lu] pts=%u interm=%lu | "
+            //               "empty_fifo=%lu | "
+            //               "find[0..4]={%lu,%lu,%lu,%lu,%lu} fail=%lu | "
+            //               "bad_start=%lu\n",
+            //               rplidar_frame_count,
+            //               rplidar_cloud.num_pts,
+            //               dbg_last_interm,
+            //               dbg_isr_empty_entry,
+            //               dbg_find_offsets[0], dbg_find_offsets[1],
+            //               dbg_find_offsets[2], dbg_find_offsets[3],
+            //               dbg_find_offsets[4],
+            //               dbg_find_fail,
+            //               dbg_bad_start_bit);
+
+            // Highlight frames that contain any anomaly
+            if (
+                //     invalid_pts         > 0
+                // ||  dbg_bad_start_bit   > 0
+                // ||  dbg_find_fail       > 0
+                // ||  dbg_isr_empty_entry > 0
+                dbg_bad_packet_valid
+            )
+            {
+                Serial.printf(  "[ANOMALY F=%lu] bad_start=%lu "
+                                "find_fail=%lu empty_fifo=%lu\n",
+                                rplidar_frame_count,
+                                dbg_bad_start_bit,
+                                dbg_find_fail,
+                                dbg_isr_empty_entry);
+            }
+            
+            if (dbg_bad_packet_valid) {
+                Serial.printf(  "[BAD PKT] %02X %02X %02X %02X %02X"
+                                "  (start_bits=%u, expected 1 or 2)\n",
+                                dbg_bad_packet[0], dbg_bad_packet[1],
+                                dbg_bad_packet[2], dbg_bad_packet[3],
+                                dbg_bad_packet[4],
+                                dbg_bad_packet[0] & 0x03u);
+            }
+            
+            RPLiDAR_ResetDebugStats();
+#endif  // RPLIDAR_DEBUG
 
             // --- Re-arm for next frame -----------------------------------------
             RPLiDAR_ReArm();

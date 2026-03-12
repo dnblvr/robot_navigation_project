@@ -116,14 +116,24 @@ volatile uint8_t  dbg_bad_packet_valid = 0;
 /** Value of interm_buffer_counter at the moment End_Record was last called. */
 volatile uint32_t dbg_last_interm      = 0;
 
+/**
+ * STAT.OR (receive overrun) was set when the ISR entered — one byte was
+ * silently dropped from the FIFO.  Each increment = one lost byte = one
+ * potential frame-level misalignment event.
+ */
+volatile uint32_t dbg_stat_or         = 0;
+
 void RPLiDAR_ResetDebugStats(void)
 {
     dbg_isr_empty_entry  = 0;
     dbg_find_fail        = 0;
-    for (uint8_t _i = 0; _i < 5; _i++) dbg_find_offsets[_i] = 0;
+    for (uint8_t _i = 0; _i < 5; _i++)
+        dbg_find_offsets[_i] = 0;
     dbg_bad_start_bit    = 0;
     dbg_bad_packet_valid = 0;
     dbg_last_interm      = 0;
+    dbg_stat_or          = 0;
+
 }
 
 #endif  // RPLIDAR_DEBUG
@@ -238,23 +248,55 @@ void Start_Record(Angle_Filter filter)
 
 FASTRUN void LPUART6_RX_ISR(void)
 {
-    // Read the first DATA word atomically.
-    // LPUART_DATA_RXEMPT (bit 12) is set by the hardware when the FIFO was
-    // already empty at the time of the read — the byte value is invalid.
-    // This single combined read eliminates the two-bus-cycle race that
-    // existed between reading WATER and then reading DATA separately.
+    // ---- Overrun detection -------------------------------------------------
+    // STAT.OR (bit 19, W1C) is set when the 4-byte RX FIFO filled and the
+    // next incoming byte was discarded.  That lost byte causes the FSM byte
+    // counter to drift by one, misaligning every subsequent packet for the
+    // entire frame.  We detect and count overruns so anomaly frames can be
+    // correlated; clearing OR via |= may also clear other co-asserted W1C
+    // flags (NF, FE, PF) — acceptable because the affected bytes are already
+    // in (or lost from) the FIFO and cannot be recovered.
+    //
+    // ILIE has been disabled in RPLiDAR_UART_AttachISR() so the idle-line
+    // flag can no longer trigger this ISR; no IDLE handling is needed here.
+#ifdef RPLIDAR_DEBUG
+    if (IMXRT_LPUART6.STAT & LPUART_STAT_OR) {
+        dbg_stat_or++;
+        IMXRT_LPUART6.STAT |= LPUART_STAT_OR;
+    }
+#else
+    if (IMXRT_LPUART6.STAT & LPUART_STAT_OR) {
+        IMXRT_LPUART6.STAT |= LPUART_STAT_OR;
+    }
+#endif
+
+    // ---- FIFO drain --------------------------------------------------------
+    // Read the first DATA word atomically: LPUART_DATA_RXEMPT (bit 12) is
+    // set when the FIFO was already empty at the time of the read.  With
+    // ILIE disabled, this ISR fires only due to RDRF, so the first read
+    // almost always returns a valid byte; the counter is just a safety net.
     uint32_t d = IMXRT_LPUART6.DATA;
+
+    
 
 #ifdef RPLIDAR_DEBUG
     if (d & LPUART_DATA_RXEMPT) {
-        // ISR fired (RDRF or IDLE) but FIFO was already empty on entry.
-        // Count for diagnosis; nothing to feed the FSM.
+
+        // FIFO empty on entry despite RDRF — rare timing edge case.
         dbg_isr_empty_entry++;
+
     } else {
+
         RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
         while (!((d = IMXRT_LPUART6.DATA) & LPUART_DATA_RXEMPT)) {
             RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
         }
+
+        // do {
+        //     RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
+        //     d = IMXRT_LPUART6.DATA;
+        // } while (!(d & LPUART_DATA_RXEMPT));
+        
     }
 #else
     if (!(d & LPUART_DATA_RXEMPT)) {
@@ -265,10 +307,7 @@ FASTRUN void LPUART6_RX_ISR(void)
     }
 #endif
 
-    // Clear idle-line flag (W1C) so ILIE does not re-enter immediately
-    if (IMXRT_LPUART6.STAT  & LPUART_STAT_IDLE) {
-        IMXRT_LPUART6.STAT |= LPUART_STAT_IDLE;
-    }
+
 }
 
 
@@ -306,20 +345,21 @@ void RPLiDAR_UART_AttachISR(void)
     //
     // Why disable ILIE:
     //   HardwareSerial enables ILIE to detect end-of-packet.  We don't need
-    //   it: the FSM counts bytes internally.  Leaving it enabled causes ~2 400
-    //   useless ISR invocations per 100 ms frame (one per inter-packet idle gap
-    //   at 4 090 packets/sec).  Worse, each idle ISR performs a read-modify-
-    //   write on STAT to clear LPUART_STAT_IDLE; if STAT.OR (receive overrun)
-    //   is set at that moment, the |= silently clears it, hiding the evidence
-    //   of the byte-drop that causes FSM drift.
+    //   it: the FSM counts bytes internally.  Leaving it enabled causes
+    //   ~2 400 useless ISR invocations per 100 ms frame (one per inter-packet
+    //   idle gap at 4 090 packets/sec).  Worse, the IDLE ISR path performs a
+    //   read-modify-write on STAT to clear LPUART_STAT_IDLE; if STAT.OR
+    //   (receive overrun) happens to be set at that moment, |= silently clears
+    //   it — hiding the evidence of the very byte-drop that causes FSM drift.
     IMXRT_LPUART6.CTRL &= ~(    LPUART_CTRL_TIE
                             |   LPUART_CTRL_TCIE
                             |   LPUART_CTRL_ILIE);
 
-    // Clear any IDLE and OR (overrun) flags left pending from the init-command phase.
-    IMXRT_LPUART6.STAT |= LPUART_STAT_IDLE | LPUART_STAT_OR;
+    // Clear any IDLE and OR flags left pending from the init-command phase.
+    IMXRT_LPUART6.STAT |=       LPUART_STAT_IDLE
+                            |   LPUART_STAT_OR;
 
-    // Safe to replace the vector now. From this point all LPUART6
+    // Safe to replace the vector now.  From this point all LPUART6
     // interrupts are handled by LPUART6_RX_ISR.
     attachInterruptVector(IRQ_LPUART6, LPUART6_RX_ISR);
     NVIC_SET_PRIORITY(IRQ_LPUART6, 64);  // match HardwareSerial default
@@ -405,6 +445,10 @@ static void Find_Pattern_Action(void)
     for (offset = 0; offset < MSG_LENGTH; offset++) {
 
         if ( pattern(RX_POINTER + MSG_LENGTH*0 + offset) )
+            // Check all 4 packet starts within the 20-byte window.
+            // FIND_INDEX = 4 × MSG_LENGTH, so offset + MSG_LENGTH*3 ≤ 19
+            // for any offset in [0, 4].  Four consecutive checks reduce the
+            // false-lock probability from (0.25)³ ≈ 1.6 % to (0.25)⁴ ≈ 0.4 %.
             found =     pattern(RX_POINTER + MSG_LENGTH*1 + offset)
                      && pattern(RX_POINTER + MSG_LENGTH*2 + offset)
                      && pattern(RX_POINTER + MSG_LENGTH*3 + offset);
@@ -495,11 +539,8 @@ static void Record_Action(void)
     // counter was misaligned — we are recording from the wrong position.
     {
         uint8_t sb = RX_POINTER[0] & 0x03u;
-        
         if (sb != 0x01u && sb != 0x02u) {
-
             dbg_bad_start_bit++;
-
             if (!dbg_bad_packet_valid) {
                 // Capture first offending packet verbatim for post-mortem.
                 for (uint8_t _i = 0; _i < MSG_LENGTH; _i++)

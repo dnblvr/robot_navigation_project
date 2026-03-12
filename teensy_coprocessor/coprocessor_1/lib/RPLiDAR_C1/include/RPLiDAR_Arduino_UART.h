@@ -306,6 +306,15 @@ extern volatile uint8_t  dbg_bad_packet_valid;
 extern volatile uint32_t dbg_last_interm;
 
 /**
+ * STAT.OR (receive overrun) set on ISR entry — one byte was silently
+ * dropped from the FIFO.  Each increment = one potential 1-byte FSM drift.
+ */
+extern volatile uint32_t dbg_stat_or;
+
+/** Number of frame errors detected. */
+extern volatile uint32_t dbg_num_frame_errors;
+
+/**
  * @brief Zero all debug counters.  Call from loop() after printing stats.
  */
 void RPLiDAR_ResetDebugStats(void);

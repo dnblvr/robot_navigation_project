@@ -26,12 +26,14 @@
 
 #pragma once
 
-
 #include <Arduino.h>
 
 #include <RPLiDAR_C1.h>
 
 #include "Timer_A1_Tasks.h"
+
+// #define PROCESSING4_OUTPUT 1
+#define RPLIDAR_DEBUG       1
 
 
 // ----------------------------------------------------------------------------
@@ -133,21 +135,21 @@ void setup()
 
     loop_timer.begin(Task_Selector, LOOP_INTERVAL_MS * 1000); // convert ms to us
 
-    // Initialize scanner:
+    // Initialise scanner:
     //  - Configure_RPLiDAR_Struct(&rplidar_cfg)
-    //  - RPLiDAR_UART_Init()   --> Serial1.begin(460800)
-    //  - STOP --> RESET --> GET_HEALTH --> SCAN
-    Serial.println("Initializing RPLiDAR C1...");
+    //  - RPLiDAR_UART_Init()   → Serial1.begin(460800)
+    //  - STOP → RESET → GET_HEALTH → SCAN
+    Serial.println("[1/3] Initializing RPLiDAR C1...");
     Initialize_RPLiDAR_C1(&rplidar_cfg);
 
-    // Arm the acquisition FSM (IDLING --> READY)
-    Serial.println("Arming FSM...");
+    // Arm the acquisition FSM (IDLING → READY)
+    Serial.println("[2/3] Arming FSM...");
     Start_Record(NULL);     // NULL --> Scan_All function by default
 
     // Now that all TX commands are sent, flush TX and replace HardwareSerial's
     // LPUART6 vector with our bare-metal RX ISR.  Must happen AFTER init so
     // that HardwareSerial's TX-interrupt path is no longer needed.
-    Serial.println("Attaching bare-metal LPUART6 RX ISR...");
+    Serial.println("[3/3] Attaching bare-metal LPUART6 RX ISR...");
     RPLiDAR_UART_AttachISR();
 
     Serial.println("Setup complete. Streaming scan frames:");
@@ -163,7 +165,6 @@ void setup()
 
 void loop()
 {
-    // Serial.println("Entering loop()...");
 
     // Sleep until the next interrupt (LPUART6_RX_ISR or IntervalTimer).
     // The Cortex-M7 wfi instruction resumes as soon as any unmasked
@@ -249,30 +250,58 @@ void loop()
             //               dbg_find_fail,
             //               dbg_bad_start_bit);
 
+            // Point-cloud sanity: every distance must be in a plausible range
+            // for the RPLiDAR C1 (non-zero, ≤ 8 000 mm).
+            // uint32_t invalid_pts = 0;
+            // for (uint32_t _i = 0; _i < rplidar_cloud.num_pts; _i++) {
+
+            //     float x     = rplidar_cloud.points[_i].x;
+            //     float y     = rplidar_cloud.points[_i].y;
+            //     float _dist = sqrtf(x*x + y*y);
+
+            //     if (_dist < 0.1f || _dist > 8000.0f)
+            //         invalid_pts++;
+            // }
+
             // Highlight frames that contain any anomaly
             if (
                 //     invalid_pts         > 0
                 // ||  dbg_bad_start_bit   > 0
                 // ||  dbg_find_fail       > 0
                 // ||  dbg_isr_empty_entry > 0
+
                 dbg_bad_packet_valid
+
             )
             {
-                Serial.printf(  "[ANOMALY F=%lu] bad_start=%lu "
-                                "find_fail=%lu empty_fifo=%lu\n",
-                                rplidar_frame_count,
-                                dbg_bad_start_bit,
-                                dbg_find_fail,
-                                dbg_isr_empty_entry);
+                Serial.printf(  "[ANOMALY F=%lu] bad_start=%lu"
+                                " find_fail=%lu"
+                                " stat_or=%lu"
+                                // " empty_fifo=%lu"
+                                "\n"
+                                , rplidar_frame_count
+                                , dbg_bad_start_bit
+                                , dbg_find_fail
+                                , dbg_stat_or
+                                // , dbg_isr_empty_entry
+                            );
+
+            } else {
+                Serial.printf("[OK F=%lu]\n",
+                              rplidar_frame_count);
             }
             
             if (dbg_bad_packet_valid) {
-                Serial.printf(  "[BAD PKT] %02X %02X %02X %02X %02X"
-                                "  (start_bits=%u, expected 1 or 2)\n",
-                                dbg_bad_packet[0], dbg_bad_packet[1],
-                                dbg_bad_packet[2], dbg_bad_packet[3],
-                                dbg_bad_packet[4],
-                                dbg_bad_packet[0] & 0x03u);
+                Serial.printf(  "[BAD PKT] "
+                                // "%02X"
+                                " %02X %02X %02X %02X"
+                                "  (start_bits=%u, expected 1 or 2)\n"
+                                , dbg_bad_packet[0]
+                                // , dbg_bad_packet[1]
+                                // , dbg_bad_packet[2]
+                                // , dbg_bad_packet[3]
+                                // , dbg_bad_packet[4]
+                                , dbg_bad_packet[0] & 0x03u);
             }
             
             RPLiDAR_ResetDebugStats();

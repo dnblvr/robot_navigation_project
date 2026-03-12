@@ -27,13 +27,9 @@
 #pragma once
 
 #include <Arduino.h>
-
 #include <RPLiDAR_C1.h>
 
 #include "Timer_A1_Tasks.h"
-
-// #define PROCESSING4_OUTPUT 1
-#define RPLIDAR_DEBUG       1
 
 
 // ----------------------------------------------------------------------------
@@ -46,11 +42,6 @@
  */
 #define RPLIDAR_Serial  Serial1
 
-/**
- * @brief How many points to echo to the USB Serial monitor each frame.
- *        Set to 0 to suppress per-point output entirely.
- */
-#define RPLIDAR_PRINT_POINTS    5
 
 
 // ----------------------------------------------------------------------------
@@ -69,38 +60,16 @@ static C1_States rplidar_cfg;
  */
 static PointCloud rplidar_cloud;
 
-/**
- * @brief Frame counter for simple rate monitoring.
- */
-static uint32_t rplidar_frame_count = 0;
-
 
 // ----------------------------------------------------------------------------
 //  Re-arm helper
 // ----------------------------------------------------------------------------
 
-/**
- * @brief Reset the acquisition FSM to READY after a PROCESSING frame.
- *
- * @details Call immediately after Process_RPLiDAR_Data() returns.
- *  End_Record() (called internally when the buffer fills) leaves
- *  limit_status == HOLD and buffer_pointer == RX_POINTER; we just need to
- *  reset the byte counter and transition current_state back to READY.
- */
-static inline void RPLiDAR_ReArm(void)
-{
-    rplidar_cfg.isr_counter   = 0;
-    rplidar_cfg.current_state = READY;
-    rplidar_cfg.limit_status  = HOLD;
-    // buffer_pointer is already == RX_POINTER (set by End_Record)
-    // interm_buffer_pointer and counter are reset by Find_Pattern_Action
-    //   on the next acquisition cycle
-}
 
 IntervalTimer loop_timer;
 
+#define MS_TO_US        1000
 #define LOOP_INTERVAL_MS 100
-
 
 
 /**
@@ -120,13 +89,15 @@ IntervalTimer loop_timer;
 
 void setup()
 {
-    // USB CDC — wait for monitor so initialisation messages aren't lost
+    // USB CDC — wait for monitor so initialization messages aren't lost
     Serial.begin(115200);
     while (!Serial);
+
 
     Serial.println("==============================================");
     Serial.println("  RPLiDAR C1 — Teensy Arduino port test");
     Serial.println("==============================================");
+
 
     // Bind Serial1 to the RPLiDAR driver ---------------------------------
     RPLiDAR_UART_SetPort(&RPLIDAR_Serial);
@@ -134,14 +105,11 @@ void setup()
     
     // Initialise scanner:
     //  - Configure_RPLiDAR_Struct(&rplidar_cfg)
-    //  - RPLiDAR_UART_Init()   → Serial1.begin(460800)
-    //  - STOP → RESET → GET_HEALTH → SCAN
+    //  - RPLiDAR_UART_Init()   --> Serial1.begin(460800)
+    //  - STOP --> RESET --> GET_HEALTH --> SCAN
     Serial.println("[1/3] Initializing RPLiDAR C1...");
     Initialize_RPLiDAR_C1(&rplidar_cfg);
-    
-    // Arm the acquisition FSM (IDLING → READY)
-    // Serial.println("[2/3] Arming FSM...");
-    // Start_Record(NULL);     // NULL --> Scan_All function by default
+
     
     // Now that all TX commands are sent, flush TX and replace HardwareSerial's
     // LPUART6 vector with our bare-metal RX ISR.  Must happen AFTER init so
@@ -151,7 +119,8 @@ void setup()
     
     
     Serial.println("[3/3] Starting loop timer...");
-    loop_timer.begin(Task_Selector, LOOP_INTERVAL_MS * 1000); // convert ms to us
+    loop_timer.begin(Task_Selector, LOOP_INTERVAL_MS * MS_TO_US);
+
 
     Serial.println("Setup complete. Streaming scan frames:");
     Serial.println("----------------------------------------------");
@@ -198,7 +167,6 @@ void loop()
 
             Process_RPLiDAR_Data(&rplidar_cloud);
 
-            rplidar_frame_count++;
             
             #ifdef PROCESSING4_OUTPUT
             Serial.printf("POSE,%5.2f,%5.2f,%5.2f\n",
@@ -211,9 +179,6 @@ void loop()
             Serial.println("SCAN_START");
             #endif
 
-#if RPLIDAR_PRINT_POINTS > 0
-            uint32_t print_n = min((uint32_t)RPLIDAR_PRINT_POINTS,
-                                   rplidar_cloud.num_pts);
 
             for (uint32_t i = 0; i < rplidar_cloud.num_pts; i++) {
                 
@@ -228,7 +193,6 @@ void loop()
     #ifdef PROCESSING4_OUTPUT
             Serial.println("SCAN_END");
     #endif
-#endif
 
             // ----------------------------------------------------------------
             // DEBUG STATS  (printed every frame under RPLIDAR_DEBUG)
@@ -246,19 +210,19 @@ void loop()
             // ----------------------------------------------------------------
 
             #ifdef RPLIDAR_DEBUG
-            // Serial.printf("[DBG F=%lu] pts=%u interm=%lu | "
-            //               "empty_fifo=%lu | "
-            //               "find[0..4]={%lu,%lu,%lu,%lu,%lu} fail=%lu | "
-            //               "bad_start=%lu\n",
-            //               rplidar_frame_count,
-            //               rplidar_cloud.num_pts,
-            //               dbg_last_interm,
-            //               dbg_isr_empty_entry,
-            //               dbg_find_offsets[0], dbg_find_offsets[1],
-            //               dbg_find_offsets[2], dbg_find_offsets[3],
-            //               dbg_find_offsets[4],
-            //               dbg_find_fail,
-            //               dbg_bad_start_bit);
+            Serial.printf("[DBG F=%lu] pts=%u interm=%lu | "
+                          "empty_fifo=%lu | "
+                          "find[0..4]={%lu,%lu,%lu,%lu,%lu} fail=%lu | "
+                          "bad_start=%lu\n",
+                          rplidar_frame_count,
+                          rplidar_cloud.num_pts,
+                          dbg_last_interm,
+                          dbg_isr_empty_entry,
+                          dbg_find_offsets[0], dbg_find_offsets[1],
+                          dbg_find_offsets[2], dbg_find_offsets[3],
+                          dbg_find_offsets[4],
+                          dbg_find_fail,
+                          dbg_bad_start_bit);
 
             // Point-cloud sanity: every distance must be in a plausible range
             // for the RPLiDAR C1 (non-zero, ≤ 8 000 mm).
@@ -318,7 +282,7 @@ void loop()
 #endif  // RPLIDAR_DEBUG
 
             // --- Re-arm for next frame -----------------------------------------
-            RPLiDAR_ReArm();
+            rplidar_cfg.current_state   = IDLING;
 
         } // if (state == PROCESSING)
 

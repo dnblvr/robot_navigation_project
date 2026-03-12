@@ -291,11 +291,6 @@ FASTRUN void LPUART6_RX_ISR(void)
         while (!((d = IMXRT_LPUART6.DATA) & LPUART_DATA_RXEMPT)) {
             RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
         }
-
-        // do {
-        //     RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
-        //     d = IMXRT_LPUART6.DATA;
-        // } while (!(d & LPUART_DATA_RXEMPT));
         
     }
 #else
@@ -340,6 +335,10 @@ void RPLiDAR_UART_AttachISR(void)
     // CTRL.TIE, so no TX interrupt is pending.
     _serial->flush();
 
+    // Disable the transmitter and receiver before making other CTRL changes
+    IMXRT_LPUART6.CTRL &= ~(    LPUART_CTRL_TE
+                            |   LPUART_CTRL_RE);
+
     // Belt-and-suspenders: explicitly clear TX interrupt enables AND the idle
     // line interrupt enable (ILIE) so no spurious interrupt can fire.
     //
@@ -358,6 +357,10 @@ void RPLiDAR_UART_AttachISR(void)
     // Clear any IDLE and OR flags left pending from the init-command phase.
     IMXRT_LPUART6.STAT |=       LPUART_STAT_IDLE
                             |   LPUART_STAT_OR;
+
+
+    // after every changes made, it is safe to re-enable the receiver
+    IMXRT_LPUART6.CTRL |=       LPUART_CTRL_RE;
 
     // Safe to replace the vector now.  From this point all LPUART6
     // interrupts are handled by LPUART6_RX_ISR.
@@ -445,10 +448,7 @@ static void Find_Pattern_Action(void)
     for (offset = 0; offset < MSG_LENGTH; offset++) {
 
         if ( pattern(RX_POINTER + MSG_LENGTH*0 + offset) )
-            // Check all 4 packet starts within the 20-byte window.
-            // FIND_INDEX = 4 × MSG_LENGTH, so offset + MSG_LENGTH*3 ≤ 19
-            // for any offset in [0, 4].  Four consecutive checks reduce the
-            // false-lock probability from (0.25)³ ≈ 1.6 % to (0.25)⁴ ≈ 0.4 %.
+            // Check all 4 packet starts within the 20-byte window
             found =     pattern(RX_POINTER + MSG_LENGTH*1 + offset)
                      && pattern(RX_POINTER + MSG_LENGTH*2 + offset)
                      && pattern(RX_POINTER + MSG_LENGTH*3 + offset);
@@ -460,9 +460,11 @@ static void Find_Pattern_Action(void)
     }
 
 #ifdef RPLIDAR_DEBUG
-    // Record whether the search succeeded and at which offset.
+    
+    // If no pattern was found at any offset, count this as a find failure for post-mortem correlation with anomaly frames.
     if (!found) {
         dbg_find_fail++;
+    // otherwise, record at which offset this was found at
     } else if (offset < (uint32_t)MSG_LENGTH) {
         dbg_find_offsets[offset]++;
     }

@@ -75,31 +75,11 @@ static PointCloud rplidar_cloud;
 static uint32_t rplidar_frame_count = 0;
 
 
-// ----------------------------------------------------------------------------
-//  Re-arm helper
-// ----------------------------------------------------------------------------
-
-/**
- * @brief Reset the acquisition FSM to READY after a PROCESSING frame.
- *
- * @details Call immediately after Process_RPLiDAR_Data() returns.
- *  End_Record() (called internally when the buffer fills) leaves
- *  limit_status == HOLD and buffer_pointer == RX_POINTER; we just need to
- *  reset the byte counter and transition current_state back to READY.
- */
-static inline void RPLiDAR_ReArm(void)
-{
-    rplidar_cfg.isr_counter   = 0;
-    rplidar_cfg.current_state = READY;
-    rplidar_cfg.limit_status  = HOLD;
-    // buffer_pointer is already == RX_POINTER (set by End_Record)
-    // interm_buffer_pointer and counter are reset by Find_Pattern_Action
-    //   on the next acquisition cycle
-}
 
 IntervalTimer loop_timer;
 
 #define LOOP_INTERVAL_MS 100
+#define MS_TO_US 1000
 
 
 
@@ -132,25 +112,26 @@ void setup()
     RPLiDAR_UART_SetPort(&RPLIDAR_Serial);
 
     
-
-    loop_timer.begin(Task_Selector, LOOP_INTERVAL_MS * 1000); // convert ms to us
-
     // Initialise scanner:
     //  - Configure_RPLiDAR_Struct(&rplidar_cfg)
     //  - RPLiDAR_UART_Init()   → Serial1.begin(460800)
     //  - STOP → RESET → GET_HEALTH → SCAN
     Serial.println("[1/3] Initializing RPLiDAR C1...");
     Initialize_RPLiDAR_C1(&rplidar_cfg);
-
+    
     // Arm the acquisition FSM (IDLING → READY)
-    Serial.println("[2/3] Arming FSM...");
-    Start_Record(NULL);     // NULL --> Scan_All function by default
-
+    // Serial.println("[2/3] Arming FSM...");
+    // Start_Record(NULL);     // NULL --> Scan_All function by default
+    
     // Now that all TX commands are sent, flush TX and replace HardwareSerial's
     // LPUART6 vector with our bare-metal RX ISR.  Must happen AFTER init so
     // that HardwareSerial's TX-interrupt path is no longer needed.
-    Serial.println("[3/3] Attaching bare-metal LPUART6 RX ISR...");
+    Serial.println("[2/3] Attaching bare-metal LPUART6 RX ISR...");
     RPLiDAR_UART_AttachISR();
+    
+    
+    Serial.println("[3/3] Starting loop timer...");
+    loop_timer.begin(Task_Selector, LOOP_INTERVAL_MS * MS_TO_US); // convert ms to us
 
     Serial.println("Setup complete. Streaming scan frames:");
     Serial.println("----------------------------------------------");
@@ -171,6 +152,14 @@ void loop()
     // interrupt fires, so byte processing latency is interrupt latency
     // rather than polling latency.
     WaitForInterrupt();
+
+    
+    if (task_flag & TASK_3_FLAG) {
+        task_flag &= ~TASK_3_FLAG;
+        
+        Start_Record(NULL);
+
+    }
 
     // -------------------------------------------------------------------------
     // TASK_4: process a complete scan frame (gated by the task scheduler)
@@ -235,7 +224,8 @@ void loop()
             //                 any value > 0 means the FSM byte counter drifted.
             //   interm      — points stored before End_Record; expected ~100.
             // ----------------------------------------------------------------
-#ifdef RPLIDAR_DEBUG
+
+            #ifdef RPLIDAR_DEBUG
             // Serial.printf("[DBG F=%lu] pts=%u interm=%lu | "
             //               "empty_fifo=%lu | "
             //               "find[0..4]={%lu,%lu,%lu,%lu,%lu} fail=%lu | "
@@ -292,9 +282,9 @@ void loop()
             }
             
             if (dbg_bad_packet_valid) {
-                Serial.printf(  "[BAD PKT] "
-                                // "%02X"
-                                " %02X %02X %02X %02X"
+                Serial.printf(  "[BAD PKT]"
+                                " %02X"
+                                // " %02X %02X %02X %02X"
                                 "  (start_bits=%u, expected 1 or 2)\n"
                                 , dbg_bad_packet[0]
                                 // , dbg_bad_packet[1]
@@ -308,7 +298,7 @@ void loop()
 #endif  // RPLIDAR_DEBUG
 
             // --- Re-arm for next frame -----------------------------------------
-            RPLiDAR_ReArm();
+            // RPLiDAR_ReArm();
 
         } // if (state == PROCESSING)
 

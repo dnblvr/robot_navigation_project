@@ -219,7 +219,7 @@ void RPLiDAR_UART_Restart(void);
  *
  * @param data   Byte to send.
  */
-void    RPLiDAR_UART_OutChar(uint8_t data);
+void RPLiDAR_UART_OutChar(uint8_t data);
 
 
 /**
@@ -239,20 +239,7 @@ uint8_t RPLiDAR_UART_InChar(void);
 /**
  * @brief Feed one received byte into the acquisition FSM.
  *
- * @details This is the direct replacement for EUSCIA2_IRQHandler().  Call it
- *  from a serialEventN() callback or from a polling loop:
- *
- *  @code
- *  // Option A – serialEvent (called automatically after loop())
- *  void serialEvent1() {
- *      while (Serial1.available())
- *          RPLiDAR_ProcessByte(Serial1.read());
- *  }
- *
- *  // Option B – polling from loop()
- *  while (Serial1.available())
- *      RPLiDAR_ProcessByte(Serial1.read());
- *  @endcode
+ * @details This is the direct replacement for EUSCIA2_IRQHandler().
  *
  * @param b  Byte freshly read from the serial port.
  */

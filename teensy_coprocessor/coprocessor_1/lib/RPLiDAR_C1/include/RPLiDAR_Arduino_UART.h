@@ -130,25 +130,6 @@ typedef struct {
 
 // ----------------------------------------------------------------------------
 //
-//  PORT INJECTION
-//
-// ----------------------------------------------------------------------------
-
-/**
- * @brief Bind a HardwareSerial port to the driver.
- *
- * @details Must be called before RPLiDAR_UART_Init().  The driver stores a
- *  pointer to the supplied port; the caller is responsible for keeping the
- *  object alive (e.g. pass &Serial1 which is a forever-live global).
- *
- * @param port  Pointer to any HardwareSerial instance (Serial1…Serial8 on
- *              Teensy 4.x).
- */
-void RPLiDAR_UART_SetPort(HardwareSerial* port);
-
-
-// ----------------------------------------------------------------------------
-//
 //  PUBLIC CONFIGURATION FUNCTIONS
 //
 // ----------------------------------------------------------------------------
@@ -175,6 +156,19 @@ void Start_Record(Angle_Filter filter);
 //  UART LIFECYCLE  (analogous to EUSCI_A2_UART_Init/Stop/Restart)
 //
 // ----------------------------------------------------------------------------
+
+
+/**
+ * @brief Bind a HardwareSerial port to the driver.
+ *
+ * @details Must be called before RPLiDAR_UART_Init().  The driver stores a
+ *  pointer to the supplied port; the caller is responsible for keeping the
+ *  object alive (e.g. pass &Serial1 which is a forever-live global).
+ *
+ * @param port  Pointer to any HardwareSerial instance (Serial1…Serial8 on
+ *              Teensy 4.x).
+ */
+void RPLiDAR_UART_SetPort(HardwareSerial* port);
 
 /**
  * @brief Open the serial port at RPLIDAR_BAUD (460 800).
@@ -277,6 +271,46 @@ extern uint32_t* INTERM_POINTER;
 
 /** Global config pointer dereferenced by every FSM action */
 extern C1_States* config;
+
+
+// ----------------------------------------------------------------------------
+//
+//  OPTIONAL DEBUG INTERFACE  (available only when RPLIDAR_DEBUG is defined)
+//
+// ----------------------------------------------------------------------------
+//
+// Enable by adding  -DRPLIDAR_DEBUG  to build_flags in platformio.ini.
+// Call RPLiDAR_ResetDebugStats() from loop() after reading the counters.
+
+#ifdef RPLIDAR_DEBUG
+
+/** ISR fired but RXEMPT was set on the very first DATA read (FIFO empty on entry). */
+extern volatile uint32_t dbg_isr_empty_entry;
+
+/** Find_Pattern_Action exhausted all 5 candidate offsets without a match. */
+extern volatile uint32_t dbg_find_fail;
+
+/** Pattern found at byte-offset N within the 20-byte search window (index = N). */
+extern volatile uint32_t dbg_find_offsets[5];
+
+/** Record_Action first byte had invalid start bits [1:0] (FSM misaligned). */
+extern volatile uint32_t dbg_bad_start_bit;
+
+/** Raw bytes [0..4] of the first packet that triggered dbg_bad_start_bit. */
+extern volatile uint8_t  dbg_bad_packet[5];
+
+/** Non-zero once dbg_bad_packet contains a valid capture. */
+extern volatile uint8_t  dbg_bad_packet_valid;
+
+/** Value of interm_buffer_counter at the last End_Record call. */
+extern volatile uint32_t dbg_last_interm;
+
+/**
+ * @brief Zero all debug counters.  Call from loop() after printing stats.
+ */
+void RPLiDAR_ResetDebugStats(void);
+
+#endif  // RPLIDAR_DEBUG
 
 
 #endif /* __RPLIDAR_ARDUINO_UART_H__ */

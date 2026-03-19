@@ -21,6 +21,8 @@
 
 #include "../inc/EUSCI_B1_I2C.h"
 
+#define Wait_For_TX_Interrupt() (while ((EUSCI_B1->IFG & 0x0002) == 0))
+
 void EUSCI_B1_I2C_Init()
 {
 
@@ -143,7 +145,7 @@ void EUSCI_B1_I2C_Send_A_Byte(
 
     // Wait until the transmit interrupt flag is not pending by checking the
     // UCTXIFG0 bit (Bit 1) in the UCBxIFG register
-    while((EUSCI_B1->IFG & 0x0002) == 0);
+    while ((EUSCI_B1->IFG & 0x0002) == 0);
 
     // Store the 8-bit data in the Transmit Buffer by writing the data to the
     // UCBxTXBUF register
@@ -306,3 +308,59 @@ void EUSCI_B1_I2C_Receive_Multiple_Bytes(
     printf("RMB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
 
 }
+
+void EUSCI_B1_I2C_Read_Register(
+        uint8_t     slave_address,
+        uint8_t     reg_address,
+        uint8_t*    data_buffer,
+        uint16_t    packet_length)
+{
+    // counter
+    uint32_t i;
+
+
+    // Assign the slave device's address to the UCBxI2CSA register
+    EUSCI_B1->I2CSA = slave_address;
+
+    // place the send-reg-address bits here: start
+
+
+
+    // place the send-reg-address bits here: end
+
+    // Clear the UCTR bit (Bit 4) in the UCBxCTLW0 register to configure the
+    // EUSCI_B1 module in master receiver mode. Then, set the UCTXSTT bit (Bit
+    // 1) to generate the START condition
+    EUSCI_B1->CTLW0 = (EUSCI_B1->CTLW0 & ~0x0010) | 0x0002;
+
+    // Use a loop to transfer the data individually from the Receive Buffer to
+    // the array
+    for (i = 0; i < packet_length; i++)
+    {
+        // Check if it is the last byte and then set the UCTXSTP bit (Bit 2) to
+        // generate the STOP condition
+        if (i == (packet_length - 1))
+        {
+            EUSCI_B1->CTLW0 |= 0x0004;
+        }
+
+        // Wait until the receive interrupt flag is not pending by checking the
+        // UCRXIFG0 bit (Bit 0) in the UCBxIFG register
+        while ((EUSCI_B1->IFG & 0x0001) == 0);
+
+        // Transfer the received data from the Receive Buffer and write it to
+        // data_buffer
+        data_buffer[i] = EUSCI_B1->RXBUF;
+    }
+
+    // Wait until the STOP condition is transmitted by checking the status of
+    // the UCTXSTP bit (Bit 2) in the UCBxCTLW0 register
+    while ((EUSCI_B1->CTLW0 & 0x0004) != 0);
+
+
+    printf("RMB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
+
+}
+
+
+

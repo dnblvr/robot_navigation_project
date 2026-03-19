@@ -30,9 +30,9 @@
 
 #define MAX_DIV_FREQ    20
 
-//#define TASK_0_FLAG     0x01 << 0
-//#define TASK_0_DIV_FREQ 1
-//#define TASK_0_OFFSET   0
+#define TASK_0_FLAG     0x01 << 0
+#define TASK_0_DIV_FREQ 1
+#define TASK_0_OFFSET   0
 
 #define TASK_1_FLAG     0x01 << 1
 #define TASK_1_DIV_FREQ 1

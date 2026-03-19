@@ -171,4 +171,11 @@ void EUSCI_B1_I2C_Receive_Multiple_Bytes(
         uint8_t*    data_buffer,
         uint16_t    packet_length);
 
+
+void EUSCI_B1_I2C_Read_Register(
+        uint8_t     slave_address,
+        uint8_t     reg_address,
+        uint8_t*    data_buffer,
+        uint16_t    packet_length);
+
 #endif /* __INC_EUSCI_B1_I2C_H__ */

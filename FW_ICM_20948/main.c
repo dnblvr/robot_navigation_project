@@ -48,6 +48,7 @@
 #include "msp.h"
 //#include "inc/"
 #include "inc/RPLiDAR_C1.h"
+#include "inc/BLE.h"
 #include "inc/Clock.h"
 #include "inc/CortexM.h"
 #include "inc/EUSCI_A0_UART.h"
@@ -60,6 +61,7 @@
 #include "inc/ICM_20948.h"
 
 
+
 #ifdef DEBUG_OUTPUT
 #include "inc/Profiler.h"
 #endif
@@ -67,8 +69,8 @@
 //#include "arm_math.h"
 #include "inc/matrices.h"
 #include "inc/coordinate_transform.h"
-#include "inc/ICP_2D.h"
-#include "inc/graphslam.h"
+//#include "inc/ICP_2D.h"
+//#include "inc/graphslam.h"
 
 
 
@@ -79,23 +81,17 @@
 // ----------------------------------------------------------------------------
 
 
-// Testing flags
-// #define TEST_ICP_ONLY               1
-#define TEST_ODOMETRY_CONSTRAINT    1
-#define TEST_LOOP_CLOSURE           1
-#define TEST_OPTIMIZATION           1
-
 
 
 /**
  * @brief main SLAM structure
  */
-SLAMOptimizer slam_optimizer;
+//SLAMOptimizer slam_optimizer;
 
 /**
  * @brief boolean that indicates whether SLAM has been initialized
  */
-uint8_t slam_initialized   = false;
+//uint8_t slam_initialized   = false;
 
 /**
  * @brief Incremental pose change since last scan (from odometry)
@@ -106,548 +102,6 @@ Pose incremental_pose = {0.0f, 0.0f, 0.0f, 0};
  * @brief Global accumulated pose estimate (dead reckoning)
  */
 Pose global_pose = {0.0f, 0.0f, 0.0f, 0};
-
-
-/**
- * @brief Test SLAM components incrementally after processing RPLiDAR data
- *
- * @param[in] local_cloud Pointer to the local scan in sensor frame (for SLAM)
- * @param[in] transformed_cloud Pointer to the transformed point cloud in
- *      global coordinates (for visualization)
- */
-void Perform_SLAM(
-    PointCloud* local_cloud,
-    PointCloud* transformed_cloud)
-{
-    // counter variables
-    // int i;
-    static uint32_t scan_counter = 0;
-
-    // debug character
-    // char            debug_buffer[128];
-
-
-#ifdef DEBUG_OUTPUT
-    printf(
-        "Scan %lu: %d points\n", scan_counter, local_cloud->num_pts);
-#endif
-
-    // Initialize SLAM on first run
-    if (!slam_initialized) {
-
-
-        slam_initialize(&slam_optimizer);
-        slam_initialized = true;
-        // BLE_UART_OutString("SLAM initialized\n");
-
-    }
-
-    // printf("SLAN_INIT: %d\n", slam_initialized);
-    // printf("SLAN_BUF: %2d\n", slam_optimizer.buffer_size);
-
-
-
-    // ------------------------------------------------------------------------
-    // STEP 1: Run ICP between GLOBAL-FRAME point clouds (Stachniss method)
-    // ------------------------------------------------------------------------
-
-    // Key: Transform scans to global frame BEFORE running ICP
-    // This way ICP finds the correction in a consistent reference frame
-    Pose icp_correction = {0.0f, 0.0f, 0.0f, 0};
-    float icp_confidence = 0.5f;
-    bool have_icp_correction = false;
-
-    if (slam_optimizer.buffer_size > 0) {
-        PointCloud previous_scan_local, previous_scan_global;
-        PointCloud current_scan_global;
-        Pose previous_pose;
-        int prev_id = slam_optimizer.buffer_size - 1;
-
-        // Get previous scan and its pose
-        if (    slam_get_scan(&slam_optimizer, prev_id, &previous_scan_local)
-             && slam_get_pose(&slam_optimizer, prev_id, &previous_pose))
-        {
-
-            // Transform previous scan to global frame using its pose
-            transform_point_cloud(&previous_scan_local, &previous_pose, &previous_scan_global);
-
-            // Transform current scan to global frame using predicted pose
-            // Predicted pose = previous_pose ⊕ odometry
-            Pose predicted_current_pose;
-            compose_poses(&incremental_pose, &previous_pose, &predicted_current_pose);
-            transform_point_cloud(local_cloud, &predicted_current_pose, &current_scan_global);
-
-            // Now run ICP between these two GLOBAL-frame clouds
-            ICPResult icp_result;
-            Pose zero_guess = {0.0f, 0.0f, 0.0f, 0};  // No guess needed - clouds already aligned
-
-            slam_perform_icp(&previous_scan_global,
-                           &current_scan_global,
-                           &zero_guess,
-                           &icp_result);
-
-            // Compute confidence
-            icp_confidence = slam_compute_icp_confidence(&previous_scan_global,
-                                                        &current_scan_global,
-                                                        &zero_guess,
-                                                        &icp_result);
-
-            // ICP result is the CORRECTION to apply to the predicted pose
-            icp_correction.x = icp_result.dx;
-            icp_correction.y = icp_result.dy;
-            icp_correction.theta = icp_result.dtheta;
-            have_icp_correction = true;
-
-#ifdef DEBUG_OUTPUT
-            float correction_mag = sqrtf(icp_correction.x*icp_correction.x +
-                                        icp_correction.y*icp_correction.y);
-            if (correction_mag > 5.0f || fabsf(icp_correction.theta) > 0.02f) {
-                printf("  ICP correction: dx=%.1f dy=%.1f dθ=%.3f (%.1fmm) conf=%.2f\n",
-                       icp_correction.x, icp_correction.y, icp_correction.theta,
-                       correction_mag, icp_confidence);
-            }
-#endif
-        }
-    }
-
-    // ------------------------------------------------------------------------
-    // STEP 2: Update global_pose using ODOMETRY (state initialization)
-    // This gives us an initial estimate that may differ from ICP observation
-    // The optimizer will adjust it to balance odometry and ICP constraints
-    // ------------------------------------------------------------------------
-
-    compose_poses(&incremental_pose, &global_pose, &global_pose);
-    global_pose.timestamp = incremental_pose.timestamp;
-
-    // ------------------------------------------------------------------------
-    // STEP 2: Add current pose (with ICP-refined global position) to SLAM
-    // ------------------------------------------------------------------------
-
-    slam_add_pose(&slam_optimizer,
-                  &global_pose,
-                  local_cloud);
-
-    #ifdef DEBUG_OUTPUT
-//    printf("Added pose to buffer. New buffer_size: %d\n",
-//           slam_optimizer.buffer_size);
-    #endif
-
-    // ------------------------------------------------------------------------
-    //
-    //  TEST 1: ICP ONLY (standalone ICP test - results not used elsewhere)
-    //
-    // ------------------------------------------------------------------------
-
-#ifdef TEST_ICP_ONLY
-
-    // Only run ICP if we have at least 2 scans in buffer
-    if (    slam_optimizer.buffer_size >= 2
-         && local_cloud->num_pts > 10)
-    {
-
-        ICPResult icp_result;
-        Pose initial_guess = {0.0f, 0.0f, 0.0f, 0};  // Identity transform
-        float confidence;
-        PointCloud previous_scan;
-
-
-        // Get the second-to-last scan from the circular buffer
-        if (slam_get_scan(&slam_optimizer,
-                          slam_optimizer.buffer_size - 2,
-                          &previous_scan))
-        {
-
-            // Run ICP between previous and current LOCAL scan
-            slam_perform_icp(
-                    &previous_scan,
-                    local_cloud,
-                    &initial_guess,
-                    &icp_result);
-
-            // Compute confidence
-            confidence = slam_compute_icp_confidence(
-                                &previous_scan,
-                                local_cloud,
-                                &initial_guess,
-                                &icp_result);
-            icp_result.confidence = confidence;
-
-
-        // Send results via Bluetooth/Serial
-
-    #ifdef DEBUG_OUTPUT
-        // sprintf(
-        //         debug_buffer,
-        printf(
-                "ICP: dx=%.3f dy=%.3f dtheta=%.3f conf=%.2f\n",
-                icp_result.dx, icp_result.dy, icp_result.dtheta, confidence);
-        // BLE_UART_OutString(debug_buffer);
-
-    #endif
-
-            // Visual feedback
-            if (confidence > 0.5f) {
-                LED2_Output(RGB_LED_GREEN);  // Good match
-            } else {
-                LED2_Output(RGB_LED_RED);    // Poor match
-            }
-            Clock_Delay1ms(40);
-        }
-    }
-
-#endif // #ifdef TEST_ICP_ONLY
-
-
-    // ------------------------------------------------------------------------
-    //
-    //  TEST 3: ODOMETRY CONSTRAINTS
-    //
-    // ------------------------------------------------------------------------
-
-#ifdef TEST_ODOMETRY_CONSTRAINT
-
-    if (slam_optimizer.buffer_size >= 2) {
-
-        int prev_id = slam_optimizer.buffer_size - 2;
-        int curr_id = slam_optimizer.buffer_size - 1;
-
-        // Measurement = Odometry + ICP correction (Stachniss method)
-        // ICP was run on global-frame clouds, so correction is in global frame
-        Pose measurement;
-
-        if (have_icp_correction && icp_confidence > 0.2f) {
-            // Apply ICP correction to odometry measurement
-            compose_poses(&icp_correction, &incremental_pose, &measurement);
-
-#ifdef DEBUG_OUTPUT
-            printf("  Measurement: odom=(%.1f,%.1f,%.3f) + ICP_corr=(%.1f,%.1f,%.3f) = final=(%.1f,%.1f,%.3f)\n",
-                   incremental_pose.x, incremental_pose.y, incremental_pose.theta,
-                   icp_correction.x, icp_correction.y, icp_correction.theta,
-                   measurement.x, measurement.y, measurement.theta);
-#endif
-        } else {
-            // Low confidence or no ICP - use odometry only
-            measurement = incremental_pose;
-
-#ifdef DEBUG_OUTPUT
-            if (have_icp_correction) {
-                printf("  Measurement: odom only (ICP conf too low: %.2f)\n", icp_confidence);
-            }
-#endif
-        }
-
-        float base_confidence = icp_confidence;
-
-        // Compute magnitude of the measurement
-        float measurement_magnitude = sqrtf(
-                    measurement.x * measurement.x
-                 +  measurement.y * measurement.y);
-
-        // For small motions (likely noise), use very low confidence
-        #define MIN_CONSTRAINT_MOTION_MM 15.0f
-        #define MIN_CONFIDENCE_FOR_SMALL_MOTION 0.01f
-
-        float effective_confidence = base_confidence;
-        if (measurement_magnitude < MIN_CONSTRAINT_MOTION_MM &&
-            fabsf(measurement.theta) < 0.05f) {
-            effective_confidence = MIN_CONFIDENCE_FOR_SMALL_MOTION;
-        }
-
-        // Add constraint using ICP-corrected odometry
-        slam_add_odometry_constraint(
-                &slam_optimizer,
-                prev_id,
-                curr_id,
-                measurement.x,
-                measurement.y,
-                measurement.theta,
-                effective_confidence);
-
-#ifdef DEBUG_OUTPUT
-        if (effective_confidence < base_confidence) {
-            printf("Constraint %d->%d: meas=(%.2f,%.2f,%.3f) mag=%.1f conf=%.2f->%.2f [LOW CONF]\n",
-                   prev_id, curr_id,
-                   measurement.x, measurement.y, measurement.theta,
-                   measurement_magnitude, base_confidence, effective_confidence);
-        } else {
-            printf("Constraint %d->%d: meas=(%.2f,%.2f,%.3f) mag=%.1f conf=%.2f [ADDED]\n",
-                   prev_id, curr_id,
-                   measurement.x, measurement.y, measurement.theta,
-                   measurement_magnitude, effective_confidence);
-        }
-#endif
-    }
-
-#endif // #ifdef TEST_ODOMETRY_CONSTRAINT
-
-
-    // ------------------------------------------------------------------------
-    //
-    //  TEST 4: LOOP CLOSURE DETECTION
-    //
-    // ------------------------------------------------------------------------
-
-#ifdef TEST_LOOP_CLOSURE
-
-    if (slam_optimizer.buffer_size > MIN_TEMPORAL_GAP + 1) {
-
-
-    #ifdef PROCESSING4_OUTPUT
-//        printf("CLEAR\n");
-    #endif
-
-
-        uint8_t loop_detected = slam_detect_loop_closure(
-                &slam_optimizer,
-                slam_optimizer.buffer_size - 1);
-
-
-    #ifdef DEBUG_OUTPUT
-        printf("\n*** LOOP CLOSURE DETECTION ***");
-    #endif
-
-        if (loop_detected) {
-
-    #ifdef DEBUG_OUTPUT
-            printf(" --> *** LOOP CLOSURE DETECTED! ***\n\n");
-    #endif
-
-            LED2_Output(RGB_LED_BLUE);
-            Clock_Delay1ms(40);
-
-        } else {
-
-            printf("\n\n");
-
-        }
-
-    } // if (slam_optimizer.buffer_size > MIN_TEMPORAL_GAP + 1) {
-
-#endif // #ifdef TEST_LOOP_CLOSURE
-
-
-    // ------------------------------------------------------------------------
-    //
-    //  TEST 5: OPTIMIZATION
-    //
-    // ------------------------------------------------------------------------
-
-#ifdef TEST_OPTIMIZATION
-
-    if (     slam_optimizer.buffer_size > 0
-         && (slam_optimizer.buffer_size % OPTIMIZE_INTERVAL == 0))
-    {
-
-#ifdef DEBUG_OUTPUT
-        printf("\nOptimizing graph...\n");
-#endif
-
-        LED2_Output(RGB_LED_PINK);
-
-
-        slam_optimize_gauss_newton(&slam_optimizer, MAX_GAUSS_NEWTON_ITERS);
-
-
-#ifdef PROCESSING4_OUTPUT
-        // Clear visualization before sending complete optimized map
-        printf("CLEAR\n");
-#endif
-
-        // Retrieve and transform all optimized poses and their point clouds
-        int pose_idx;
-        Pose optimized_pose;
-        PointCloud original_scan, transformed_scan;
-
-        // Store last two transformed clouds for alignment testing
-        static PointCloud last_two_clouds[2];
-        static int clouds_stored = 0;
-
-
-        // corrects all poses in the buffer and their scans
-        for (   pose_idx = 0;
-                pose_idx < slam_optimizer.buffer_size;
-                pose_idx++)
-        {
-
-            // Get optimized pose
-            if ( !slam_get_pose(&slam_optimizer,
-                                pose_idx,
-                                &optimized_pose) ) {
-                continue;  // Skip if pose retrieval fails
-            }
-
-            // Get original point cloud for this pose; skip if scan retrieval fails
-            if ( !slam_get_scan(&slam_optimizer,
-                                pose_idx,
-                                &original_scan) ) {
-                continue;
-            }
-
-            // Transform point cloud to new optimized global frame
-            transform_point_cloud(&original_scan,
-                                  &optimized_pose,
-                                  &transformed_scan);
-
-            // Store last two transformed clouds for alignment testing
-            if (pose_idx == slam_optimizer.buffer_size - 2 && slam_optimizer.buffer_size >= 2) {
-                last_two_clouds[0] = transformed_scan;
-                clouds_stored = 1;
-            } else if (pose_idx == slam_optimizer.buffer_size - 1 && slam_optimizer.buffer_size >= 2) {
-                last_two_clouds[1] = transformed_scan;
-                clouds_stored = 2;
-            }
-
-#ifdef DEBUG_OUTPUT
-            // printf("Pose[%2d] optimized: x=%.2f y=%.2f theta=%.3f | %d points transformed\n",
-            //        pose_idx,
-            //        optimized_pose.x, optimized_pose.y, optimized_pose.theta,
-            //        transformed_scan.num_pts);
-#endif
-
-
-#ifdef PROCESSING4_OUTPUT
-
-            int k;
-
-            // Print all optimized poses with correct pose data
-            printf("POSE,%5.2f,%5.2f,%5.2f\n",
-                    optimized_pose.x,
-                    optimized_pose.y,
-                    optimized_pose.theta);
-
-            printf("SCAN_START\n");
-
-            for (k = 0; k < transformed_scan.num_pts; k++)
-            {
-                printf("P,%5.2f,%5.2f\n",
-                        transformed_scan.points[k].x,
-                        transformed_scan.points[k].y);
-            }
-
-            printf("SCAN_END\n");
-#endif
-        }
-
-        // ------------------------------------------------------------------------
-        // TEST: Run ICP on last two transformed point clouds to verify alignment
-        // ------------------------------------------------------------------------
-#ifdef DEBUG_OUTPUT
-        if (clouds_stored == 2 && slam_optimizer.buffer_size >= 2) {
-
-            float R[4];  // 2x2 rotation matrix
-            float t[2];  // translation vector
-            Pose zero_guess = {0.0f, 0.0f, 0.0f, 0};
-
-            printf("\n=== ALIGNMENT TEST: ICP on last two transformed clouds ===\n");
-            printf("Cloud[%d]: %d points\n", slam_optimizer.buffer_size - 2, last_two_clouds[0].num_pts);
-            printf("Cloud[%d]: %d points\n", slam_optimizer.buffer_size - 1, last_two_clouds[1].num_pts);
-
-            // Run ICP between the two already-transformed clouds
-            // If poses are correct, these should already be aligned (small correction needed)
-            ICP_2d(last_two_clouds[0].points, last_two_clouds[0].num_pts,
-                   last_two_clouds[1].points, last_two_clouds[1].num_pts,
-                   25,      // max iterations
-                   0.01f,   // tolerance
-                   R, t);
-
-            // Convert rotation matrix to angle
-            float theta_correction = atan2f(R[2], R[0]);  // atan2(R[1][0], R[0][0])
-            float translation_mag = sqrtf(t[0]*t[0] + t[1]*t[1]);
-
-            printf("ICP Correction needed: dx=%.2f mm, dy=%.2f mm, dtheta=%.3f rad (%.1f deg)\n",
-                   t[0], t[1], theta_correction, theta_correction * 57.2958f);
-            printf("Translation magnitude: %.2f mm\n", translation_mag);
-
-            // Compute mean correspondence error after ICP
-            int i, j;
-            float total_error = 0.0f;
-            int match_count = 0;
-            PointCloud transformed_cloud0;
-
-            // Apply ICP correction to first cloud
-            Pose icp_correction;
-            icp_correction.x = t[0];
-            icp_correction.y = t[1];
-            icp_correction.theta = theta_correction;
-            transform_point_cloud(&last_two_clouds[0], &icp_correction, &transformed_cloud0);
-
-            // Find mean nearest-neighbor distance
-            for (i = 0; i < transformed_cloud0.num_pts; i++) {
-                float min_dist = FLT_MAX;
-                for (j = 0; j < last_two_clouds[1].num_pts; j++) {
-                    float dx = transformed_cloud0.points[i].x - last_two_clouds[1].points[j].x;
-                    float dy = transformed_cloud0.points[i].y - last_two_clouds[1].points[j].y;
-                    float dist = sqrtf(dx*dx + dy*dy);
-                    if (dist < min_dist) min_dist = dist;
-                }
-                if (min_dist < 200.0f) {  // Only count reasonable matches
-                    total_error += min_dist;
-                    match_count++;
-                }
-            }
-
-            float mean_error = (match_count > 0) ? (total_error / match_count) : -1.0f;
-            printf("Mean correspondence error after ICP: %.2f mm (%d/%d matches)\n",
-                   mean_error, match_count, transformed_cloud0.num_pts);
-
-            // Alignment quality assessment
-            if (translation_mag < 10.0f && fabsf(theta_correction) < 0.05f && mean_error < 20.0f) {
-                printf("✓ GOOD ALIGNMENT: Clouds are well-aligned!\n");
-            } else if (translation_mag < 50.0f && fabsf(theta_correction) < 0.2f && mean_error < 50.0f) {
-                printf("⚠ MODERATE ALIGNMENT: Some drift present\n");
-            } else {
-                printf("✗ POOR ALIGNMENT: Significant misalignment detected!\n");
-            }
-            printf("=======================================================\n\n");
-        }
-
-#endif // #ifdef DEBUG_OUTPUT
-
-#ifdef DEBUG_OUTPUT
-
-        // Get current pose for debugging
-        slam_get_current_pose(&slam_optimizer, &optimized_pose);
-
-        printf("Current (most recent) pose: x=%.2f y=%.2f theta=%.3f\n",
-               optimized_pose.x, optimized_pose.y, optimized_pose.theta);
-#endif
-
-        LED2_Output(RGB_LED_GREEN);
-    }
-
-#endif // #ifdef TEST_OPTIMIZATION
-
-
-    // Increment scan counter
-    scan_counter++;
-
-}
-
-
-
-// ----------------------------------------------------------------------------
-//
-//  HIGHER-LEVEL RPLiDAR VARIABLES
-//
-// ----------------------------------------------------------------------------
-
-/**
- * @brief declaration of an `C1_States` struct instance
- * @note this is originally declared in the `RPLiDAR_C1.c` source file
- */
-extern C1_States cfg;
-
-
-/**
- * @brief Angle_Filter function that scans +/- 60 degrees
- */
-uint8_t Front_Scan(uint32_t data) {
-
-#define FS_LIM_1    ( 60 << SHIFT_FACTOR)
-#define FS_LIM_2    (300 << SHIFT_FACTOR)
-
-    return (data < FS_LIM_1) || (data > FS_LIM_2);
-}
 
 
 
@@ -924,11 +378,15 @@ void Get_Pose(
 //
 // ----------------------------------------------------------------------------
 
+
 void main(void) {
+
 
     // disable watchdog timer
     WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;
 
+
+    volatile char BLE_UART_Data_Buffer[32] = {0};
 
     // Initialize unused ports to reduce power consumption
     Init_Unused_Ports();
@@ -959,6 +417,7 @@ void main(void) {
     // Initialize the ICM20948
     EUSCI_B1_I2C_Init();
 
+#ifdef OLD_SYSTEM
     icm20948_config_t config = {.addr_accel_gyro    = ICM20948_ADDR_ACCEL_GYRO,
                                 .addr_mag           = ICM20948_ADDR_MAG};
 
@@ -967,7 +426,6 @@ void main(void) {
         printf("ICM-20948 successfully initialized!\n");
     else
         printf("ICM-20948 unsuccessfully initialized!\n");
-
 
 
     int16_t accel_raw[3]    = {0},
@@ -979,6 +437,15 @@ void main(void) {
             gyro_dps[3]     = {0},
             mag_ut[3]       = {0},
             temp_c          =  0;
+#else
+
+
+    if (icm20948_init(ICM20948_ADDR_ACCEL_GYRO_0, ICM20948_ADDR_MAG) == 0)
+        printf("ICM-20948 successfully initialized!\n");
+    else
+        printf("ICM-20948 unsuccessfully initialized!\n");
+
+#endif
 
 
     // Initialize the DC motors
@@ -1010,14 +477,14 @@ void main(void) {
 
 
     /** ----------------------------------------------------------------------
-     * Initialize BlueTooth module instance
+     * Initialize Bluetooth module instance
      */
 
-    // BLE_UART_Init(BLE_UART_Data_Buffer);
-    // Clock_Delay1ms(1000);
-    // BLE_UART_Reset();
-    // BLE_UART_OutString("BLE UART Active\r\n");
-    // Clock_Delay1ms(1000);
+     BLE_UART_Init(BLE_UART_Data_Buffer);
+     Clock_Delay1ms(1000);
+     BLE_UART_Reset();
+     BLE_UART_OutString("BLE UART Active\r\n");
+     Clock_Delay1ms(1000);
 
 
     // Enable the interrupts used by the SysTick and Timer_A timers
@@ -1081,16 +548,15 @@ void main(void) {
         if (task_flag & TASK_1_FLAG) {
             task_flag  &= ~TASK_1_FLAG;
 
+#ifdef OLD_SYSTEM
+
             // counter variable
             uint32_t i;
 
-            icm20948_read_raw_accel(&config, accel_raw);
             icm20948_read_raw_gyro(&config, gyro_raw);
             icm20948_read_raw_mag(&config, mag_raw);
-            icm20948_read_temp_c(&config, &temp_c);
 
             for (i = 0; i < 3; i++) {
-                accel_g[i]  = (float)accel_raw[i] / 16384.0f;
                 gyro_dps[i] = (float)gyro_raw[i] / 131.0f;
                 mag_ut[i]   = ((float)mag_raw[i] / 20) * 3;
             }
@@ -1101,10 +567,6 @@ void main(void) {
             // ex) if full_scale == +-250dps then gyro = raw_value / (65535 / 500) = raw_value / 131
             // mag(uT)    = raw_value / (32752 / 4912) = (approx) (raw_value / 20) * 3
             // temp  = ((raw_value - ambient_temp) / speed_of_sound) + 21
-            printf("accel. x: %+2.5f, y: %+2.5f, z:%+2.5f\n",
-                    accel_g[0],
-                    accel_g[1],
-                    accel_g[2]);
 
             printf("gyro.  x: %+2.5f, y: %+2.5f, z:%+2.5f\n",
                     gyro_dps[0],
@@ -1117,6 +579,12 @@ void main(void) {
                     mag_ut[2]);
 
             printf("temp: %+2.5f\n", temp_c);
+#else
+            icm_read_gyro_y();
+
+
+
+#endif
 
         }
 #endif
@@ -1148,201 +616,7 @@ void main(void) {
 #endif
 
 
-#ifdef TASK_3_FLAG
-        /**
-         * @note TASK 3: set flag to collect RPLiDAR C1 data
-         */
-        if (task_flag & TASK_3_FLAG) {
-            task_flag  &= ~TASK_3_FLAG;
 
-            // data collection profiling! --------------------------------
-            // Start_Timer_1ms();
-
-            Start_Record(NULL);
-//            Start_Record(Front_Scan);
-
-        }
-#endif
-
-
-#ifdef TASK_4_FLAG
-        /**
-         * @note TASK 4: processes recorded data and runs ICP
-         */
-        if (task_flag & TASK_4_FLAG)
-        {
-            task_flag  &= ~TASK_4_FLAG;
-
-    #ifdef DEBUG_OUTPUT
-            // printf(cfg.current_state == IDLING      ? "IDLE\n" : "");
-            // printf(cfg.current_state == READY       ? "READY\n" : "");
-            // printf(cfg.current_state == RECORDING   ? "RECORDING\n" : "");
-            // printf(cfg.current_state == PROCESSING  ? "PROCESSING\n" : "");
-    #endif
-
-            // Timer_A1_Ignore();
-
-            LED2_Output(RGB_LED_BLUE);
-
-
-            // profiling start! -----------------------------------------------
-
-    #ifdef DEBUG_OUTPUT
-//            Start_Timer_1ms();
-    #endif
-            /**
-             * @brief If in PROCESSING state, process the recorded data
-             */
-            if (cfg.current_state == PROCESSING)
-            {
-
-                /**
-                 * @brief If data is aligned, process it and run SLAM
-                 *
-                 * @note the expected Processing Sketch format for pose +
-                 *  pointcloud info is:
-                 *   POSE,x,y,theta
-                 *   SCAN_START
-                 *   P,x,y
-                 *   P,x,y
-                 *   ...
-                 *   SCAN_END
-                 */
-
-                // counter variables
-                uint32_t k;
-
-                float T_matrix[3][3] = {0};
-                PointCloud local_cloud;  // Local scan in sensor frame
-                PointCloud transformed_cloud;
-
-
-                // visually indicate if aligned
-                LED2_Output(RGB_LED_WHITE);
-
-
-                /**
-                 * Collate all intermediate poses into single composite
-                 *      transformation, and then reset the accumulator.
-                 */
-    #ifdef DEBUG_OUTPUT
-                // Save before reset
-//                uint32_t num_samples = pose_ptr->num_elements;
-    #endif
-                // Get incremental motion since last scan
-                Accumulate_Poses(pose_ptr, &incremental_pose);
-                incremental_pose.timestamp = tick_counter;
-
-                // NOTE: We do NOT update global_pose here anymore!
-                // Perform_SLAM() will refine incremental_pose with ICP and update global_pose
-                // This ensures state and constraints are consistent
-
-                Reset_Pose_Accumulator(pose_ptr);
-
-    #ifdef DEBUG_OUTPUT
-//                printf("Composite pose from %lu samples: "
-//                       "x=%.2f y=%.2f theta=%.3f\n",
-//                       num_samples,
-//                       incremental_pose.x, incremental_pose.y, incremental_pose.theta);
-    #endif
-
-                /**
-                 * Process RPLiDAR C1 data into buffer `local_cloud`, and
-                 *  transform it with the global pose for visualization.
-                 */
-                Process_RPLiDAR_Data(&local_cloud);
-
-                // Use global_pose for visualization transform
-                Make_Transformation_Matrix_Pose(&global_pose,
-                                                T_matrix);
-
-
-                printf("POSE,%5.2f,%5.2f,%5.2f\n",
-                       global_pose.x,
-                       global_pose.y,
-                       global_pose.theta);
-
-                printf("SCAN_START\n");
-
-
-                // Transform local point cloud
-                transformed_cloud.num_pts    = 0;
-                for (k = 0; k < local_cloud.num_pts; k++)
-                {
-                    float local_x = local_cloud.points[k].x;
-                    float local_y = local_cloud.points[k].y;
-
-                    transformed_cloud.points[k].x \
-                            =    T_matrix[0][0]*local_x \
-                               + T_matrix[0][1]*local_y \
-                               + T_matrix[0][2];
-                    transformed_cloud.points[k].y \
-                            =    T_matrix[1][0]*local_x \
-                               + T_matrix[1][1]*local_y \
-                               + T_matrix[1][2];
-
-    #ifdef PROCESSING4_OUTPUT
-                    printf("P,%5.2f,%5.2f\n",
-                           transformed_cloud.points[k].x,
-                           transformed_cloud.points[k].y);
-    #endif
-                }
-
-                transformed_cloud.num_pts = k;
-
-    #ifdef PROCESSING4_OUTPUT
-                printf("SCAN_END\n");
-                // printf("SAVE\n");
-    #endif
-
-
-    #ifdef DEBUG_OUTPUT
-
-        #define DATA_PT 5
-
-                // printf("Transformed cloud: %d points"
-                //        " | Sample %3i: local(%7.2f, %7.2f)"
-                //        " -> global(%7.2f, %7.2f)\n",
-                //         transformed_cloud.num_pts,
-                //         DATA_PT,
-                //         output[DATA_PT][0],
-                //         output[DATA_PT][1],
-                //         transformed_cloud.points[DATA_PT].x,
-                //         transformed_cloud.points[DATA_PT].y);
-    #endif
-
-//                Perform_SLAM(&local_cloud, &transformed_cloud);
-
-                LED2_Output(RGB_LED_OFF);
-
-                // regardless if non-/aligned, reset the state to IDLE
-                cfg.current_state   = IDLING;
-
-            }
-
-
-            // profiling end! -------------------------------------------------
-
-    #ifdef DEBUG_OUTPUT
-//            printf("\tdata processing ");
-//            Stop_Timer();
-    #endif
-
-            Timer_A1_Acknowledge();
-
-        }
-#endif // #ifdef TASK_4_FLAG
-
-
-
-#ifdef TASK_5_FLAG
-        /**
-         * @note TASK 5: blank
-         */
-        if (task_flag & TASK_5_FLAG) {
-            task_flag  &= ~TASK_5_FLAG;
-        }
-#endif // #ifdef TASK_5_FLAG
 
 
 

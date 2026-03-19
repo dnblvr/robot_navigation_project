@@ -24,10 +24,10 @@
 //#define MIN_RPM                       30
 
 // Desired RPM for the left wheel
-uint16_t Desired_RPM_Left;
+extern uint16_t Desired_RPM_Left;
 
 // Desired RPM for the right wheel
-uint16_t Desired_RPM_Right;
+extern uint16_t Desired_RPM_Right;
 
 // Declare a global variable used to store the measured RPM by the left
 // tachometer
@@ -50,9 +50,9 @@ uint16_t Desired_RPM_Right;
 /**
  * @brief Motor speed settings
  */
-uint16_t forward_speed  = 500, // forward duty cycle
-         backward_speed = 300, // reverse duty cycle
-         rotation_speed = 300; // rotation duty cycle
+extern uint16_t forward_speed,  // forward duty cycle
+                backward_speed, // reverse duty cycle
+                rotation_speed; // rotation duty cycle
 
 /**
  * @brief MotorCommand function pointer type

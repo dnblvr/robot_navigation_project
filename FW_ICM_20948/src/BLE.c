@@ -14,24 +14,30 @@
 
 
 // Desired RPM for the left wheel
-extern uint16_t Desired_RPM_Left    = 70;
+uint16_t Desired_RPM_Left    = 70;
 
 // Desired RPM for the right wheel
-extern uint16_t Desired_RPM_Right   = 70;
+uint16_t Desired_RPM_Right   = 70;
+
+uint16_t forward_speed  = 500, // forward duty cycle
+         backward_speed = 300, // reverse duty cycle
+         rotation_speed = 300; // rotation duty cycle
 
 int begin_state = 0;
+
+uint8_t toggle_front_state = 0;
+uint8_t toggle_back_state = 0;
+
+/**
+ * @brief local instance of message_length globalized from BLE_A3_UART.c
+ */
+extern volatile int message_length;
 
 
 void Motor_Stop_Wrapper(uint16_t left_speed, uint16_t right_speed) {
 
     Motor_Stop();
 }
-
-
-/**
- * @brief local instance of message_length globalized from BLE_A3_UART.c
- */
-extern volatile int message_length;
 
 
 

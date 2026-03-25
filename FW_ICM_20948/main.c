@@ -47,7 +47,7 @@
 
 #include "msp.h"
 //#include "inc/"
-#include "inc/RPLiDAR_C1.h"
+//#include "inc/RPLiDAR_C1.h"
 #include "inc/BLE.h"
 #include "inc/Clock.h"
 #include "inc/CortexM.h"
@@ -71,6 +71,11 @@
 #include "inc/coordinate_transform.h"
 //#include "inc/ICP_2D.h"
 //#include "inc/graphslam.h"
+
+void I2C_Task(void) {
+    printf("hi\n");
+
+}
 
 
 
@@ -385,9 +390,6 @@ void main(void) {
     // disable watchdog timer
     WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;
 
-
-    volatile char BLE_UART_Data_Buffer[32] = {0};
-
     // Initialize unused ports to reduce power consumption
     Init_Unused_Ports();
 
@@ -414,10 +416,12 @@ void main(void) {
     Reset_Pose_Accumulator(pose_ptr);
 
 
+
+#ifdef OLD_SYSTEM
+
     // Initialize the ICM20948
     EUSCI_B1_I2C_Init();
 
-#ifdef OLD_SYSTEM
     icm20948_config_t config = {.addr_accel_gyro    = ICM20948_ADDR_ACCEL_GYRO,
                                 .addr_mag           = ICM20948_ADDR_MAG};
 
@@ -428,17 +432,15 @@ void main(void) {
         printf("ICM-20948 unsuccessfully initialized!\n");
 
 
-    int16_t accel_raw[3]    = {0},
-            gyro_raw[3]     = {0},
-            mag_raw[3]      = {0},
-            temp_raw        =  0;
+    int16_t gyro_raw[3]     = {0},
+            mag_raw[3]      = {0};
 
-    float   accel_g[3]      = {0},
-            gyro_dps[3]     = {0},
-            mag_ut[3]       = {0},
-            temp_c          =  0;
+    float   gyro_dps[3]     = {0},
+            mag_ut[3]       = {0};
 #else
 
+    // Initialize the ICM20948 with interrupt from pin at P4.6
+    EUSCI_B1_I2C_Init(&I2C_Task);
 
     if (icm20948_init(ICM20948_ADDR_ACCEL_GYRO_0, ICM20948_ADDR_MAG) == 0)
         printf("ICM-20948 successfully initialized!\n");
@@ -449,7 +451,7 @@ void main(void) {
 
 
     // Initialize the DC motors
-//    Motor_Init();
+    Motor_Init();
 
 
     Set_All_Interrupts_1();
@@ -458,15 +460,6 @@ void main(void) {
     // Enable the interrupts used by the SysTick and Timer_A timers
     EnableInterrupts();
 
-
-    /** ----------------------------------------------------------------------
-     * Initialize RPLiDAR C1 configuration struct instance
-     */
-//    Initialize_RPLiDAR_C1(&cfg);
-
-#ifdef DEBUG_OUTPUT
-    // printf("C1 initialized\n\n");
-#endif
 
     Set_All_Interrupts_1();
 
@@ -480,7 +473,7 @@ void main(void) {
      * Initialize Bluetooth module instance
      */
 
-     BLE_UART_Init(BLE_UART_Data_Buffer);
+     BLE_UART_Init(Process_BLE_UART_Data);
      Clock_Delay1ms(1000);
      BLE_UART_Reset();
      BLE_UART_OutString("BLE UART Active\r\n");
@@ -492,7 +485,7 @@ void main(void) {
 
 
     EUSCI_A0->IE   |=  0x0001;  // printf()
-    EUSCI_A2->IE   |=  0x0001;  // RPLiDAR C1
+//    EUSCI_A2->IE   |=  0x0001;  // RPLiDAR C1
     EUSCI_A3->IE   |=  0x0001;  // BLE UART Friend
 
 //    Set_All_Interrupts_1();
@@ -534,9 +527,12 @@ void main(void) {
         if (task_flag & TASK_0_FLAG) {
             task_flag  &= ~TASK_0_FLAG; // clear the flag
 
-            Timer_A1_Ignore();
-            Process_BLE_UART_Data(BLE_UART_Data_Buffer);
-            Timer_A1_Acknowledge();
+//            printf("hello\n");
+
+//            Timer_A1_Ignore();
+//            Process_BLE_UART_Data(BLE_UART_Data_Buffer);
+//            Timer_A1_Acknowledge();
+
         }
 #endif
 
@@ -568,20 +564,23 @@ void main(void) {
             // mag(uT)    = raw_value / (32752 / 4912) = (approx) (raw_value / 20) * 3
             // temp  = ((raw_value - ambient_temp) / speed_of_sound) + 21
 
-            printf("gyro.  x: %+2.5f, y: %+2.5f, z:%+2.5f\n",
-                    gyro_dps[0],
-                    gyro_dps[1],
-                    gyro_dps[2]);
+//            printf("gyro.  x: %+2.5f, y: %+2.5f, z:%+2.5f\n",
+//                    gyro_dps[0],
+//                    gyro_dps[1],
+//                    gyro_dps[2]);
+//
+//            printf("mag.   x: %+2.5f, y: %+2.5f, z:%+2.5f\n",
+//                    mag_ut[0],
+//                    mag_ut[1],
+//                    mag_ut[2]);
 
-            printf("mag.   x: %+2.5f, y: %+2.5f, z:%+2.5f\n",
-                    mag_ut[0],
-                    mag_ut[1],
-                    mag_ut[2]);
 
-            printf("temp: %+2.5f\n", temp_c);
 #else
-            icm_read_gyro_y();
 
+            float output_data[3] = {0.f};
+
+//            icm_read_gyro_y(output_data);
+            icm_read_heading_xy(output_data);
 
 
 #endif
@@ -617,9 +616,6 @@ void main(void) {
 
 
 
-
-
-
 #ifdef TASK_6_FLAG
         /**
          * @note: TASK 6: print persistently
@@ -646,7 +642,7 @@ void main(void) {
 
     #ifdef DEBUG_OUTPUT
             printf("%5d\n\n", local_counter);
-            printf("\n\n");
+//            printf("\n\n");
     #endif
             local_counter++;
 

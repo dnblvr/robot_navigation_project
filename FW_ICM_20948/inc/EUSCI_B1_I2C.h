@@ -27,6 +27,27 @@
 
 #include <stdio.h>
 
+#define OLD_SYSTEM
+
+#ifdef OLD_SYSTEM
+
+void EUSCI_B1_I2C_Init();
+
+#else
+
+/**
+ * @brief User-defined task function for handling external interrupt events.
+ *
+ * This is a user-defined function that can be assigned to the Bumper_Task pointer during initialization.
+ * When a falling edge event is detected on any of the Bumper Switch pins (P4.6),
+ * this function will be called, and the bumper_switch_state parameter will indicate which specific bumper switch triggered the interrupt.
+ *
+ * @param None
+ *
+ * @return None
+ */
+void (*I2C_Sensor_Task)(void);
+
 
 /**
  * @brief Initializes the I2C module EUSCI_B1 for communication.
@@ -83,7 +104,9 @@
  *
  * @return None
  */
-void EUSCI_B1_I2C_Init();
+void EUSCI_B1_I2C_Init(void(*task)(void));
+
+#endif
 
 /**
  * @brief Sends a byte of data to a specified I2C slave device using EUSCI_B1
@@ -177,5 +200,6 @@ void EUSCI_B1_I2C_Read_Register(
         uint8_t     reg_address,
         uint8_t*    data_buffer,
         uint16_t    packet_length);
+
 
 #endif /* __INC_EUSCI_B1_I2C_H__ */

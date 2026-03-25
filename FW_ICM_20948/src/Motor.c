@@ -44,14 +44,14 @@ void Motor_Forward(uint16_t left_duty_cycle, uint16_t right_duty_cycle)
 {
     // Configure the motors to move in a forward direction
     // by clearing Bits 4 and 5 of the OUT register for P5
-    P5->OUT &= ~0x30;
+    P5->OUT    &= ~0x30;
 
     // Update the duty cycle for both motors
     Timer_A0_Update_Duty_Cycle_1(right_duty_cycle);
     Timer_A0_Update_Duty_Cycle_2(left_duty_cycle);
 
     // Enable the motors by setting Bits 6 and 7 of the OUT register for P3
-    P3->OUT |= 0xC0;
+    P3->OUT    |=  0xC0;
 }
 
 void Motor_Backward(uint16_t left_duty_cycle, uint16_t right_duty_cycle)
@@ -90,26 +90,26 @@ void Motor_Right(uint16_t left_duty_cycle, uint16_t right_duty_cycle)
 {
     // Configure the left motor to move in a forward direction
     // by clearing Bit 4 of the OUT register for P5
-    P5->OUT &= ~0x10;
+    P5->OUT    &= ~0x10;
 
     // Configure the right motor to move in a backward direction
     // by setting Bit 5 of the OUT register for P5
-    P5->OUT |= 0x20;
+    P5->OUT    |=  0x20;
 
     // Update the duty cycle for both motors
     Timer_A0_Update_Duty_Cycle_1(right_duty_cycle);
     Timer_A0_Update_Duty_Cycle_2(left_duty_cycle);
 
     // Enable the motors by setting Bits 6 and 7 of the OUT register for P3
-    P3->OUT |= 0xC0;
+    P3->OUT    |=  0xC0;
 }
 
 void Motor_Stop()
 {
     // Disable the motors by clearing Bits 6 and 7 of the OUT register for P3
     // and clearing Bits 4 and 5 of the OUT register for P5
-    P3->OUT &= ~0xC0;
-    P5->OUT &= ~0x30;
+    P3->OUT    &= ~0xC0;
+    P5->OUT    &= ~0x30;
 
     // Update the duty cycle for both motors to 0%
     Timer_A0_Update_Duty_Cycle_1(0);

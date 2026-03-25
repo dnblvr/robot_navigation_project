@@ -81,7 +81,7 @@ void Set_All_Interrupts_1(void) {
 
 
     EUSCI_A0->IE   |=  0x0003;  // printf()
-    EUSCI_A2->IE   |=  0x0001;  // RPLiDAR C1
+//    EUSCI_A2->IE   |=  0x0001;  // RPLiDAR C1
     EUSCI_A3->IE   |=  0x0001;  // BLE UART Friend
 
     // take out the register that assigns the interrupt EN of TIMER_A1

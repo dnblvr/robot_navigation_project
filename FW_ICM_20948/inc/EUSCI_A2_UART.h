@@ -1,22 +1,14 @@
 /**
- * @file BLE_A3_UART.h
- * @brief Header file for the BLE_UART driver.
+ * @file EUSCI_A2_UART.h
+ * @brief Header file for the UART driver.
  *
- * This file contains the function definitions for the BLE_UART driver.
+ * This file contains the function definitions for the UART driver.
  *
- * It interfaces with the Adafruit Bluefruit LE UART Friend Bluetooth Low
- *      Energy (BLE) module, which uses the UART communication protocol.
- *  - Product Link: https://www.adafruit.com/product/2479
+ * It interfaces with another device, the T4.0, via UART
  *
  * The following connections must be made:
- *  - BLE UART MOD  (Pin 1)  <-->   MSP432 LaunchPad Pin P1.6
- *  - BLE UART CTS  (Pin 2)  <-->   MSP432 LaunchPad GND
- *  - BLE UART TXO  (Pin 3)  <-->   MSP432 LaunchPad Pin P9.6 (PM_UCA3RXD)
- *  - BLE UART RXI  (Pin 4)  <-->   MSP432 LaunchPad Pin P9.7 (PM_UCA3TXD)
- *  - BLE UART VIN  (Pin 5)  <-->   MSP432 LaunchPad VCC (3.3V)
- *  - BLE UART RTS  (Pin 6)  <-->   Not Connected
- *  - BLE UART GND  (Pin 7)  <-->   MSP432 LaunchPad GND
- *  - BLE UART DFU  (Pin 8)  <-->   Not Connected
+ *  - UART TXO  (Pin 3)  <-->   MSP432 LaunchPad Pin P9.6 (PM_UCA3RXD)
+ *  - UART RXI  (Pin 4)  <-->   MSP432 LaunchPad Pin P9.7 (PM_UCA3TXD)
  *
  * @note For more information regarding the Enhanced Universal Serial
  *      Communication Interface (eUSCI), refer to the MSP432Pxx Micro-
@@ -48,9 +40,9 @@
 
 
 /**
- * @brief Specifies the size of the buffer used for the BLE UART module
+ * @brief Specifies the size of the buffer used for the UART module
  */
-#define BLE_UART_BUFFER_SIZE 64
+#define UART_BUFFER_SIZE 64
 
 /**
  * @brief Carriage return character
@@ -107,7 +99,7 @@ static UART_ISR_Task task_function;
 /**
  * @brief BLE buffer
  */
-static volatile char BLE_UART_Data_Buffer[BLE_UART_BUFFER_SIZE] = {0};
+static volatile char UART_Data_Buffer[UART_BUFFER_SIZE] = {0};
 
 /**
  * @brief
@@ -133,60 +125,60 @@ static volatile char   *uart_buffer_pointer = NULL;
 
 
 /**
- * @brief   initializes the BLE UART module.
+ * @brief   initializes the UART module.
  */
-void BLE_UART_Init(UART_ISR_Task task);
+void UART_Init(UART_ISR_Task task);
 
 /**
- * @brief   receives a character from the BLE UART module.
+ * @brief   receives a character from the UART module.
  *
  * @return uint8_t
  */
-uint8_t BLE_UART_InChar();
+uint8_t UART_InChar();
 
 /**
- * @brief   sends a character to the BLE UART module.
+ * @brief   sends a character to the UART module.
  *
  * @param data character to be sent
  */
-void BLE_UART_OutChar(uint8_t data);
+void UART_OutChar(uint8_t data);
 
 /**
- * @brief   receives a string from the BLE UART module.
+ * @brief   receives a string from the UART module.
  *
  * @param buffer_pointer    pointer to the character array where the received
  *                              string will be stored.
  * @param buffer_size       expected size of the character array
  * @return int
  */
-int BLE_UART_InString(char *buffer_pointer, uint16_t buffer_size);
+int UART_InString(char *buffer_pointer, uint16_t buffer_size);
 
 /**
- * @brief   sends a string to the BLE UART module.
+ * @brief   sends a string to the UART module.
  *
  * @param pt    pointer to the character array to be sent
  */
-void BLE_UART_OutString(char *pt);
+void UART_OutString(char *pt);
 
 /**
- * @brief   sends a fixed-point number to the BLE UART module.
+ * @brief   sends a fixed-point number to the UART module.
  *
  * @param pt    fixed-point number to be sent
  */
-void BLE_UART_OutFixed(int32_t pt);
+void UART_OutFixed(int32_t pt);
 
 /**
  * @brief   checks if a specific string is present in the received data buffer.
  *
- * @param BLE_UART_Data_Buffer  buffer/reference containing the received data
+ * @param UART_Data_Buffer  buffer/reference containing the received data
  * @param data_string           pointer to the string to be checked
  * @return uint8_t
  */
-uint8_t Check_BLE_UART_Data(volatile char BLE_UART_Data_Buffer[], char *data_string);
+uint8_t Check_UART_Data(volatile char UART_Data_Buffer[], char *data_string);
 
 /**
- * @brief Resets the BLE UART module.
+ * @brief Resets the UART module.
  */
-void BLE_UART_Reset();
+void UART_Reset();
 
 #endif /* INC_BLE_A3_UART_H_ */

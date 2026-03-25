@@ -13,142 +13,156 @@
 // ----------------------------------------------------------------------------
 
 
+// forward duty cycle
+#define FORWARD_SPEED   ((uint16_t)(0.30f * TIMER_A0_PERIOD_CONSTANT))
+
+// reverse duty cycle
+#define BACKWARD_SPEED  ((uint16_t)(0.10f * TIMER_A0_PERIOD_CONSTANT))
+
+// rotation duty cycle
+#define ROTATION_SPEED  ((uint16_t)(0.05f * TIMER_A0_PERIOD_CONSTANT))
+
+
 // Desired RPM for the left wheel
-uint16_t Desired_RPM_Left    = 70;
+uint16_t Desired_RPM_Left    = 0;
 
 // Desired RPM for the right wheel
-uint16_t Desired_RPM_Right   = 70;
-
-uint16_t forward_speed  = 500, // forward duty cycle
-         backward_speed = 300, // reverse duty cycle
-         rotation_speed = 300; // rotation duty cycle
-
-int begin_state = 0;
-
-uint8_t toggle_front_state = 0;
-uint8_t toggle_back_state = 0;
+uint16_t Desired_RPM_Right   = 0;
 
 /**
- * @brief local instance of message_length globalized from BLE_A3_UART.c
+ * @brief
  */
-extern volatile int message_length;
-
-
-void Motor_Stop_Wrapper(uint16_t left_speed, uint16_t right_speed) {
-
-    Motor_Stop();
-}
-
+enum Tachometer_Direction current_state = STOPPED;
 
 
 void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[])
 {
-//    printf("len = %2d\n", message_length);
 
     // internal counter variable
-    int j;
-    MotorCommand command;
+    static MotorCommand command = NULL;
 
-    if (message_length < 4)
-        return;
-
-    printf("BLE UART Data: ");
-
-    for (j = 0; j < message_length; j++) {
-        printf("%c", BLE_UART_Buffer[j]);
-    }
-
-    printf("\n");
-
-
-    command = NULL;
 
     if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B11")) {
 
-        command             = &Motor_Stop_Wrapper;
+        command             = &Motor_Forward;
         Desired_RPM_Left    = 0;
         Desired_RPM_Right   = 0;
+
+        LED2_Output(RGB_LED_OFF);
 
 
     // 2: begin operation
-    } else
-    if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B21")) {
+    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B21")) {
 
-        command             = &Motor_Stop_Wrapper;
+        command             = &Motor_Forward;
         Desired_RPM_Left    = 0;
         Desired_RPM_Right   = 0;
 
-        begin_state = 1;
-
-        LED2_Output(RGB_LED_WHITE);
+        LED2_Output(RGB_LED_OFF);
 
 
     // 5: UP is activated when pressed
     } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B51")) {
 
-        command             = &Motor_Forward;
-        Desired_RPM_Left    = forward_speed;
-        Desired_RPM_Right   = forward_speed;
 
-        LED2_Output(RGB_LED_GREEN);
+        if (current_state == STOPPED) {
+
+            current_state       = FORWARD;
+
+            command             = &Motor_Forward;
+            Desired_RPM_Left   += FORWARD_SPEED;
+            Desired_RPM_Right  += FORWARD_SPEED;
+
+            LED2_Output(RGB_LED_GREEN);
+
+        // if forward, stop and reset desired RPM
+        } else if (current_state == FORWARD) {
+
+            current_state       = STOPPED;
+
+            command             = &Motor_Forward;
+            Desired_RPM_Left    = 0;
+            Desired_RPM_Right   = 0;
+
+            LED2_Output(RGB_LED_OFF);
+
+        }
+
+        // common: state transition from STOPPED to FORWARD and vice versa
+        // allowed only.
 
 
     // 6: DOWN is activated when pressed
-    } else
-    if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B61")) {
+    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B61")) {
 
-        command             = &Motor_Backward;
-        Desired_RPM_Left    = backward_speed;
-        Desired_RPM_Right   = backward_speed;
 
-        LED2_Output(RGB_LED_PINK);
+        if (current_state == STOPPED) {
+
+            current_state       = REVERSE;
+
+            command             = &Motor_Backward;
+            Desired_RPM_Left   += BACKWARD_SPEED;
+            Desired_RPM_Right  += BACKWARD_SPEED;
+
+            LED2_Output(RGB_LED_PINK);
+
+        // if reversed, stop and reset desired RPM
+        } else if (current_state == REVERSE) {
+
+            current_state       = STOPPED;
+
+            command             = &Motor_Backward;
+            Desired_RPM_Left    = 0;
+            Desired_RPM_Right   = 0;
+
+            LED2_Output(RGB_LED_OFF);
+
+        }
+
+        // common: state transition from STOPPED to REVERSE and vice versa
+        // allowed only.
 
 
     // 7: LEFT is activated when pressed
     } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B71")) {
 
         // update duty cycles
-        command             = &Motor_Left;
-        Desired_RPM_Left    = rotation_speed;
-        Desired_RPM_Right   = rotation_speed;
+        Desired_RPM_Left   -= ROTATION_SPEED;
+        Desired_RPM_Right  += ROTATION_SPEED;
 
-//        LED2_Output(RGB_LED_YELLOW);
+        LED2_Output(RGB_LED_YELLOW);
 
 
     // 8: RIGHT is activated when pressed
     } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B81")) {
 
         // update duty cycles
-        command             = &Motor_Right;
-        Desired_RPM_Left    = rotation_speed;
-        Desired_RPM_Right   = rotation_speed;
+        Desired_RPM_Left   += ROTATION_SPEED;
+        Desired_RPM_Right  -= ROTATION_SPEED;
 
-//        LED2_Output(RGB_LED_BLUE);
-
-
-    } else {
-
-        command             = &Motor_Stop_Wrapper;
-        Desired_RPM_Left    = 0;
-        Desired_RPM_Right   = 0;
-
-        LED2_Output(RGB_LED_OFF);
+        LED2_Output(RGB_LED_BLUE);
 
     }
-
-    // to apply the command only once, clear the buffer memory
-    memset((void*)BLE_UART_Buffer, 0, message_length);
-    message_length = 0;
 
 
     // Move the motors using the function pointer "command" with the updated duty cycle
     if (command != NULL) {
 
-        command(Desired_RPM_Left, Desired_RPM_Right);
+        command(clamp(Desired_RPM_Left,  0, TIMER_A0_PERIOD_CONSTANT),
+                clamp(Desired_RPM_Right, 0, TIMER_A0_PERIOD_CONSTANT));
 
-    } else {
-
-        Motor_Stop();
     }
 
+}
+
+uint16_t clamp(
+        uint16_t value,
+        uint16_t min,
+        uint16_t max)
+{
+    if (value > max) return max;
+
+    if (value > min) return value;
+
+    return min;
 }

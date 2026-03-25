@@ -28,6 +28,8 @@
  *      TASK 5: blank
  */
 
+#define TEN_TICKS_PER_SEC (TIMER_A1_CCR0_VALUE)
+
 #define MAX_DIV_FREQ    20
 
 #define TASK_0_FLAG     0x01 << 0
@@ -38,9 +40,9 @@
 #define TASK_1_DIV_FREQ 1
 #define TASK_1_OFFSET   0
 
-#define TASK_2_FLAG     0x01 << 2
-#define TASK_2_DIV_FREQ 2
-#define TASK_2_OFFSET   0
+//#define TASK_2_FLAG     0x01 << 2
+//#define TASK_2_DIV_FREQ 2
+//#define TASK_2_OFFSET   0
 
 //#define TASK_3_FLAG     0x01 << 3
 //#define TASK_3_DIV_FREQ MAX_DIV_FREQ

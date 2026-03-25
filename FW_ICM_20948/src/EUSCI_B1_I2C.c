@@ -23,8 +23,63 @@
 
 #define Wait_For_TX_Interrupt() (while ((EUSCI_B1->IFG & 0x0002) == 0))
 
-void EUSCI_B1_I2C_Init()
+#define PIN_4_6 (0x80)
+
+
+
+#ifdef OLD_SYSTEM
+
+void EUSCI_B1_I2C_Init() {
+
+#else
+
+
+void EUSCI_B1_I2C_Init(void(*task)(void))
 {
+
+    // Store the user-defined task function for use during interrupt handling
+    I2C_Sensor_Task = task;
+
+    // Configure the following pins as GPIO pins: P4.6, by clearing the corresponding
+    // bits in the SEL0 and SEL1 registers
+    P4->SEL0 &= ~PIN_4_6;  // clears; GPIO
+    P4->SEL1 &= ~PIN_4_6;  // clears; GPIO
+
+    // Set the direction of the following pins as input: P4.6, by clearing the
+    // corresponding bits in the DIR register
+    P4->DIR &= ~PIN_4_6;
+
+    // Enable pull-up resistors on the following pins: P4.6, by setting the
+    // corresponding bits in the REN register
+    P4->REN |=  PIN_4_6; // set; PUR enabled
+
+    // Ensure that the pins are pulled up: P4.6, by setting the corresponding
+    // bits in the OUT register
+    P4->OUT |=  PIN_4_6;
+
+    // Interrupt Edge Select: High-to-Low Transition
+    // Configure the pins to use falling edge event triggers: P4.6, by setting
+    // the corresponding bits in the IES register
+    P4->IES |=  PIN_4_6;   // sets; falling edge detection
+
+    // Clear any existing interrupt flags on the following pins: P4.6, by clearing
+    // the corresponding bits in the IFG register
+    P4->IFG &= ~PIN_4_6;
+
+    // Enable interrupts on the following pins: P4.6, by setting the corres-
+    // ponding bits in the IE register
+    P4->IE  |=  PIN_4_6;
+
+    // Set the priority level of the interrupts (IRQ 38) to 0 (section 2.4.3.20)
+    NVIC->IP[9]     = (NVIC->IP[9] & 0xFF0FFFFF);
+
+    // Enable Interrupt 38 in NVIC (section 2.4.3.2)
+    // Bit 6 corresponds to IRQ 38
+    NVIC->ISER[1]   = 0x00000040;
+
+#endif
+
+    // I2C controller -----------------------------------------------------
 
     // Hold the EUSCI_B1 module in reset mode by setting the UCSWRST bit (Bit
     // 0) in the UCBxCTLW0 register
@@ -126,6 +181,32 @@ void EUSCI_B1_I2C_Init()
 
 }
 
+#ifndef OLD_SYSTEM
+
+/**
+ * @brief Interrupt handler for PORT4 (P4) events.
+ *
+ * This function is an interrupt service routine (ISR) for PORT4 (P4) of the TI MSP432 LaunchPad.
+ * It is triggered on a falling edge event on any of the switches connected to P4 (BUMP_0 to BUMP_5).
+ * The function clears all interrupt flags for PORT4 and then executes the user-defined task function (Bump_Task)
+ * by passing the current state of the switches, which is obtained by calling Bump_Read().
+ *
+ * @note This function does not handle critical section/race conditions.
+ *
+ * @return None
+ */
+void PORT4_IRQHandler(void)
+{
+    // Clear the interrupt flags for P4.6
+    P4->IFG &= ~0x80;
+
+    // Execute the user-defined task
+    (*I2C_Sensor_Task)();
+}
+
+#endif
+
+
 void EUSCI_B1_I2C_Send_A_Byte(
         uint8_t     slave_address,
         uint8_t     data)
@@ -164,7 +245,7 @@ void EUSCI_B1_I2C_Send_A_Byte(
     EUSCI_B1->IFG &= ~0x0002;
 
 
-    printf("SAB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
+//    printf("SAB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
 
 }
 
@@ -216,7 +297,7 @@ void EUSCI_B1_I2C_Send_Multiple_Bytes(
     EUSCI_B1->IFG &= ~0x0002;
 
 
-    printf("SMB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
+//    printf("SMB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
 
 }
 
@@ -254,7 +335,7 @@ uint8_t EUSCI_B1_I2C_Receive_A_Byte(
     while ((EUSCI_B1->IFG & 0x0001) == 0);
 
 
-    printf("RAB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
+//    printf("RAB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
 
 
     // Return the received data from the Receive Buffer and ensure that it has
@@ -305,7 +386,7 @@ void EUSCI_B1_I2C_Receive_Multiple_Bytes(
     while ((EUSCI_B1->CTLW0 & 0x0004) != 0);
 
 
-    printf("RMB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
+//    printf("RMB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
 
 }
 
@@ -358,7 +439,7 @@ void EUSCI_B1_I2C_Read_Register(
     while ((EUSCI_B1->CTLW0 & 0x0004) != 0);
 
 
-    printf("RMB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
+//    printf("RMB: 0x%.4X\n", EUSCI_B1->CTLW0 & 0xF);
 
 }
 

@@ -24,12 +24,12 @@ void Timer_A0_PWM_Init(uint16_t period_constant, uint16_t duty_cycle_1, uint16_t
     // Configure pins P2.6 (PM_TA0.3) and P2.7 (PM_TA0.4) to use peripheral function mode
     // by setting Bits 6 and 7 of the SEL0 register for P2
     // and clearing Bits 6 and 7 of the SEL1 register for P2
-    P2->SEL0 |= 0xC0;
-    P2->SEL1 &= ~0xC0;
+    P2->SEL0   |=  0xC0;
+    P2->SEL1   &= ~0xC0;
 
     // Configure pins P2.6 and P2.7 as output GPIO pins to drive the PWM signals
     // Set Bits 6 and 7 of the DIR register for P2
-    P2->DIR |= 0xC0;
+    P2->DIR    |= 0xC0;
 
     // Set the Timer A0 Capture/Compare register to the specified period_constant
     // CCR[0] is primarily used as the "period" register
@@ -40,7 +40,7 @@ void Timer_A0_PWM_Init(uint16_t period_constant, uint16_t duty_cycle_1, uint16_t
 
     // Configure the Timer A0 expansion register to divide the clock frequency by 1
     // Clear all bits of the EX0 register
-    TIMER_A0->EX0 = 0x0000;
+    TIMER_A0->EX0   = 0x0000;
 
     // Configure the output mode as Toggle / Reset for CCR[3]
     // Set the bits of the OUTMOD field of the CCTL[3] register to 010b

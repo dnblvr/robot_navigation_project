@@ -35,7 +35,6 @@
  */
 #define ICM20948_ADDR_ACCEL_GYRO    0x68
 
-
 /**
  * @brief Address of the AK09916 magnetometer sensor
  */
@@ -291,6 +290,10 @@ void icm20948_set_mag_rate(
 //uint8_t ak09916_record_data(
 //        sensor_config_t*    config,
 //        dataframe_t*        data);
+
+uint8_t icm_read_gyro_y(float out);
+
+uint8_t icm_read_heading_xy(float* out);
 
 
 #ifdef __cplusplus

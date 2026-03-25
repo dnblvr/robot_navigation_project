@@ -12,6 +12,7 @@
 #include "GPIO.h"
 #include "Motor.h"
 #include "BLE_A3_UART.h"
+#include "Tachometer.h"
 
 
 // Initialize length of the tachometer buffers
@@ -47,6 +48,8 @@ extern uint16_t Desired_RPM_Right;
 //int begin_state;
 
 
+
+
 /**
  * @brief Motor speed settings
  */
@@ -79,6 +82,11 @@ void Motor_Stop_Wrapper(uint16_t left_speed, uint16_t right_speed);
  * @param BLE_UART_Buffer
  */
 void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[]);
+
+/**
+ *
+ */
+uint16_t clamp(uint16_t value, uint16_t min, uint16_t max);
 
 
 #endif /* __INC_BLE_H__ */

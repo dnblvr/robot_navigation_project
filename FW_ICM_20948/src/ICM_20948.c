@@ -14,7 +14,7 @@
 #define DIMS        3
 
 
-
+#define DEBUG_OUTPUT 1
 
 #ifdef OLD_SYSTEM
 
@@ -93,7 +93,7 @@ int8_t icm20948_init(icm20948_config_t* config)
 
 
 
-    printf("here 1\n");
+//    printf("here 1\n");
 
 
     /** --------------------------------------------------------
@@ -105,7 +105,7 @@ int8_t icm20948_init(icm20948_config_t* config)
                                      (uint8_t[]){REG_BANK_SEL, 0x20},
                                      2);
 
-    printf("here 2\n");
+//    printf("here 2\n");
 
     // gyro config
     //
@@ -128,7 +128,7 @@ int8_t icm20948_init(icm20948_config_t* config)
                                      (uint8_t[]){GYRO_SMPLRT_DIV, 0x0A},
                                      2);
 
-    printf("here 3\n");
+//    printf("here 3\n");
 
     // accel config
     //
@@ -192,7 +192,7 @@ int8_t icm20948_init(icm20948_config_t* config)
                                      (uint8_t[]){AK09916_CONTROL_2, 0x08},
                                      2);
 
-    printf("here 5\n");
+//    printf("here 5\n");
 
     return 0;
 
@@ -675,8 +675,8 @@ int8_t icm20948_init(
     // give a 1 ms delay
 //    I2C_read_register(mag_address, AK09916_WHO_AM_I, &buf, 1);
     EUSCI_B1_I2C_Send_A_Byte(mag_address,
-                             WHO_AM_I_ICM20948);
-    buf = EUSCI_B1_I2C_Receive_A_Byte(icm_address);
+                             AK09916_WHO_AM_I);
+    buf = EUSCI_B1_I2C_Receive_A_Byte(mag_address);
     Clock_Delay1ms(1);
 
     #if DEBUG_OUTPUT
@@ -692,7 +692,7 @@ int8_t icm20948_init(
     // config mag
     // set mag mode, to measure continuously in 100Hz
     reg[0] = AK09916_CONTROL_2; reg[1] = CONTINUOUS_100HZ;
-    EUSCI_B1_I2C_Send_Multiple_Bytes(icm_address,
+    EUSCI_B1_I2C_Send_Multiple_Bytes(mag_address,
                                      reg,
                                      2);
 
@@ -902,11 +902,68 @@ void icm20948_set_mag_rate(
 //
 //    // offsets are incorporated later in later commits
 //
-//    return 0;
+//    return AK09916_SUCCESS;
 //}
 
+uint8_t icm_read_heading_xy(float* out) {
+
+    #define AK09916_SUCCESS 0x00
+    #define AK09916_FAILED  0x02
+
+    uint8_t reg[7];
+    uint8_t buf;
+
+    // read ST1 and check if data is ready
+//    I2C_read_register(ak_config, AK09916_DATA_STATUS_1, reg, 1);
+    EUSCI_B1_I2C_Send_A_Byte(ICM20948_ADDR_MAG,
+                             AK09916_DATA_STATUS_1);
+    buf = EUSCI_B1_I2C_Receive_A_Byte(ICM20948_ADDR_MAG);
+    Clock_Delay1ms(1);
 
 
+    if ((buf & AK09916_ST1_DRDY) != AK09916_ST1_DRDY) {
+
+        #ifdef DEBUG_OUTPUT
+        printf("  AK09916_DATA_STATUS_1 = %02X\nST1: Data is NOT ready\n", buf);
+        #endif
+
+        return AK09916_FAILED;
+    }
+
+    // assume that the user bank is already set to 0. then, read mag in one I2C
+    // transaction
+//    I2C_read_register(ak_config, AK09916_XOUT_L, reg, 7);
+    EUSCI_B1_I2C_Send_A_Byte(ICM20948_ADDR_MAG,
+                             AK09916_XOUT_L);
+    EUSCI_B1_I2C_Receive_Multiple_Bytes(ICM20948_ADDR_MAG, reg, 7);
+    Clock_Delay1ms(1);
+
+
+    // finish reading by getting ST2
+//    I2C_read_register(ak_config, AK09916_DATA_STATUS_2, &reg[7], 1);
+    EUSCI_B1_I2C_Send_A_Byte(ICM20948_ADDR_MAG,
+                             AK09916_DATA_STATUS_2);
+    buf = EUSCI_B1_I2C_Receive_A_Byte(ICM20948_ADDR_MAG);
+
+
+    // check data overflow
+    if ((reg[6] & 0x08) == 0x08) {
+
+        #ifdef DEBUG_OUTPUT
+        printf("mag: ST2: Sensor overflow\n");
+        #endif
+
+        return AK09916_FAILED;
+    }
+
+    // process the data;
+    out[0] = (float)(reg[1] << 8 | reg[0]);
+    out[1] = (float)(reg[3] << 8 | reg[2]);
+    out[2] = (float)(reg[5] << 8 | reg[4]);
+
+    return AK09916_SUCCESS;
+
+}
 
 #endif
 

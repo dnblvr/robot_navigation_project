@@ -30,7 +30,7 @@ uint16_t Desired_RPM_Left    = 0;
 uint16_t Desired_RPM_Right   = 0;
 
 /**
- * @brief
+ * @brief variable that tracks
  */
 enum Tachometer_Direction current_state = STOPPED;
 
@@ -42,7 +42,7 @@ void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[])
     static MotorCommand command = NULL;
 
 
-    if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B11")) {
+    if (Check_UART_Data(BLE_UART_Buffer, "!B11")) {
 
         command             = &Motor_Forward;
         Desired_RPM_Left    = 0;
@@ -52,7 +52,7 @@ void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[])
 
 
     // 2: begin operation
-    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B21")) {
+    } else if (Check_UART_Data(BLE_UART_Buffer, "!B21")) {
 
         command             = &Motor_Forward;
         Desired_RPM_Left    = 0;
@@ -62,7 +62,7 @@ void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[])
 
 
     // 5: UP is activated when pressed
-    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B51")) {
+    } else if (Check_UART_Data(BLE_UART_Buffer, "!B51")) {
 
 
         if (current_state == STOPPED) {
@@ -93,7 +93,7 @@ void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[])
 
 
     // 6: DOWN is activated when pressed
-    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B61")) {
+    } else if (Check_UART_Data(BLE_UART_Buffer, "!B61")) {
 
 
         if (current_state == STOPPED) {
@@ -124,7 +124,7 @@ void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[])
 
 
     // 7: LEFT is activated when pressed
-    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B71")) {
+    } else if (Check_UART_Data(BLE_UART_Buffer, "!B71")) {
 
         // update duty cycles
         Desired_RPM_Left   -= ROTATION_SPEED;
@@ -134,7 +134,7 @@ void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[])
 
 
     // 8: RIGHT is activated when pressed
-    } else if (Check_BLE_UART_Data(BLE_UART_Buffer, "!B81")) {
+    } else if (Check_UART_Data(BLE_UART_Buffer, "!B81")) {
 
         // update duty cycles
         Desired_RPM_Left   += ROTATION_SPEED;

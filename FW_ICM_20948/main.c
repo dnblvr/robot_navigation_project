@@ -52,6 +52,7 @@
 #include "inc/Clock.h"
 #include "inc/CortexM.h"
 #include "inc/EUSCI_A0_UART.h"
+#include "inc/EUSCI_A2_UART.h"
 #include "inc/GPIO.h"
 //#include "inc/Motor.h"
 #include "inc/Timer_A1_Interrupt.h"
@@ -78,6 +79,21 @@ void I2C_Task(void) {
 }
 
 
+volatile uint8_t comms_established = 0;
+
+
+void Communications_Handler(volatile char UART_Buffer[]) {
+
+    // if seen, communication established and echo back
+    if (Check_UART_Data(UART_Buffer, "!E\r\n")) {
+
+        UART_A2_OutString("!E\r\n");
+
+        comms_established = 1;
+    }
+
+}
+
 
 // ----------------------------------------------------------------------------
 //
@@ -85,18 +101,6 @@ void I2C_Task(void) {
 //
 // ----------------------------------------------------------------------------
 
-
-
-
-/**
- * @brief main SLAM structure
- */
-//SLAMOptimizer slam_optimizer;
-
-/**
- * @brief boolean that indicates whether SLAM has been initialized
- */
-//uint8_t slam_initialized   = false;
 
 /**
  * @brief Incremental pose change since last scan (from odometry)
@@ -400,9 +404,11 @@ void main(void) {
     // Initialize the built-in red LED and the RGB LEDs
     LED2_Init();
 
+    LED2_Output(RGB_LED_BLUE);
 
     // Initialize EUSCI_A0_UART
     EUSCI_A0_UART_Init_Printf();
+    printf("printf enabled\n");
 
 
     // use Timer_A1_Interrupt to get the odometry measurements
@@ -415,6 +421,23 @@ void main(void) {
     Tachometer_Init();
     Reset_Pose_Accumulator(pose_ptr);
 
+
+
+    UART_A2_Init(&Communications_Handler);
+
+
+    // Enable the interrupts used by the SysTick and Timer_A timers
+    EnableInterrupts();
+
+    while (!comms_established) {
+        EUSCI_A2->IE   |=  0x0001;  // RPLiDAR C1
+
+    }
+
+
+    LED2_Output(RGB_LED_RED);
+
+    return;
 
 
 #ifdef OLD_SYSTEM

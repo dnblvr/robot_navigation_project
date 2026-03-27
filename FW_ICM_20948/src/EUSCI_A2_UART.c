@@ -31,7 +31,7 @@
 // ----------------------------------------------------------------------------
 
 
-void UART_Init(UART_ISR_Task task)
+void UART_A2_Init(UART_ISR_Task task)
 {
 
     task_function = task;
@@ -43,11 +43,12 @@ void UART_Init(UART_ISR_Task task)
     message_length      = 0;
 
 
-    // Configure pins P9.6 (PM_UCA3RXCD) and P9.7 (UCA3TXD) to use the primary
-    // module function by setting Bits 7 and 6 in the SEL0 register for P9 and
-    // clearing Bits 7 and 6 in the SEL1 register for P9
-    P9->SEL0   |=  0xC0;
-    P9->SEL1   &= ~0xC0;
+    // Configure pins P3.2 (PM_UCA2RXD) and P3.3 (PM_UCA2TXD) to use the
+    // primary module function:
+    //    - by  setting  Bits 3 and 2 in the SEL0 register for P3
+    //    - and clearing Bits 3 and 2 in the SEL1 register for P3
+    P3->SEL0 |=  0x0C;
+    P3->SEL1 &= ~0x0C;
 
 
     // Configure the P1.6 pin as an output GPIO pin by clearing Bit 6 of the
@@ -116,8 +117,10 @@ void UART_Init(UART_ISR_Task task)
 
     // Set the baud rate value by writing to the UCBRx field (Bits 15 to 0) in
     // the BRW register
-    // f_clk/baud = 12,000,000/9600 = 1250
-    EUSCI_A2->BRW       =  1250;
+    // f_clk/baud = 12,000,000/9,600    = 1250
+    // f_clk/baud = 12,000,000/460,800  = 26.0416666667
+//    EUSCI_A2->BRW       =  1250;
+    EUSCI_A2->BRW       =  26;
 
 
 
@@ -143,14 +146,14 @@ void UART_Init(UART_ISR_Task task)
 
 
 
-    // ISER[0] = 1 << 19
-    // turn on interrupt number 19 using ISER[0]
-    NVIC->ISER[0] =  0x00080000;
+    // ISER[0] = 1 << 18
+    // turn on interrupt number 18 using ISER[0]
+    NVIC->ISER[0] =  1 << 18;
 
 
-    // IP[4] = 0x02 << 29
+    // IP[4] = 0x01 << 21
     // set priority to 1
-    NVIC->IP[4]     = (NVIC->IP[4] & 0x0FFFFFFF) | 0x20000000;
+    NVIC->IP[IP_EUSCIA] = (NVIC->IP[4] & 0x0FFFFFFF) | (0x01 << EUSCIA2_OFFSET);
 
 }
 
@@ -212,7 +215,7 @@ void EUSCIA2_IRQHandler(void) {
 }
 
 
-uint8_t UART_InChar()
+uint8_t UART_A2_InChar()
 {
     // Check the Receive Interrupt flag (UCRXIFG, Bit 0) in the IFG register
     // and wait if the flag is not set. If the UCRXIFG is set, then the Receive
@@ -224,7 +227,7 @@ uint8_t UART_InChar()
     return EUSCI_A2->RXBUF;
 }
 
-void UART_OutChar(uint8_t data)
+void UART_A2_OutChar(uint8_t data)
 {
     // Check the Transmit Interrupt flag (UCTXIFG, Bit 1) in the IFG register
     // and wait if the flag is not set. If the UCTXIFG is set, then the
@@ -237,14 +240,14 @@ void UART_OutChar(uint8_t data)
 
 }
 
-int UART_InString(char *buffer_pointer, uint16_t buffer_size)
+int UART_A2_InString(char *buffer_pointer, uint16_t buffer_size)
 {
 
     int length      = 4;
     int string_size = 4;
 
     // Read the last received data from the UART Receive Buffer
-    char character = UART_InChar();
+    char character = UART_A2_InChar();
 
 
 
@@ -259,7 +262,7 @@ int UART_InString(char *buffer_pointer, uint16_t buffer_size)
 
         while (length) {
 
-            *buffer_pointer = UART_InChar();
+            *buffer_pointer = UART_A2_InChar();
             buffer_pointer++;
             length--;
 
@@ -291,7 +294,7 @@ int UART_InString(char *buffer_pointer, uint16_t buffer_size)
             {
                 buffer_pointer--;
                 length--;
-                UART_OutChar(BS);
+                UART_A2_OutChar(BS);
             }
 
         // Otherwise, if there are more characters to be read, store them in
@@ -305,7 +308,7 @@ int UART_InString(char *buffer_pointer, uint16_t buffer_size)
 
         }
 
-        character = UART_InChar();
+        character = UART_A2_InChar();
     }
 
     *buffer_pointer = 0;
@@ -315,57 +318,44 @@ int UART_InString(char *buffer_pointer, uint16_t buffer_size)
 
 
 
-void UART_OutFixed(int32_t pt)
+void UART_A2_OutFixed(int32_t pt)
 {
     int i;
     for (i = 24; i >= 0; i = i - 8) {
 
         char temp = (char)(pt >> i);
 
-        UART_OutChar(temp);
+        UART_A2_OutChar(temp);
     }
 }
 
 
-void UART_OutString(char *pt)
+void UART_A2_OutString(char *pt)
 {
     while (*pt)
     {
-        UART_OutChar(*pt);
+        UART_A2_OutChar(*pt);
         pt++;
     }
 }
 
 
-uint8_t Check_UART_Data(
-        volatile char  UART_Data_Buffer[],
-                 char *data_string)
-{
-    if (strstr((const char*)UART_Data_Buffer, data_string) != NULL) {
 
-        return 0x01;
-
-    } else {
-
-        return 0x00;
-    }
-}
-
-void UART_Reset()
+void UART_A2_Reset()
 {
 
-    // Switch to CMD mode by setting the MOD pin (P1.6) to 1
-    P1->OUT    |=  0x40;
-    Clock_Delay1ms(1000);
-
-
-    // Send the system reset command by sending the "ATZ" string to the BLE
-    // UART module
-    UART_OutString("ATZ\r\n");
-    Clock_Delay1ms(3000);
-
-
-    // Switch back to DATA mode by clearing the MOD pin (P1.6) to 0
-    P1->OUT    &= ~0x40;
+//    // Switch to CMD mode by setting the MOD pin (P1.6) to 1
+//    P1->OUT    |=  0x40;
+//    Clock_Delay1ms(1000);
+//
+//
+//    // Send the system reset command by sending the "ATZ" string to the BLE
+//    // UART module
+//    UART_OutString("ATZ\r\n");
+//    Clock_Delay1ms(3000);
+//
+//
+//    // Switch back to DATA mode by clearing the MOD pin (P1.6) to 0
+//    P1->OUT    &= ~0x40;
 
 }

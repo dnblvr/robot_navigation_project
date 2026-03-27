@@ -17,8 +17,8 @@
  * @author Aaron Nanas, Jeff P, and Gian F
  *
  */
-#ifndef INC_BLE_A3_UART_H_
-#define INC_BLE_A3_UART_H_
+#ifndef INC_EUSCI_A2_UART_H_
+#define INC_EUSCI_A2_UART_H_
 
 
 #include <stdint.h>
@@ -27,57 +27,9 @@
 #include "msp.h"
 #include "Clock.h"
 
-#include "Project_config.h"
+#include "Project_Config.h"
+#include "EUSCI_Ax_UART.h"
 
-
-//#define DEBUG_OUTPUT 1
-
-// ----------------------------------------------------------------------------
-//
-//  CONSTANTS
-//
-// ----------------------------------------------------------------------------
-
-
-/**
- * @brief Specifies the size of the buffer used for the UART module
- */
-#define UART_BUFFER_SIZE 64
-
-/**
- * @brief Carriage return character
- */
-#define CR   0x0D
-
-/**
- * @brief Line feed character
- */
-#define LF   0x0A
-
-/**
- * @brief Back space character
- */
-#define BS   0x08
-
-/**
- * @brief Escape character
- */
-#define ESC  0x1B
-
-/**
- * @brief Space character
- */
-#define SP   0x20
-
-/**
- * @brief Delete character
- */
-#define DEL  0x7F
-
-/**
- * @brief RX interrupt mask
- */
-#define EUSCI_RXIFG  0x0001
 
 
 // ----------------------------------------------------------------------------
@@ -86,10 +38,6 @@
 //
 // ----------------------------------------------------------------------------
 
-/**
- * @brief type definition of an UART ISR function pointer
- */
-typedef void (*UART_ISR_Task)(volatile char *);
 
 /**
  * @brief static function pointer that will be used when the UART ISR runs
@@ -97,7 +45,7 @@ typedef void (*UART_ISR_Task)(volatile char *);
 static UART_ISR_Task task_function;
 
 /**
- * @brief BLE buffer
+ * @brief UART buffer
  */
 static volatile char UART_Data_Buffer[UART_BUFFER_SIZE] = {0};
 
@@ -119,7 +67,7 @@ static volatile char   *uart_buffer_pointer = NULL;
 
 // ----------------------------------------------------------------------------
 //
-//  BLE INITIALIZATION
+//  UART INITIALIZATION
 //
 // ----------------------------------------------------------------------------
 
@@ -127,21 +75,21 @@ static volatile char   *uart_buffer_pointer = NULL;
 /**
  * @brief   initializes the UART module.
  */
-void UART_Init(UART_ISR_Task task);
+void UART_A2_Init(UART_ISR_Task task);
 
 /**
  * @brief   receives a character from the UART module.
  *
  * @return uint8_t
  */
-uint8_t UART_InChar();
+uint8_t UART_A2_InChar();
 
 /**
  * @brief   sends a character to the UART module.
  *
  * @param data character to be sent
  */
-void UART_OutChar(uint8_t data);
+void UART_A2_OutChar(uint8_t data);
 
 /**
  * @brief   receives a string from the UART module.
@@ -151,34 +99,25 @@ void UART_OutChar(uint8_t data);
  * @param buffer_size       expected size of the character array
  * @return int
  */
-int UART_InString(char *buffer_pointer, uint16_t buffer_size);
+int UART_A2_InString(char *buffer_pointer, uint16_t buffer_size);
 
 /**
  * @brief   sends a string to the UART module.
  *
  * @param pt    pointer to the character array to be sent
  */
-void UART_OutString(char *pt);
+void UART_A2_OutString(char *pt);
 
 /**
  * @brief   sends a fixed-point number to the UART module.
  *
  * @param pt    fixed-point number to be sent
  */
-void UART_OutFixed(int32_t pt);
-
-/**
- * @brief   checks if a specific string is present in the received data buffer.
- *
- * @param UART_Data_Buffer  buffer/reference containing the received data
- * @param data_string           pointer to the string to be checked
- * @return uint8_t
- */
-uint8_t Check_UART_Data(volatile char UART_Data_Buffer[], char *data_string);
+void UART_A2_OutFixed(int32_t pt);
 
 /**
  * @brief Resets the UART module.
  */
-void UART_Reset();
+void UART_A2_Reset();
 
 #endif /* INC_BLE_A3_UART_H_ */

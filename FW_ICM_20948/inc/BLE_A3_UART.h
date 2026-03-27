@@ -35,57 +35,9 @@
 #include "msp.h"
 #include "Clock.h"
 
-#include "Project_config.h"
+#include "Project_Config.h"
+#include "EUSCI_Ax_UART.h"
 
-
-//#define DEBUG_OUTPUT 1
-
-// ----------------------------------------------------------------------------
-//
-//  CONSTANTS
-//
-// ----------------------------------------------------------------------------
-
-
-/**
- * @brief Specifies the size of the buffer used for the BLE UART module
- */
-#define BLE_UART_BUFFER_SIZE 64
-
-/**
- * @brief Carriage return character
- */
-#define CR   0x0D
-
-/**
- * @brief Line feed character
- */
-#define LF   0x0A
-
-/**
- * @brief Back space character
- */
-#define BS   0x08
-
-/**
- * @brief Escape character
- */
-#define ESC  0x1B
-
-/**
- * @brief Space character
- */
-#define SP   0x20
-
-/**
- * @brief Delete character
- */
-#define DEL  0x7F
-
-/**
- * @brief RX interrupt mask
- */
-#define EUSCI_RXIFG  0x0001
 
 
 // ----------------------------------------------------------------------------
@@ -95,11 +47,6 @@
 // ----------------------------------------------------------------------------
 
 /**
- * @brief type definition of an UART ISR function pointer
- */
-typedef void (*UART_ISR_Task)(volatile char *);
-
-/**
  * @brief static function pointer that will be used when the UART ISR runs
  */
 static UART_ISR_Task task_function;
@@ -107,7 +54,7 @@ static UART_ISR_Task task_function;
 /**
  * @brief BLE buffer
  */
-static volatile char BLE_UART_Data_Buffer[BLE_UART_BUFFER_SIZE] = {0};
+static volatile char BLE_UART_Data_Buffer[UART_BUFFER_SIZE] = {0};
 
 /**
  * @brief
@@ -117,12 +64,12 @@ volatile int     message_length;
 /**
  * @brief pointer to the array base address
  */
-static volatile char   *UART_BUFFER_ADDR    = NULL;
+static volatile char   *BLE_BUFFER_ADDR    = NULL;
 
 /**
  * @brief pointer to the rolling index address
  */
-static volatile char   *uart_buffer_pointer = NULL;
+static volatile char   *BLE_buffer_pointer = NULL;
 
 
 // ----------------------------------------------------------------------------
@@ -174,15 +121,6 @@ void BLE_UART_OutString(char *pt);
  * @param pt    fixed-point number to be sent
  */
 void BLE_UART_OutFixed(int32_t pt);
-
-/**
- * @brief   checks if a specific string is present in the received data buffer.
- *
- * @param BLE_UART_Data_Buffer  buffer/reference containing the received data
- * @param data_string           pointer to the string to be checked
- * @return uint8_t
- */
-uint8_t Check_BLE_UART_Data(volatile char BLE_UART_Data_Buffer[], char *data_string);
 
 /**
  * @brief Resets the BLE UART module.

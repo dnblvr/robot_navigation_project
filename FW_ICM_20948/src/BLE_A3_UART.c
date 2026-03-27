@@ -43,8 +43,8 @@ void BLE_UART_Init(UART_ISR_Task task)
     task_function = task;
 
     // establish the address of the pointer for later assignment
-    UART_BUFFER_ADDR    = &BLE_UART_Data_Buffer[0];
-    uart_buffer_pointer = &BLE_UART_Data_Buffer[0];
+    BLE_BUFFER_ADDR     = &BLE_UART_Data_Buffer[0];
+    BLE_buffer_pointer  = &BLE_UART_Data_Buffer[0];
 
     message_length      = 0;
 
@@ -151,12 +151,12 @@ void BLE_UART_Init(UART_ISR_Task task)
 
     // ISER[0] = 1 << 19
     // turn on interrupt number 19 using ISER[0]
-    NVIC->ISER[0] =  0x00080000;
+    NVIC->ISER[0]   =  0x00080000;
 
 
-    // IP[4] = 0x02 << 29
+    // IP[4] = 0x01 << 29
     // set priority to 1
-    NVIC->IP[4]     = (NVIC->IP[4] & 0x0FFFFFFF) | 0x20000000;
+    NVIC->IP[4]     = (NVIC->IP[4] & 0x0FFFFFFF) | (0x01 << EUSCIA3_OFFSET);
 
 }
 
@@ -179,13 +179,13 @@ void EUSCIA3_IRQHandler(void) {
         // Check if the received character is a button command from the EUSCI_A3
         if (character == '!') {
 
-            uart_buffer_pointer = UART_BUFFER_ADDR;
+            BLE_buffer_pointer  = BLE_BUFFER_ADDR;
             message_length      = 0;
 
         }
 
         // otherwise, add the character to the buffer and increment the pointer
-        *(uart_buffer_pointer++)  = character;
+        *(BLE_buffer_pointer++) = character;
         message_length++;
 
 
@@ -342,20 +342,6 @@ void BLE_UART_OutString(char *pt)
     }
 }
 
-
-uint8_t Check_BLE_UART_Data(
-        volatile char  BLE_UART_Data_Buffer[],
-                 char *data_string)
-{
-    if (strstr((const char*)BLE_UART_Data_Buffer, data_string) != NULL) {
-
-        return 0x01;
-
-    } else {
-
-        return 0x00;
-    }
-}
 
 void BLE_UART_Reset()
 {

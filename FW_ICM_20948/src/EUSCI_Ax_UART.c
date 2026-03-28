@@ -4,13 +4,7 @@
  *
  * This file contains the function definitions for the UART driver.
  *
- * It interfaces with the Adafruit Bluefruit LE UART Friend Bluetooth Low
- *      Energy (BLE) module, which uses the UART communication protocol.
- *  - Product Link: https://www.adafruit.com/product/2479
- *
- * The following connections must be made:
- *  - UART TXO  (Pin 3)     <-->  MSP432 LaunchPad Pin P9.6 (PM_UCA3RXD)
- *  - UART RXI  (Pin 4)     <-->  MSP432 LaunchPad Pin P9.7 (PM_UCA3TXD)
+ * This is used to 
  *
  * @note For more information regarding the Enhanced Universal Serial
  *      Communication Interface (eUSCI), refer to the MSP432Pxx Micro-

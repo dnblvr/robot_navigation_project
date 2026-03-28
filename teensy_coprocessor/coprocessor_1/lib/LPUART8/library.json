@@ -1,0 +1,23 @@
+{
+    "name": "LPUART8",
+    "version": "1.0.0",
+    "description": "Teensy rewrite based on the RPLiDAR C1 UART driver adapted for the MSP432-based UART implementation. Provides all hardware-specific UART calls replaced by a configurable HardwareSerial reference.",
+    "keywords": ["uart", "robotics"],
+    "authors": [
+        {
+            "name": "Gian Fajardo",
+            "maintainer": true
+        }
+    ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/dnblvr/robot_navigation_project"
+    },
+    "license": "MIT",
+    "frameworks": "arduino",
+    "platforms": ["teensy"],
+    "build": {
+        "includeDir": "include",
+        "srcDir": "src"
+    }
+}

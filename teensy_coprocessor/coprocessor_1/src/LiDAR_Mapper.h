@@ -31,6 +31,8 @@
 
 #include "Timer_Tasks.h"
 
+#define MSP432_Serial  Serial5
+
 
 // ----------------------------------------------------------------------------
 //  Configuration
@@ -91,33 +93,34 @@ void setup()
     uint8_t comms_initiated = 0;
 
     // USB CDC — wait for monitor so initialization messages aren't lost
-    Serial.begin(115200);
+    // Serial.begin(115200); // cannot be initialized here because if we want the MSP432_Serial communication to be live during setup. This needs to be established until after data collection starts at which point the USB stream will send over the point cloud data for analysis on the PC.
     // while (!Serial);
 
-    Serial2.begin(460800);
-    while (!Serial2);
+    MSP432_Serial.begin(460800);
+    while (!MSP432_Serial);
 
     String msg = "";
-    
+
     while (1) {
 
-        Serial.println("Checking RPLiDAR C1 comms...");
+        Serial.println("Checking MSP432 comms...");
 
 
-        Serial2.println("!E");
+        MSP432_Serial.write("!E");
 
         // wait for response
-        while (Serial2.available() == 0);
+        while (MSP432_Serial.available() == 0);
 
         // Consume the response byte
-        msg = Serial2.readString();
+        msg = MSP432_Serial.readString();
 
         Serial.printf("\t response: %s\n", msg.c_str());
 
-        if (msg == "!E") {
+        if (msg == "!E\r\n") {
             comms_initiated = 1;
             break;
         }
+
         delay(10);
     }
 

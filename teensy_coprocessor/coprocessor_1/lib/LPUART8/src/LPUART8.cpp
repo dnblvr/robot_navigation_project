@@ -158,39 +158,44 @@ void LPUART8_AttachISR(LPUART_ISR_Task task)
 
     // Wait-blocks for TX FIFO to empty (WATER[19:16] = TXCOUNT)
     //  - `7u`: this register holds 0b111 bits
-    while (IMXRT_LPUART6.WATER & LPUART_WATER_TXCOUNT(7u));
+    // @note this optimization is such that it does not need to shift the WATER register to get the TXCOUNT bits; masking only leaves us interested in whether or not TXCOUNT, and the WATER register by extension, equals 0
+    while (IMXRT_LPUART8.WATER & LPUART_WATER_TXCOUNT(7u));
 
     // Then wait for shift register to finish
-    while (!(IMXRT_LPUART6.STAT & LPUART_STAT_TC));
+    while (!(IMXRT_LPUART8.STAT & LPUART_STAT_TC));
 
 
     /** -----------------------------------------------------------------------
      * @brief Disable the transmitter and receiver before making other CTRL
      *  changes
      */
-    IMXRT_LPUART6.CTRL &= ~(    LPUART_CTRL_TE
+    IMXRT_LPUART8.CTRL &= ~(    LPUART_CTRL_TE
                             |   LPUART_CTRL_RE);
 
-    // Explicitly clear TX interrupt enables AND the idle line interrupt enable (ILIE) so no spurious interrupt can fire. HardwareSerial enables ILIE to detect end-of-packet which is not needed for this application. Leaving it enabled causes ~2 400 useless ISR invocations per 100 ms frame (one per inter-packet idle gap at 4 090 packets/sec). Worse, the IDLE ISR path performs a read-modify-write on STAT to clear LPUART_STAT_IDLE; if STAT.OR (receive overrun) happens to be set at that moment, |= silently clears it — hiding the evidence of the very byte-drop that causes FSM drift. Our application only needs the RXINT so the FSM can properly count bytes internally.
-    IMXRT_LPUART6.CTRL &= ~(    LPUART_CTRL_TIE
-                            |   LPUART_CTRL_TCIE
-                            |   LPUART_CTRL_ILIE);
+    // Explicitly clear TX interrupt enables AND the idle line interrupt enable (ILIE) so no spurious interrupt can fire. HardwareSerial enables ILIE to detect end-of-packet which is not needed for this application. Leaving it enabled causes ~2 400 useless ISR invocations per 100 ms frame (one per inter-packet idle gap at 4,090 packets/sec). 
+    // Worse, the IDLE ISR path performs a read-modify-write on STAT to clear LPUART_STAT_IDLE; if STAT.OR (receive overrun) happens to be set at that moment, |= silently clears it — hiding the evidence of the very byte-drop that causes FSM drift. Our application only needs the RXINT so the FSM can properly count bytes internally.
+    IMXRT_LPUART8.CTRL &= ~(    LPUART_CTRL_TIE
+                             |  LPUART_CTRL_TCIE
+                             |  LPUART_CTRL_ILIE);
 
     // Clear any IDLE and OR flags left pending from the init-command phase.
-    IMXRT_LPUART6.STAT |= (     LPUART_STAT_IDLE
-                            |   LPUART_STAT_OR);
+    IMXRT_LPUART8.STAT |=  (    LPUART_STAT_IDLE
+                             |  LPUART_STAT_OR);
 
 
     /** -----------------------------------------------------------------------
-     * @brief after every changes made, it is safe to re-enable the receiver
+     * @brief after every changes made, it is safe to re-enable the transmitter
+     *  and receiver
      */
-    IMXRT_LPUART6.CTRL |=       LPUART_CTRL_RE;
+    IMXRT_LPUART8.CTRL |=  (    LPUART_CTRL_TE
+                             |  LPUART_CTRL_RE);
 
-    // From this point all LPUART6 interrupts are handled by LPUART6_RX_ISR
+
+    // From this point all LPUART8 interrupts are handled by LPUART8_RX_ISR
     // with priority 64 (HardwareSerial default). 
-    attachInterruptVector(IRQ_LPUART6, LPUART6_RX_ISR);
-    NVIC_SET_PRIORITY(IRQ_LPUART6, 64);  // match HardwareSerial default
-    NVIC_ENABLE_IRQ(IRQ_LPUART6);
+    attachInterruptVector(IRQ_LPUART8, LPUART8_RX_ISR);
+    NVIC_SET_PRIORITY(IRQ_LPUART8, 64);
+    NVIC_ENABLE_IRQ(IRQ_LPUART8);
 
 }
 

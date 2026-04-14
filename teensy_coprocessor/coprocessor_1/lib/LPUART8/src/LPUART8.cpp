@@ -25,14 +25,15 @@
  */
 static HardwareSerial* _serial = nullptr;
 
-/** Pointer into the raw 5-byte staging buffer */
-uint8_t*  RX_POINTER    = nullptr;
+/** 
+ * @brief Pointer into the raw 5-byte staging buffer
+ */
+static volatile char*  RX_POINTER    = nullptr;
 
-/** Pointer into the packed (angle << 16 | distance) buffer */
-uint32_t* INTERM_POINTER = nullptr;
-
-/** Flag set by Record_Action when a valid packed word is ready for filtering */
-static uint32_t process_data_flag = 0;
+/**
+ * @brief pointer to the thingy thing thing
+ */
+static volatile char* uart_buffer_pointer = nullptr;
 
 /**
  * @brief 
@@ -54,8 +55,8 @@ static LPUART_ISR_Task task_function = nullptr;
 //
 // ----------------------------------------------------------------------------
 
-/** Raw staging buffer — holds FIND_INDEX bytes during pattern search */
-static uint8_t  UART_buffer[FIND_INDEX];
+/** Raw staging buffer — holds UART8_BUFFER_SIZE bytes during pattern search */
+static volatile char  UART8_buffer[UART8_BUFFER_SIZE];
 
 
 // ----------------------------------------------------------------------------
@@ -101,8 +102,8 @@ FASTRUN void LPUART8_RX_ISR(void)
     // correlated; clearing OR via |= may also clear other co-asserted W1C
     // flags (NF, FE, PF) — acceptable because the affected bytes are already
     // in (or lost from) the FIFO and cannot be recovered.
-    if (IMXRT_LPUART6.STAT & LPUART_STAT_OR) {
-        IMXRT_LPUART6.STAT |= LPUART_STAT_OR;
+    if (IMXRT_LPUART8.STAT & LPUART_STAT_OR) {
+        IMXRT_LPUART8.STAT |= LPUART_STAT_OR;
     }
 
     // ---- FIFO drain --------------------------------------------------------
@@ -110,21 +111,16 @@ FASTRUN void LPUART8_RX_ISR(void)
     // set when the FIFO was already empty at the time of the read.  With
     // ILIE disabled, this ISR fires only due to RDRF, so the first read
     // almost always returns a valid byte; the counter is just a safety net.
-    d   = IMXRT_LPUART6.DATA;
+    d   = IMXRT_LPUART8.DATA;
 
     // this condition 
     #define DATA_EMPTY_CONDITION (d & LPUART_DATA_RXEMPT)
 
-    
-    if ( !DATA_EMPTY_CONDITION ) {
 
-        // process each byte sequentially from the FIFO and then reassign d to the next DATA word atomically, so the loop can exit when the FIFO is empty via reading the RXEMPT bit
-        do {
+    while ( !DATA_EMPTY_CONDITION ) {
 
-            LPUART8_ProcessByte( (uint8_t)(d & BYTE_0_MASK) );
-            d   = IMXRT_LPUART6.DATA;
-
-        } while ( !DATA_EMPTY_CONDITION );
+        LPUART8_ProcessByte( (uint8_t)(d & BYTE_0_MASK) );
+        d   = IMXRT_LPUART8.DATA;
 
     }
 
@@ -137,25 +133,28 @@ FASTRUN void LPUART8_RX_ISR(void)
 //
 // ----------------------------------------------------------------------------
 
-void LPUART8_Init(void)
+void LPUART8_Init(uint32_t baud_rate)
 {
     if (_serial == nullptr) return;
 
-    // Let HardwareSerial configure baud, pins, FIFO, and CTRL.RIE/ILIE.
-    // Do NOT replace the IRQ vector here — the protocol init commands
-    // (STOP / RESET / GET_HEALTH / SCAN) are transmitted after this call
-    // using HardwareSerial's TX path, which needs its own ISR to drain the
-    // TX ring buffer.  Call LPUART8_AttachISR() from setup() once all
-    // init commands have been sent.
-    _serial->begin(LPUART8_BAUD);
+    // Let HardwareSerial configure baud, pins, FIFO, and CTRL.RIE/ILIE
+    _serial->begin(baud_rate);
+
 }
 
 
-void LPUART8_AttachISR(void)
+void LPUART8_AttachISR(LPUART_ISR_Task task)
 {
+    
     if (_serial == nullptr) return;
 
-    // _serial->flush();  // wait for any pending TX to finish before hijacking the vector
+    // assigns the function pointer in the caller's struct to the address of the function passed in as an argument, so that the caller can call the function via this pointer when needed
+    task_function       = task;
+
+    // Point the module-level pointers at the static buffers
+    RX_POINTER          = &UART8_buffer[0];
+    uart_buffer_pointer = RX_POINTER;
+
 
     // Wait-blocks for TX FIFO to empty (WATER[19:16] = TXCOUNT)
     //  - `7u`: this register holds 0b111 bits

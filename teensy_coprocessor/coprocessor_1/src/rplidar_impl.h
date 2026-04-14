@@ -29,7 +29,7 @@
 #include <Arduino.h>
 #include <RPLiDAR_C1.h>
 
-#include "Timer_A1_Tasks.h"
+#include "Timer_Tasks.h"
 
 
 // ----------------------------------------------------------------------------
@@ -61,11 +61,10 @@ static C1_States rplidar_cfg;
 static PointCloud rplidar_cloud;
 
 
-// ----------------------------------------------------------------------------
-//  Re-arm helper
-// ----------------------------------------------------------------------------
 
-
+/**
+ * @brief IntervalTimer instance used to trigger periodic tasks in a deferred interrupt handling pattern. Other high priority tasks will be handled in the task-selector function.
+ */
 IntervalTimer loop_timer;
 
 #define MS_TO_US        1000
@@ -103,7 +102,7 @@ void setup()
     RPLiDAR_UART_SetPort(&RPLIDAR_Serial);
 
     
-    // Initialise scanner:
+    // Initialize scanner:
     //  - Configure_RPLiDAR_Struct(&rplidar_cfg)
     //  - RPLiDAR_UART_Init()   --> Serial1.begin(460800)
     //  - STOP --> RESET --> GET_HEALTH --> SCAN
@@ -194,94 +193,8 @@ void loop()
             Serial.println("SCAN_END");
     #endif
 
-            // ----------------------------------------------------------------
-            // DEBUG STATS  (printed every frame under RPLIDAR_DEBUG)
-            // ----------------------------------------------------------------
-            // Each metric answers one diagnostic question:
-            //   empty_fifo  — ISR fired but FIFO was already empty on entry
-            //                 (RXEMPT on first read); should always be 0.
-            //   find[0..4]  — how many times each byte-offset was used to
-            //                 re-align the stream; normally only offset 0 fires.
-            //   find_fail   — times no valid packet boundary was found in a
-            //                 20-byte window; 0 = data stream is clean.
-            //   bad_start   — times Record_Action byte-0 had wrong start bits;
-            //                 any value > 0 means the FSM byte counter drifted.
-            //   interm      — points stored before End_Record; expected ~100.
-            // ----------------------------------------------------------------
 
-            #ifdef RPLIDAR_DEBUG
-            Serial.printf("[DBG F=%lu] pts=%u interm=%lu | "
-                          "empty_fifo=%lu | "
-                          "find[0..4]={%lu,%lu,%lu,%lu,%lu} fail=%lu | "
-                          "bad_start=%lu\n",
-                          rplidar_frame_count,
-                          rplidar_cloud.num_pts,
-                          dbg_last_interm,
-                          dbg_isr_empty_entry,
-                          dbg_find_offsets[0], dbg_find_offsets[1],
-                          dbg_find_offsets[2], dbg_find_offsets[3],
-                          dbg_find_offsets[4],
-                          dbg_find_fail,
-                          dbg_bad_start_bit);
-
-            // Point-cloud sanity: every distance must be in a plausible range
-            // for the RPLiDAR C1 (non-zero, ≤ 8 000 mm).
-            // uint32_t invalid_pts = 0;
-            // for (uint32_t _i = 0; _i < rplidar_cloud.num_pts; _i++) {
-
-            //     float x     = rplidar_cloud.points[_i].x;
-            //     float y     = rplidar_cloud.points[_i].y;
-            //     float _dist = sqrtf(x*x + y*y);
-
-            //     if (_dist < 0.1f || _dist > 8000.0f)
-            //         invalid_pts++;
-            // }
-
-            // Highlight frames that contain any anomaly
-            if (
-                //     invalid_pts         > 0
-                // ||  dbg_bad_start_bit   > 0
-                // ||  dbg_find_fail       > 0
-                // ||  dbg_isr_empty_entry > 0
-
-                dbg_bad_packet_valid
-
-            )
-            {
-                Serial.printf(  "[ANOMALY F=%lu] bad_start=%lu"
-                                " find_fail=%lu"
-                                " stat_or=%lu"
-                                // " empty_fifo=%lu"
-                                "\n"
-                                , rplidar_frame_count
-                                , dbg_bad_start_bit
-                                , dbg_find_fail
-                                , dbg_stat_or
-                                // , dbg_isr_empty_entry
-                            );
-
-            } else {
-                Serial.printf("[OK F=%lu]\n",
-                              rplidar_frame_count);
-            }
-            
-            if (dbg_bad_packet_valid) {
-                Serial.printf(  "[BAD PKT]"
-                                " %02X"
-                                // " %02X %02X %02X %02X"
-                                "  (start_bits=%u, expected 1 or 2)\n"
-                                , dbg_bad_packet[0]
-                                // , dbg_bad_packet[1]
-                                // , dbg_bad_packet[2]
-                                // , dbg_bad_packet[3]
-                                // , dbg_bad_packet[4]
-                                , dbg_bad_packet[0] & 0x03u);
-            }
-            
-            RPLiDAR_ResetDebugStats();
-#endif  // RPLIDAR_DEBUG
-
-            // --- Re-arm for next frame -----------------------------------------
+            // --- Re-arm for next frame --------------------------------------
             rplidar_cfg.current_state   = IDLING;
 
         } // if (state == PROCESSING)

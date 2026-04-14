@@ -62,10 +62,10 @@ static C1_States rplidar_cfg;
  */
 static PointCloud rplidar_cloud;
 
-
-
 /**
- * @brief IntervalTimer instance used to trigger periodic tasks in a deferred interrupt handling pattern. Other high priority tasks will be handled in the task-selector function.
+ * @brief IntervalTimer instance used to trigger periodic tasks in a deferred
+ *  interrupt handling pattern. Other high priority tasks will be handled in
+ *  the task-selector function.
  */
 IntervalTimer loop_timer;
 
@@ -90,48 +90,53 @@ IntervalTimer loop_timer;
 
 void setup()
 {
-    uint8_t comms_initiated = 0;
 
-    // USB CDC — wait for monitor so initialization messages aren't lost
+
+#ifdef DEBUG_OUTPUTS
+
+    // USB CDC — wait up to 3 s for a monitor, then continue regardless so
+    // the MSP432 hardware-UART handshake is not blocked by USB CDC.
     // Serial.begin(115200); // cannot be initialized here because if we want the MSP432_Serial communication to be live during setup. This needs to be established until after data collection starts at which point the USB stream will send over the point cloud data for analysis on the PC.
     // while (!Serial);
 
-    MSP432_Serial.begin(460800);
-    while (!MSP432_Serial);
-
-    String msg = "";
-
-    while (1) {
-
-        Serial.println("Checking MSP432 comms...");
+#endif
 
 
-        MSP432_Serial.write("!E");
+    // set up LED for debugging
+    // Serial.println("Initializing communication with MSP432...");
+    pinMode(LED_BUILTIN, OUTPUT);
+    digitalWrite(LED_BUILTIN, HIGH);
+    
 
-        // wait for response
-        while (MSP432_Serial.available() == 0);
 
-        // Consume the response byte
-        msg = MSP432_Serial.readString();
+    LPUART8_SetPort(&MSP432_Serial);
+    LPUART8_Init(460800);
+    LPUART8_AttachISR(&Communications_Handler);
 
-        Serial.printf("\t response: %s\n", msg.c_str());
 
-        if (msg == "!E\r\n") {
-            comms_initiated = 1;
-            break;
-        }
+    // confirm communication with MSP432 by waiting for an echo response to our handshake message
+    while (!(comms_state & ECHO_REQUEST_FLAG)) {
+        // Serial.println("Establishing communication...");
+        digitalToggle(LED_BUILTIN);
 
-        delay(10);
+        LPUART8_OutString("!E\r\n");
+        
+        WaitForInterrupt();
     }
 
-    Serial.printf("passed the comms check: %s\n", msg.c_str());
+
+    // confirmmation of comms establishment visually
+    digitalWrite(LED_BUILTIN, LOW);
 
     return;
+
+#ifdef DEBUG_OUTPUTS
 
     Serial.println("==============================================");
     Serial.println("  RPLiDAR C1 — Teensy Arduino port test");
     Serial.println("==============================================");
 
+#endif
 
     // Bind Serial1 to the RPLiDAR driver ---------------------------------
     RPLiDAR_UART_SetPort(&RPLIDAR_Serial);
@@ -158,6 +163,7 @@ void setup()
 
     Serial.println("Setup complete. Streaming scan frames:");
     Serial.println("----------------------------------------------");
+
 }
 
 

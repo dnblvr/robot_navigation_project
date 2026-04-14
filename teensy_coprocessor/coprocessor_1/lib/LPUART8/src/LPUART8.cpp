@@ -279,23 +279,20 @@ void LPUART8_ProcessByte(uint8_t b)
 
 // ----------------------------------------------------------------------------
 //
-//  PRIVATE HELPER IMPLEMENTATIONS
+//  UART COMMON FUNCTIONS
 //
 // ----------------------------------------------------------------------------
 
-/**
- * @brief Check whether msg_ptr points to a valid RPLiDAR C1 5-byte packet
- *        start.
- *
- * @details From the RPLiDAR C1 Interface Protocol (p. 15):
- *  - Byte 0, bits [1:0]: start flag bits — must be 01 or 10 (complements).
- *  - Byte 1, bit  [0]  : check flag — must be 1.
- */
-static inline uint8_t pattern(const uint8_t* msg_ptr)
+uint8_t Check_UART_Data(
+        volatile char  UART_Data_Buffer[],
+           const char* data_string)
 {
-    uint8_t start_bits = msg_ptr[0] & 0x03;
+    if (strstr((const char*)UART_Data_Buffer, data_string) != NULL) {
 
-    return     ((start_bits == 0x01) || (start_bits == 0x02))
-            && ((msg_ptr[1] & 0x01) == 0x01);
+        return 0x01;
+
+    }
+
+    return 0x00;
+
 }
-

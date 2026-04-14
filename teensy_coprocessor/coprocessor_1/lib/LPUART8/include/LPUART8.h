@@ -167,8 +167,11 @@ void LPUART8_ProcessByte(uint8_t b);
 // ----------------------------------------------------------------------------
 
 /** Raw 5-byte staging buffer and packed-word buffer (defined in .cpp) */
-extern uint8_t*  RX_POINTER;
-extern uint32_t* INTERM_POINTER;
+// extern volatile char*  RX_POINTER;
+
+uint8_t Check_UART_Data(
+        volatile char  UART_Data_Buffer[],
+           const char* data_string);
 
 
 #endif /* __LPUART8_H__ */

@@ -68,13 +68,15 @@ void LPUART8_SetPort(HardwareSerial* port);
 
 
 /**
- * @brief Open the serial port at LPUART8_BAUD (460,800).
- *
- * @note  Does NOT install the bare-metal RX ISR.  Call
- *        LPUART8_AttachISR() from setup() once all protocol init
- *        commands (STOP / RESET / GET_HEALTH / SCAN) have been sent.
+ * @brief   Open the serial port at LPUART8_BAUD_RATE (460,800).
+ * 
+ * @note    Does NOT install the bare-metal RX ISR.  Call
+ *          LPUART8_AttachISR() from setup() once all protocol init
+ *          commands (STOP / RESET / GET_HEALTH / SCAN) have been sent.
+ * 
+ * @param baud_rate 
  */
-void LPUART8_Init(void);
+void LPUART8_Init(uint32_t baud_rate);
 
 
 /**
@@ -102,19 +104,19 @@ void LPUART8_Stop(void);
 
 
 /**
- * @brief Re-open the serial port at LPUART8_BAUD after a Stop().
+ * @brief Re-open the serial port at LPUART8_BAUD_RATE after a Stop().
  */
 void LPUART8_Restart(void);
 
 
 // ----------------------------------------------------------------------------
 //
-//  BYTE-LEVEL I/O  (analogous to EUSCI_A2_UART_OutChar / InChar)
+//  BYTE-LEVEL I/O
 //
 // ----------------------------------------------------------------------------
 
 /**
- * @brief Blocking transmit of one byte to the RPLiDAR C1.
+ * @brief Blocking transmit of one byte to the LPUART8.
  *
  * @param data   Byte to send.
  */
@@ -122,16 +124,27 @@ void LPUART8_OutChar(uint8_t data);
 
 
 /**
- * @brief Blocking receive of one byte from the RPLiDAR C1.
+ * @brief Blocking receive of one byte from the LPUART8.
  *
  * @return Received byte.
  */
 uint8_t LPUART8_InChar(void);
 
 
+/**
+ * @brief Blocking transmit of a null-terminated string to the LPUART8.
+ * 
+ * @note This is a simple wrapper around OutChar() for convenience.  It does NOT
+ *       perform any formatting or buffering.
+ * 
+ * @param str  Null-terminated string to send.
+ */
+void LPUART8_OutString(const char* str);
+
+
 // ----------------------------------------------------------------------------
 //
-//  BYTE PROCESSOR  (replaces EUSCIA2_IRQHandler)
+//  BYTE PROCESSOR
 //
 // ----------------------------------------------------------------------------
 

@@ -20,10 +20,10 @@
 // ----------------------------------------------------------------------------
 
 /**
- * @brief RPLiDAR C1 fixed UART baud rate (460,800 bps).
+ * @brief LPUART8 fixed  baud rate (460,800 bps).
  */
-#ifndef LPUART8_BAUD
-#define LPUART8_BAUD    460800
+#ifndef LPUART8_BAUD_RATE
+#define LPUART8_BAUD_RATE    460800
 #endif
 
 

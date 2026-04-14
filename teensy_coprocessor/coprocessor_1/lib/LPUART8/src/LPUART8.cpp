@@ -20,7 +20,9 @@
 //
 // ----------------------------------------------------------------------------
 
-/** Bound serial port — set by LPUART8_SetPort() */
+/** 
+ * @brief Bound serial port — set by LPUART8_SetPort()
+ */
 static HardwareSerial* _serial = nullptr;
 
 /** Pointer into the raw 5-byte staging buffer */
@@ -207,7 +209,7 @@ void LPUART8_Stop(void)
 void LPUART8_Restart(void)
 {
     if (_serial == nullptr) return;
-    _serial->begin(LPUART8_BAUD);
+    _serial->begin(LPUART8_BAUD_RATE);
 }
 
 
@@ -219,16 +221,31 @@ void LPUART8_Restart(void)
 
 void LPUART8_OutChar(uint8_t byte)
 {
-    if (_serial == nullptr) return;
-    _serial->write(byte);
+    // Write directly to the hardware DATA register.  After AttachISR the vector is replaced with our RX-only handler, so any _serial->write() call would re-enable TIE and fire the RX ISR on every TX-empty event — an interrupt storm that starves the CPU and drags the TX FIFO along with it.
+
+    // wait for TX data register empty
+    while (!(IMXRT_LPUART8.STAT & LPUART_STAT_TDRE));
+
+    // IMXRT_LPUART8.DATA = byte;
+    IMXRT_LPUART8.DATA |= (uint32_t)byte;
+
 }
 
 
 uint8_t LPUART8_InChar(void)
 {
     if (_serial == nullptr) return 0;
-    while (!_serial->available());      // spin — same as the MSP432 IFG poll
+    while (!_serial->available());
     return (uint8_t)_serial->read();
+}
+
+
+void LPUART8_OutString(const char* str)
+{
+    while (*str) {
+        LPUART8_OutChar(*str);
+        str++;
+    }
 }
 
 

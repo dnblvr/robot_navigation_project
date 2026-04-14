@@ -31,13 +31,20 @@
 
 #include <Arduino.h>
 #include <stdint.h>
-// #include <string.h>
-// #include <assert.h>
-// #include <math.h>
 
 
 #include "LPUART8_Config.h"
-// #include "data_structures.h"
+
+// ----------------------------------------------------------------------------
+//
+//  TASK INITIALIZATION
+//
+// ----------------------------------------------------------------------------
+
+/**
+ * @brief type definition of an UART ISR function pointer
+ */
+typedef void (*LPUART_ISR_Task)(volatile char *);
 
 
 // ----------------------------------------------------------------------------
@@ -59,6 +66,7 @@
  */
 void LPUART8_SetPort(HardwareSerial* port);
 
+
 /**
  * @brief Open the serial port at LPUART8_BAUD (460,800).
  *
@@ -70,16 +78,18 @@ void LPUART8_Init(void);
 
 
 /**
- * @brief Flush TX, disable TX interrupts, then replace HardwareSerial's
- *        LPUART6 vector with the bare-metal LPUART6_RX_ISR.
- *
+ * @brief   Flush TX, disable TX interrupts, then replace HardwareSerial's
+ *          LPUART8 vector with the bare-metal LPUART8_RX_ISR.
+ * 
  * @details Must be called from setup() AFTER Initialize_RPLiDAR_C1()
  *  returns.  Calling it earlier causes a TX-interrupt infinite loop:
  *  HardwareSerial re-enables CTRL.TIE when it queues TX bytes, but our
- *  RX-only ISR never clears TIE, so LPUART6_IRQ fires endlessly and
+ *  RX-only ISR never clears TIE, so LPUART8_IRQ fires endlessly and
  *  starves the CPU (including USB serial).
+ * 
+ * @param task 
  */
-void LPUART8_AttachISR(void);
+void LPUART8_AttachISR(LPUART_ISR_Task task);
 
 
 /**

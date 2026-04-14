@@ -33,16 +33,15 @@ uint32_t* INTERM_POINTER = nullptr;
 static uint32_t process_data_flag = 0;
 
 /**
- * @brief Current raw byte being processed by the FSM.
- *
- * @details In the MSP432 version this was set in EUSCIA2_IRQHandler() from
- *  RXBUF.  Here it is set inside LPUART8_ProcessByte() before dispatching.
+ * @brief 
  */
-static uint32_t data = 0;
+static LPUART_ISR_Task task_function = nullptr;
 
 /**
- * @brief   byte-mask for the LPUART DATA register
- * @details has other accessible bits stored which must be masked to get the FIFO-drainable byte value  
+ * @brief   byte-mask for the LPUARTx DATA register
+ * 
+ * @details has other accessible bits stored which must be masked to get the 
+ *  FIFO-drainable byte value  
  */
 #define BYTE_0_MASK 0xFFu
 
@@ -70,24 +69,24 @@ void LPUART8_SetPort(HardwareSerial* port) {
 
 // ----------------------------------------------------------------------------
 //
-//  BARE-METAL LPUART6 RX ISR
+//  BARE-METAL LPUART8 RX ISR
 //
 // ----------------------------------------------------------------------------
 
-// Strategy: call Serial1.begin(LPUART8_BAUD) to let HardwareSerial configure
+// Strategy: call Serial1.begin(LPUART8_BAUD_RATE) to let HardwareSerial configure
 // the baud rate, I/O pins, FIFO, and CTRL enable bits, then overwrite the
 // single function-pointer HardwareSerial installed in _VectorsRam with our
 // own handler.  The hardware configuration is identical — we only change
 // who is called on each interrupt.
 //
-// FIFO drain: the iMXRT1062 LPUART6 has a 4-byte RX FIFO.  HardwareSerial
+// FIFO drain: the iMXRT1062 LPUART8 has a 4-byte RX FIFO.  HardwareSerial
 // configures the watermark to 2, so RDRF fires when ≥2 bytes are waiting.
 // Reading (WATER >> 24) & 0x7 gives the exact count so we drain all
 // available bytes in one ISR invocation — equivalent to the MSP432 scheme
 // where every byte triggers EUSCIA2_IRQHandler individually, but without
 // the extra interrupt overhead per byte.
 
-FASTRUN void LPUART6_RX_ISR(void)
+FASTRUN void LPUART8_RX_ISR(void)
 {
 
     uint32_t d = 0;
@@ -241,10 +240,24 @@ uint8_t LPUART8_InChar(void)
 
 void LPUART8_ProcessByte(uint8_t b)
 {
-    // if (config == nullptr) return;
+    // Check if the received character is a button command from the EUSCI_A2
+    if (b == '!') {
 
-    data = b;                                   // MSP432: data = RXBUF
-    // FSM_Table[config->limit_status].action();   // same dispatch as ISR
+        uart_buffer_pointer = RX_POINTER;
+
+    }
+
+    // otherwise, add the character to the buffer and increment the pointer
+    *(uart_buffer_pointer++)    = b;
+
+
+    // early return if the message is incomplete
+    if (!Check_UART_Data(RX_POINTER, "\r\n"))
+        return;
+
+    
+    (*task_function)(RX_POINTER);
+
 }
 
 

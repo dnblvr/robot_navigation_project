@@ -35,8 +35,45 @@
 
 
 // ----------------------------------------------------------------------------
+//
 //  Configuration
+//
 // ----------------------------------------------------------------------------
+
+/**
+ * @brief 
+ */
+#define MSP432_Serial  Serial5
+
+/**
+ * @brief 
+ */
+#define FLAG_MASK(n)       (1 << (n))
+
+/**
+ * @brief 
+ */
+#define ECHO_REQUEST_FLAG  FLAG_MASK(0)
+
+/**
+ * @brief 
+ */
+uint8_t comms_state = 0;
+
+/**
+ * @brief 
+ * 
+ * @param UART_Buffer 
+ */
+void Communications_Handler(volatile char UART_Buffer[]) {
+
+    // if seen, communication is established
+    if (Check_UART_Data(UART_Buffer, "!E")) {
+
+        comms_state    |=  ECHO_REQUEST_FLAG;
+    }
+}
+
 
 /**
  * @brief Hardware serial port wired to the RPLiDAR C1.

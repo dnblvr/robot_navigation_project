@@ -281,20 +281,14 @@ void main(void) {
 
     // Initialize EUSCI_A0_UART
     EUSCI_A0_UART_Init_Printf();
-    printf("printf enabled\n");
-
-
-    // use Timer_A1_Interrupt to get the odometry measurements
-    // resulting output will be measured in increments of 10 ticks per second
-    Timer_A1_Interrupt_Init(&Timer_A1_Task_Selector,
-                            TIMER_A1_CCR0_VALUE);
 
 
     // Initialize the tachometers as a function of Timer A3
     Tachometer_Init();
-    Reset_Pose_Accumulator(pose_ptr);
 
 
+    // Initialize the DC motors
+    Motor_Init();
 
 
     /** ----------------------------------------------------------------------
@@ -313,6 +307,9 @@ void main(void) {
 
     return;
 
+    /** -----------------------------------------------------------------------
+     * @note Initialize the ICM20948
+     */
 
 #ifdef OLD_SYSTEM
     
@@ -328,17 +325,19 @@ void main(void) {
         printf("ICM-20948 unsuccessfully initialized!\n");
 
 
-    int16_t gyro_raw[3]     = {0},
-            mag_raw[3]      = {0};
+    int16_t gyro_raw[3]	= {0},
+            mag_raw[3] 	= {0};
 
-    float   gyro_dps[3]     = {0},
-            mag_ut[3]       = {0};
+    float   gyro_dps[3]	= {0},
+            mag_ut[3]  	= {0};
+
 #else
 
     // Initialize the ICM20948 with interrupt from pin at P4.6
     EUSCI_B1_I2C_Init(&I2C_Task);
 
-    if (icm20948_init(ICM20948_ADDR_ACCEL_GYRO_0, ICM20948_ADDR_MAG) == 0)
+    if (icm20948_init(ICM20948_ADDR_ACCEL_GYRO_0,
+                      ICM20948_ADDR_MAG) == 0)
         printf("ICM-20948 successfully initialized!\n");
     else
         printf("ICM-20948 unsuccessfully initialized!\n");
@@ -360,9 +359,6 @@ void main(void) {
     Set_All_Interrupts_1();
 
 
-#ifdef DEBUG_OUTPUT
-    printf("test scan -------\n\n");
-#endif
 
 
     /** ----------------------------------------------------------------------
@@ -459,7 +455,8 @@ void main(void) {
 #ifdef TASK_1_FLAG
 
         /**
-         * @note TASK 1: access ICM20948
+         * @note TASK 1: access ICM20948 gyro and wheel encoders at 20 times
+         * a sec to accumulate incremental pose changes
          */
         if (task_flag & TASK_1_FLAG) {
             task_flag  &= ~TASK_1_FLAG;
@@ -472,41 +469,54 @@ void main(void) {
             // counter variable
             uint32_t i;
 
+            // Read full gyro frame; extract Z-axis yaw rate (rad/s)
             icm20948_read_raw_gyro(&config, gyro_raw);
-            icm20948_read_raw_mag(&config, mag_raw);
-
             for (i = 0; i < 3; i++) {
                 gyro_dps[i] = (float)gyro_raw[i] / 131.0f;
-                mag_ut[i]   = ((float)mag_raw[i] / 20) * 3;
             }
 
-            // accel(g)   = raw_value / (65535 / full_scale)
-            // ex) if full_scale == +-4g then accel = raw_value / (65535 / 8) = raw_value / 8192
-            // gyro(dps)  = raw_value / (65535 / full_scale)
-            // ex) if full_scale == +-250dps then gyro = raw_value / (65535 / 500) = raw_value / 131
-            // mag(uT)    = raw_value / (32752 / 4912) = (approx) (raw_value / 20) * 3
-            // temp  = ((raw_value - ambient_temp) / speed_of_sound) + 21
-
-//            printf("gyro.  x: %+2.5f, y: %+2.5f, z:%+2.5f\n",
-//                    gyro_dps[0],
-//                    gyro_dps[1],
-//                    gyro_dps[2]);
-//
-//            printf("mag.   x: %+2.5f, y: %+2.5f, z:%+2.5f\n",
-//                    mag_ut[0],
-//                    mag_ut[1],
-//                    mag_ut[2]);
-
+            float omega_gyro = gyro_dps[2] * (M_PI_F / 180.0f);
 
 #else
 
-            float output_data[3] = {0.f};
-
-//            icm_read_gyro_y(output_data);
-            icm_read_heading_xy(output_data);
-
+            // Full gyro frame not yet wired in this branch;
+            // placeholder until icm_read_gyro_y (Z-axis) is available.
+            // alpha=0.5 stays — encoder-only omega path remains active.
+            float omega_gyro = 0.0f;
 
 #endif
+
+
+            // Compute per-step wheel velocities in mm/s from encoder deltas
+            {
+                static int32_t prev_L_steps = 0, prev_R_steps = 0;
+
+                float delta_L_mm = COUNTS_TO_DIST * \
+                                    (float)(Left_Steps  - prev_L_steps);
+                float delta_R_mm = COUNTS_TO_DIST * \
+                                    (float)(Right_Steps - prev_R_steps);
+                prev_L_steps = Left_Steps;
+                prev_R_steps = Right_Steps;
+
+                float v_L = delta_L_mm * flt.inv_dt;
+                float v_R = delta_R_mm * flt.inv_dt;
+
+                // InEKF predict step
+                inEKF_SE2_predict(&flt, v_L, v_R, omega_gyro);
+
+#ifdef DEBUG_OUTPUT
+//                printf("\tyaw\tv_l\tv_r\tstate\n");
+                printf(
+//                       "\t%+3.2f %+3.2f %+3.2f"
+                       " %+3.2f, %+3.2f %+3.2f\n",
+//                       omega_gyro,
+//                       v_L,
+//                       v_R,
+                       flt.state.x,
+                       flt.state.y,
+                       flt.state.theta);
+#endif
+            }
 
         }
 
@@ -548,9 +558,9 @@ void main(void) {
         if (task_flag & TASK_6_FLAG) {
             task_flag  &= ~TASK_6_FLAG;
 
-    #ifdef DEBUG_OUTPUT
-//            printf("%5d %5d\n", local_counter, sequence_counter);
-    #endif
+        #ifdef DEBUG_OUTPUT
+            // printf("%5d %5d\n", local_counter, sequence_counter);
+        #endif
 
             sequence_counter++;
         }
@@ -565,10 +575,10 @@ void main(void) {
         if (task_flag & TASK_7_FLAG) {
             task_flag  &= ~TASK_7_FLAG;
 
-    #ifdef DEBUG_OUTPUT
+#ifdef DEBUG_OUTPUT
             printf("%5d\n\n", local_counter);
-//            printf("\n\n");
-    #endif
+            printf("\n\n");
+#endif
             local_counter++;
 
             sequence_counter = 0;

@@ -160,56 +160,31 @@ void Handle_UART_Communications(volatile char UART_Buffer[]) {
 }
 
 /**
- * @brief Calculate robot pose from wheel encoder data and add to accumulator
+ * @brief generalized function that block-waits until certain UART messages are
+ *  received
  *
- * @param local_counter   Loop iteration counter
- * @param Left_Steps      Left wheel encoder count
- * @param Right_Steps     Right wheel encoder count
- * @param pose_accumulator Pointer to pose accumulator
- * @param timestamp       Current system tick counter for timestamping
- *
- * @details I am following the yaw orientation convention:
- *              if Left_Steps > Right_Steps, (+) yaw
- *              if Left_Steps < Right_Steps, (-) yaw
- *          450 mm required from both wheels to maintain simple rotation
- *
- *          This function now stores incremental pose changes in the accumulator
- *          rather than maintaining a single running pose estimate.
+ * @param[in] requested_flag   flag that is requested for listening
  */
-void Get_Pose(
-        uint32_t    local_counter,
-        int32_t     Left_Steps,
-        int32_t     Right_Steps,
-        Accumulated_Poses* pose_accumulator,
-        uint32_t    timestamp)
-{
+void Wait_Until_Condition(uint32_t requested_flag) {
 
 
-    // Distance between wheels in mm
-    #define WHEEL_BASE_MM 141.0f
+    printf("in wait\n");
+
+    while ( (comms_state & requested_flag) != requested_flag ) {
 
 
+        // keeps the EUSCI_A2 module RXINT alive
+        EUSCI_A2->IE   |=  0x0001;
 
+        // wfi assembly code
+        WaitForInterrupt();
 
-    float   left_steps_mm, right_steps_mm,
-            delta_left, delta_right,
+        printf("waiting... %u\n", comms_state & requested_flag);
+    }
 
-            delta_s,        // travel distance along a curved direction
-            delta_theta,
+    printf("out of wait\n");
 
-            x_local, y_local;
-
-    // NOTE: Uses global incremental_pose declared at top of file
-    // Do NOT declare a local one here - it shadows the global!
-
-
-    // Convert encoder counts to distance in mm
-    left_steps_mm   = COUNTS_TO_DIST * Left_Steps;
-    right_steps_mm  = COUNTS_TO_DIST * Right_Steps;
-
-    // Calculate change in wheel positions since last update
-    delta_left  = left_steps_mm  - prev_left_mm;
-    delta_right = right_steps_mm - prev_right_mm;
+}
 
 
 
@@ -297,15 +272,17 @@ void main(void) {
 
     UART_A2_Init(&Handle_UART_Communications);
 
-    while (!comms_established) {
-        EUSCI_A2->IE   |=  0x0001;  // RPLiDAR C1
+#ifdef DEBUG_OUTPUT
 
-    }
+    printf("waiting to be pressed\n");
 
+#endif
+
+    // when echo sequence `!E\r\n` is detected, proceed and color the LED red
+//    Wait_Until_Condition(ECHO_REQUEST_FLAG);
 
     LED2_Output(RGB_LED_RED);
 
-    return;
 
     /** -----------------------------------------------------------------------
      * @note Initialize the ICM20948
@@ -434,13 +411,22 @@ void main(void) {
         WaitForInterrupt();
 
         /**
-         * @note receiving information over UART disables RXIE for whatever reason.
-         *       Enabling RXIE after W.F.I. ensures that RXIE is *always* ON.
+         * @note EUSCI UART hardware bug indicates that receiving information
+         *       over UART disables RXIE. Enabling RXIE after W.F.I. ensures
+         *       that RXIE is *always* ON.
          */
-        Set_All_Interrupts_1();
+//        Set_All_Interrupts_1();
 
-        // printf("%04X\n", EUSCI_A3->IE);
+        EUSCI_A0->IE   |=  0x0001;  // to Teensy UART
+        EUSCI_A2->IE   |=  0x0001;  // to Teensy UART
+        EUSCI_A3->IE   |=  0x0001;  // to Teensy UART
 
+
+        // test check if the state request flag is actually going live
+//        printf("am here; %u\n", (comms_state & STATE_REQUEST_FLAG) ? 1 : 0);
+
+
+    
 
 #ifdef TASK_0_FLAG
 

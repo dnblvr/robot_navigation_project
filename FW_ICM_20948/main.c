@@ -344,20 +344,29 @@ void main(void) {
 
 #endif
 
+    /** -----------------------------------------------------------------------
+     * @note state estimator instantiation
+     *
+     *   dt            = 1/20 s  (TASK_1 rate)
+     *   process_noise = {10 mm, 10 mm, 0.05 rad) intentionally loose to let
+     *                   covariances converge before measurement updates
+     *                   tighten them
+     *   mag_noise     = 0.05 rad  (~3 deg std dev)
+     *   chi2_threshold = 3.84  (95 % chi-squared gate, 1 DOF)
+     *   flt.L         = WHEEL_BASE_MM overrides hardcoded 0.3 m in init
+     */
 
-    // Initialize the DC motors
-    Motor_Init();
+    InEKF_SE2_t flt;
 
-
-    Set_All_Interrupts_1();
-
-
-    // Enable the interrupts used by the SysTick and Timer_A timers
-    EnableInterrupts();
-
-
-    Set_All_Interrupts_1();
-
+    {
+        state_se2_t proc_noise = {10.0f, 10.0f, 0.05f};
+        inEKF_SE2_init(&flt,
+                       1.0f/20.0f,
+                       WHEEL_BASE_MM,
+                       &proc_noise,
+                       0.05f,
+                       3.84f);
+    }
 
 
 
@@ -526,27 +535,90 @@ void main(void) {
 #ifdef TASK_2_FLAG
 
         /**
-         * @note TASK 2: Get the measurements made by the tachometers
-         *       Accumulate incremental pose changes between LiDAR scans
+         * @note TASK 2: update the inEKF with a magnetometer heading measurement
          */
         if (task_flag & TASK_2_FLAG) {
             task_flag  &= ~TASK_2_FLAG;
 
-            // Get current tachometer readings
-            Tachometer_Get(&Tachometer_Buffer_Left[buffer_idx],
-                           &Left_Direction,
-                           &Left_Steps,
+#ifdef OLD_SYSTEM
 
-                           &Tachometer_Buffer_Right[buffer_idx],
-                           &Right_Direction,
-                           &Right_Steps);
+            // Read full mag frame; derive heading (rad) and norm from x/y/z
+            uint32_t i;
+            icm20948_read_raw_mag(&config, mag_raw);
+            for (i = 0; i < 3; i++) {
+                mag_ut[i] = ((float)mag_raw[i] / 20) * 3;
+            }
 
-            // Add incremental pose to accumulator
-            Get_Pose(local_counter,
-                     Left_Steps, Right_Steps,
-                     pose_ptr,
-                     tick_counter);
+#ifdef DEBUG_OUTPUT
+//            printf("mag.   x: %+2.5f, y: %+2.5f, z:%+2.5f\n",
+//                    mag_ut[0], mag_ut[1], mag_ut[2]);
+#endif
+
+            {
+                float psi_mag  = atan2f(mag_ut[1], mag_ut[0]);
+                float mag_norm = sqrtf(   mag_ut[0]*mag_ut[0]
+                                        + mag_ut[1]*mag_ut[1]
+                                        + mag_ut[2]*mag_ut[2]);
+                inEKF_SE2_update_mag(&flt, psi_mag, mag_norm);
+            }
+
+#else
+
+            // Read heading frame (radians); mag_norm is a mid-gate placeholder
+            // until a raw mag read can provide the computed norm.
+            float heading_data[3] = {0.f};
+            icm_read_heading_xy(heading_data);
+            inEKF_SE2_update_mag(&flt, heading_data[0], 4000.0f);
+
+#endif
+
         }
+
+#endif
+
+
+#ifdef TASK_3_FLAG
+
+        /**
+         * @note TASK 3: deferred !S pose-transmit worker.
+         *
+         *   Runs at 10 Hz, always after TASK_2 in this loop's priority order,
+         *   so the mag update is already applied before we ship the pose.
+         *   When Handle_UART_Communications sets comms_state bit 1 (!S received),
+         *   this task transmits the current absolute SE(2) state {x, y, theta}
+         *   as 12 raw little-endian bytes over UART A2. The Teensy receives
+         *   sequential absolute poses and computes per-step deltas itself.
+         */
+        if (    (task_flag & TASK_3_FLAG)
+             && 1)
+        {
+
+            printf("am here; %1u\n",
+                   (comms_state & STATE_REQUEST_FLAG) ? 1 : 0);
+
+
+            if (comms_state & STATE_REQUEST_FLAG) {
+
+
+                task_flag   &= ~TASK_3_FLAG;
+                comms_state &= ~STATE_REQUEST_FLAG;
+
+
+                // transmit absolute SE(2) state {x, y, theta}: 12 raw bytes
+                uint32_t    i;
+                uint8_t*    p = (uint8_t *)&flt.state;
+
+                UART_A2_OutChar('#');
+                UART_A2_OutChar('S');
+
+//                for (i = 0; i < 3u * sizeof(float); i++)
+                for (i = 0; i < sizeof(flt.state); i++)
+                    UART_A2_OutChar(p[i]);
+            }
+
+                
+        }
+
 #endif
 
 

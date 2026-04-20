@@ -27,60 +27,45 @@
 int8_t icm20948_init(icm20948_config_t* config)
 {
 
-    uint8_t reg[2], buf;
+    uint8_t buf;
 
     // wake up accel/gyro
-    // first write register then, write value
-    // reg[0] = PWR_MGMT_1; reg[1] = 0x00;
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_accel_gyro,
                                      (uint8_t[]){PWR_MGMT_1, 0x00},
                                      2);
 
 
-
     /** --------------------------------------------------------
      * switch to user bank to 0
      */
-    // reg[0] = REG_BANK_SEL; reg[1] = 0x00;
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_accel_gyro,
                                      (uint8_t[]){REG_BANK_SEL, 0x00},
                                      2);
 
 
     // auto select clock source
-    // reg[0] = PWR_MGMT_1; reg[1] = 0x01;
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_accel_gyro,
                                      (uint8_t[]){PWR_MGMT_1, 0x01},
                                      2);
 
 
     // disable accel/gyro once
-    // reg[0] = PWR_MGMT_2; reg[1] = 0x3F;
-    // i2c_write_blocking(config->i2c, config->addr_accel_gyro, reg, 2, false);
-    // sleep_ms(10);
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_accel_gyro,
                                      (uint8_t[]){PWR_MGMT_2, 0x3F},
                                      2);
 
-
     Clock_Delay1ms(10);
 
+
     // enable accel/gyro again
-    // reg[0] = PWR_MGMT_2; reg[1] = 0x00;
-    // i2c_write_blocking(config->i2c, config->addr_accel_gyro, reg, 2, false);
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_accel_gyro,
                                      (uint8_t[]){PWR_MGMT_2, 0x00},
                                      2);
 
 
-
-//    printf("here 1\n");
-
     // check if the accel/gyro can be accessed
-    // reg[0] = WHO_AM_I_ICM20948;
-    // i2c_write_blocking(config->i2c, config->addr_accel_gyro, reg, 1, true);
-    // i2c_read_blocking(config->i2c, config->addr_accel_gyro, &buf, 1, false);
-    EUSCI_B1_I2C_Send_A_Byte(config->addr_accel_gyro, WHO_AM_I_ICM20948);
+    EUSCI_B1_I2C_Send_A_Byte(config->addr_accel_gyro,
+                             WHO_AM_I_ICM20948);
     buf = EUSCI_B1_I2C_Receive_A_Byte(config->addr_accel_gyro);
 
 
@@ -92,60 +77,42 @@ int8_t icm20948_init(icm20948_config_t* config)
         return -1;
 
 
-
-//    printf("here 1\n");
-
-
     /** --------------------------------------------------------
      * switch to user bank 2
      */
-    // reg[0] = REG_BANK_SEL; reg[1] = 0x20;
-    // i2c_write_blocking(config->i2c, config->addr_accel_gyro, reg, 2, false);
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_accel_gyro,
                                      (uint8_t[]){REG_BANK_SEL, 0x20},
                                      2);
 
-//    printf("here 2\n");
 
-    // gyro config
-    //
-    // set full scale to +-
-    // set noise bandwidth to
-    // smaller bandwidth means lower noise level & slower max sample rate
-    // reg[0] = GYRO_CONFIG_1; reg[1] = 0x29;
-    // i2c_write_blocking(config->i2c, config->addr_accel_gyro, reg, 2, false);
+    // gyro config:
+    //  - set full scale to +-
+    //  - set noise bandwidth to smaller bandwidth means lower noise level
+    //      & slower max sample rate
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_accel_gyro,
                                      (uint8_t[]){GYRO_CONFIG_1, 0x29},
                                      2);
 
-    //
+
     // set gyro output data rate to 100Hz
-    // output_data_rate = 1.125kHz / (1 + GYRO_SMPLRT_DIV)
-    // 1125 / 11 = 100
-    // reg[0] = GYRO_SMPLRT_DIV; reg[1] = 0x0A;
-    // i2c_write_blocking(config->i2c, config->addr_accel_gyro, reg, 2, false);
+    //  - output_data_rate = 1.125kHz / (1 + GYRO_SMPLRT_DIV)
+    //      - if `GYRO_SMPLRT_DIV` = 100: 1125 / 11 = 100
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_accel_gyro,
                                      (uint8_t[]){GYRO_SMPLRT_DIV, 0x0A},
                                      2);
 
-//    printf("here 3\n");
 
-    // accel config
-    //
-    // set full scale to +-2g
-    // set noise bandwidth to 136Hz
-    // reg[0] = ACCEL_CONFIG; reg[1] = 0x11;
-    // i2c_write_blocking(config->i2c, config->addr_accel_gyro, reg, 2, false);
+    // accel config:
+    //  - set full scale to +-2g
+    //  - set noise bandwidth to 136Hz
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_accel_gyro,
                                      (uint8_t[]){ACCEL_CONFIG, 0x11},
                                      2);
 
-    //
+
     // set accel output data rate to 100Hz
     // output_data_rate = 1.125kHz / (1 + ACCEL_SMPLRT_DIV)
     // 16 bits for ACCEL_SMPLRT_DIV
-    // reg[0] = ACCEL_SMPLRT_DIV_2; reg[1] = 0x0A;
-    // i2c_write_blocking(config->i2c, config->addr_accel_gyro, reg, 2, false);
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_accel_gyro,
                                      (uint8_t[]){ACCEL_SMPLRT_DIV_2, 0x0A},
                                      2);
@@ -154,24 +121,17 @@ int8_t icm20948_init(icm20948_config_t* config)
     /** --------------------------------------------------------
      * switch back to user bank to 0
      */
-    // reg[0] = REG_BANK_SEL; reg[1] = 0x00;
-    // i2c_write_blocking(config->i2c, config->addr_accel_gyro, reg, 2, false);
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_accel_gyro,
                                      (uint8_t[]){REG_BANK_SEL, 0x00},
                                      2);
 
 
     // wake up mag! (INT_PIN_CFG, BYPASS_EN = 1)
-    // reg[0] = INT_PIN_CFG; reg[1] = 0x02;
-    // i2c_write_blocking(config->i2c, config->addr_accel_gyro, reg, 2, false);
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_accel_gyro,
                                      (uint8_t[]){INT_PIN_CFG, 0x02},
                                      2);
 
     // check if the magnetometer can be accessed
-    // reg[0] = 0x01;
-    // i2c_write_blocking(config->i2c, config->addr_mag, reg, 1, true);
-    // i2c_read_blocking(config->i2c, config->addr_mag, &buf, 1, false);
     EUSCI_B1_I2C_Send_A_Byte(config->addr_mag, 0x01);
     buf = EUSCI_B1_I2C_Receive_A_Byte(config->addr_mag);
 
@@ -183,16 +143,13 @@ int8_t icm20948_init(icm20948_config_t* config)
     if (buf != 0x09)
         return -1;
 
-    // config mag
-    //
-    // set mag mode, to measure continuously in 100Hz
-    // reg[0] = AK09916_CNTL2; reg[1] = 0x08;
-    // i2c_write_blocking(config->i2c, config->addr_mag, reg, 2, false);
+
+    // config mag:
+    //  set mag mode, to measure continuously in 100Hz
     EUSCI_B1_I2C_Send_Multiple_Bytes(config->addr_mag,
                                      (uint8_t[]){AK09916_CONTROL_2, 0x08},
                                      2);
 
-//    printf("here 5\n");
 
     return 0;
 

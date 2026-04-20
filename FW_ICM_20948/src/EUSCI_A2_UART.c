@@ -40,24 +40,15 @@ void UART_A2_Init(UART_ISR_Task task)
     UART_BUFFER_ADDR    = &UART_Data_Buffer[0];
     uart_buffer_pointer = &UART_Data_Buffer[0];
 
-    message_length      = 0;
+    message_length      =  0;
 
 
     // Configure pins P3.2 (PM_UCA2RXD) and P3.3 (PM_UCA2TXD) to use the
     // primary module function:
     //    - by  setting  Bits 3 and 2 in the SEL0 register for P3
     //    - and clearing Bits 3 and 2 in the SEL1 register for P3
-    P3->SEL0 |=  0x0C;
-    P3->SEL1 &= ~0x0C;
-
-
-    // Configure the P1.6 pin as an output GPIO pin by clearing Bit 6 of the
-    // SEL0 and SEL1 registers and setting Bit 6 of the DIR register for P1.
-    // The P1.6 pin will be connected to the Mode Select (MOD) pin of the
-    // Adafruit BLE UART module.
-//    P1->SEL0   &= ~0x40;
-//    P1->SEL1   &= ~0x40;
-//    P1->DIR    |=  0x40;
+    P3->SEL0           |=  0x0C;
+    P3->SEL1           &= ~0x0C;
 
 
     // Hold the EUSCI_A2 module in the reset state by setting the UCSWRST bit
@@ -117,9 +108,7 @@ void UART_A2_Init(UART_ISR_Task task)
 
     // Set the baud rate value by writing to the UCBRx field (Bits 15 to 0) in
     // the BRW register
-    // f_clk/baud = 12,000,000/9,600    = 1250
     // f_clk/baud = 12,000,000/460,800  = 26.0416666667
-//    EUSCI_A2->BRW       =  1250;
     EUSCI_A2->BRW       =  26;
 
 
@@ -148,12 +137,13 @@ void UART_A2_Init(UART_ISR_Task task)
 
     // ISER[0] = 1 << 18
     // turn on interrupt number 18 using ISER[0]
-    NVIC->ISER[0] =  1 << 18;
+    NVIC->ISER[0]       =  1 << 18;
 
 
     // IP[4] = 0x01 << 21
     // set priority to 1
-    NVIC->IP[IP_EUSCIA] = (NVIC->IP[4] & 0x0FFFFFFF) | (0x01 << EUSCIA2_OFFSET);
+    NVIC->IP[IP_EUSCIA] =   (NVIC->IP[IP_EUSCIA] & 0x0FFFFFFF)
+                          | (0x01 << EUSCIA2_OFFSET);
 
 }
 
@@ -339,23 +329,3 @@ void UART_A2_OutString(char *pt)
     }
 }
 
-
-
-void UART_A2_Reset()
-{
-
-//    // Switch to CMD mode by setting the MOD pin (P1.6) to 1
-//    P1->OUT    |=  0x40;
-//    Clock_Delay1ms(1000);
-//
-//
-//    // Send the system reset command by sending the "ATZ" string to the BLE
-//    // UART module
-//    UART_OutString("ATZ\r\n");
-//    Clock_Delay1ms(3000);
-//
-//
-//    // Switch back to DATA mode by clearing the MOD pin (P1.6) to 0
-//    P1->OUT    &= ~0x40;
-
-}

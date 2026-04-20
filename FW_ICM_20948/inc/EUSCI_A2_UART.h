@@ -1,10 +1,10 @@
 /**
  * @file EUSCI_A2_UART.h
- * @brief Header file for the UART driver.
+ * @brief Header file for the common UART driver.
  *
  * This file contains the function definitions for the UART driver.
  *
- * It interfaces with another device, the T4.0, via UART
+ * It interfaces with another device, the T4.0, via UART.
  *
  * The following connections must be made:
  *  - UART TXO  (Pin 3)  <-->   MSP432 LaunchPad Pin P9.6 (PM_UCA3RXD)
@@ -115,9 +115,5 @@ void UART_A2_OutString(char *pt);
  */
 void UART_A2_OutFixed(int32_t pt);
 
-/**
- * @brief Resets the UART module.
- */
-void UART_A2_Reset();
 
 #endif /* INC_BLE_A3_UART_H_ */

@@ -26,7 +26,7 @@ uint8_t Check_UART_Data(
         volatile char  UART_Data_Buffer[],
                  char* data_string)
 {
-    if (strstr((const char*)UART_Data_Buffer, data_string) != NULL) {
+    if ( strstr((const char*)UART_Data_Buffer, data_string) != NULL ) {
 
         return 0x01;
 

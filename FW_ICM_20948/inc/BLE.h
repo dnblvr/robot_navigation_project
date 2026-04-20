@@ -81,7 +81,7 @@ void Motor_Stop_Wrapper(uint16_t left_speed, uint16_t right_speed);
  *
  * @param BLE_UART_Buffer
  */
-void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[]);
+void Process_BLE_Commands(volatile char BLE_UART_Buffer[]);
 
 /**
  *

@@ -351,11 +351,12 @@ void main(void) {
      * Initialize Bluetooth module instance
      */
 
-     BLE_UART_Init(Process_BLE_UART_Data);
-     Clock_Delay1ms(1000);
-     BLE_UART_Reset();
-     BLE_UART_OutString("BLE UART Active\r\n");
-     Clock_Delay1ms(1000);
+    BLE_UART_Init(Process_BLE_Commands);
+    Clock_Delay1ms(1000);
+    BLE_UART_Reset();
+    BLE_UART_OutString("BLE UART Active\r\n");
+    Clock_Delay1ms(1000);
+
 
 
     // Enable the interrupts used by the SysTick and Timer_A timers
@@ -435,12 +436,6 @@ void main(void) {
          */
         if (task_flag & TASK_0_FLAG) {
             task_flag  &= ~TASK_0_FLAG; // clear the flag
-
-//            printf("hello\n");
-
-//            Timer_A1_Ignore();
-//            Process_BLE_UART_Data(BLE_UART_Data_Buffer);
-//            Timer_A1_Acknowledge();
 
         }
 

@@ -35,7 +35,7 @@ uint16_t Desired_RPM_Right   = 0;
 enum Tachometer_Direction current_state = STOPPED;
 
 
-void Process_BLE_UART_Data(volatile char BLE_UART_Buffer[])
+void Process_BLE_Commands(volatile char BLE_UART_Buffer[])
 {
 
     // internal counter variable

@@ -172,25 +172,28 @@ void EUSCIA2_IRQHandler(void) {
         }
 
         // otherwise, add the character to the buffer and increment the pointer
-        *(uart_buffer_pointer++)  = character;
+        *(uart_buffer_pointer++)    = character;
         message_length++;
 
 
         // early return if the message is incomplete
-        if (message_length < 2)
+        if (!Check_UART_Data(UART_BUFFER_ADDR, "\r\n"))
+//        if (message_length < 4)
             return;
 
+
 #ifdef DEBUG_OUTPUT
-
-        int j;
-
-        printf("BLE UART Data: ");
-
-        for (j = 0; j < message_length; j++) {
-            printf("%c", UART_Data_Buffer[j]);
+        {
+//            int j;
+//
+//            printf("UART Data: ");
+//
+//            for (j = 0; j < message_length; j++) {
+//                printf("%c", UART_Data_Buffer[j]);
+//            }
+//
+//            printf("\n");
         }
-
-        printf("\n");
 #endif
 
         // to apply the command only once, clear the buffer memory
@@ -199,6 +202,9 @@ void EUSCIA2_IRQHandler(void) {
 
         // to make this function generalizable, make this a function pointer
         (*task_function)(UART_Data_Buffer);
+
+        memset((void*)UART_Data_Buffer, 0, UART_BUFFER_SIZE);
+        uart_buffer_pointer = UART_BUFFER_ADDR;
 
     }
 

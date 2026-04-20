@@ -79,151 +79,81 @@ void I2C_Task(void) {
 }
 
 
-volatile uint8_t comms_established = 0;
 
-
-void Communications_Handler(volatile char UART_Buffer[]) {
-
-    // if seen, communication established and echo back
-    if (Check_UART_Data(UART_Buffer, "!E\r\n")) {
-
-        UART_A2_OutString("!E\r\n");
-
-        comms_established = 1;
-    }
 
 }
 
 
-// ----------------------------------------------------------------------------
-//
-//  GRAPHSLAM ALGORITHM VARIABLES
-//
-// ----------------------------------------------------------------------------
 
+
+// ----------------------------------------------------------------------------
+//
+//  STATE ESTIMATOR / COMMUNICATIONS
+//
+// ----------------------------------------------------------------------------
 
 /**
  * @brief Incremental pose change since last scan (from odometry)
  */
-Pose incremental_pose = {0.0f, 0.0f, 0.0f, 0};
+#define FLAG(n)     (0x01 << n)
 
 /**
- * @brief Global accumulated pose estimate (dead reckoning)
+ * @brief flag variable that requests the state of the communication switch
  */
-Pose global_pose = {0.0f, 0.0f, 0.0f, 0};
-
-
-
-// ----------------------------------------------------------------------------
-//
-//  TACHOMETER FUNCTIONS
-//
-// ----------------------------------------------------------------------------
-
-
-// Initialize length of the tachometer buffers
-#define TACHOMETER_BUFFER_LEN         10
-
-// Number of left wheel steps measured by the tachometer
-int32_t Left_Steps                  = 0;
-
-// Number of right wheel steps measured by the tachometer
-int32_t Right_Steps                 = 0;
-
-
-// Number of left and right wheel distances in millimeters
-float left_steps_mm, right_steps_mm;
-
-// Store tachometer period of the left wheel in a buffer
-// Number of 83.3 ns clock cycles to rotate 1/360 of a wheel rotation
-uint16_t Tachometer_Buffer_Left[TACHOMETER_BUFFER_LEN];
-
-// Store tachometer period of the right wheel in a buffer
-// Number of 83.3 ns clock cycles to rotate 1/360 of a wheel rotation
-uint16_t Tachometer_Buffer_Right[TACHOMETER_BUFFER_LEN];
-
-// Direction of the left wheel's rotation
-enum Tachometer_Direction Left_Direction;
-
-// Direction of the right wheel's rotation
-enum Tachometer_Direction Right_Direction;
-
-// Buffer index
-int buffer_idx = 0;
-
-#define POSE_ARRAY_SIZE 100
-
-typedef struct {
-    Pose        all_poses[POSE_ARRAY_SIZE];
-    uint32_t    num_elements;
-} Accumulated_Poses;
-
-
-Accumulated_Poses   poses;
-Accumulated_Poses*  pose_ptr = &poses;
-
+#define ECHO_REQUEST_FLAG   (0x01 << 0)
 
 /**
- * @brief resets the Accumulated_Poses structure
+ * @brief flag variable that requests the state of the communication switch
+ */
+#define STATE_REQUEST_FLAG  (0x01 << 1)
+
+/**
+ * @brief flag variable that syncs the timer
+ */
+#define TIMER_RESET_FLAG    (0x01 << 2)
+
+/**
+ * @brief flag variable that establishes the state of the switch
  *
- * @param pose_ptr
+ * @note if 0b0001, EUSCIA2 is established
+ * @note if 0b0010, EUSCIA2 received a send and
  */
-void Reset_Pose_Accumulator(Accumulated_Poses* pose_ptr) {
-
-    // reset the accumulator
-    memset(pose_ptr->all_poses, 0, sizeof(Pose) * POSE_ARRAY_SIZE);
+volatile uint8_t comms_state = 0;
 
     // reset the internal counter
     pose_ptr->num_elements  = 0;
 }
 
 /**
- * @brief Accumulate all intermediate poses into single composite transformation
+ * @brief EUSCIA2 RXIFG decision-handler function
+ *
  *
  * @param pose_ptr  Pointer to pose accumulator buffer
  * @param output    Resulting composite pose change
  *
- * @details Uses sequential 3x3 transformation matrix multiplication (instead
- *      of the funny way of adding poses together) to properly compose all
- *      incremental pose changes, accounting for rotation effects on subsequent
- *      translations.
+ * @param[in] UART_Buffer buffer holding the byte buffer
  */
-void Accumulate_Poses(
-        Accumulated_Poses*  pose_ptr,
-        Pose*               output)
-{
+void Handle_UART_Communications(volatile char UART_Buffer[]) {
 
-    // if the accumulator is empty, return with zero pose
-    if (pose_ptr->num_elements == 0) {
-        output->x           = 0.0f;
-        output->y           = 0.0f;
-        output->theta       = 0.0f;
-        output->timestamp   = 0;
-        return;
-    }
+    // if seen, communication is established. then echo back
+    if (Check_UART_Data(UART_Buffer, "!E")) {
 
-    int i, row, col;
+        // echo
+        UART_A2_OutString("!E\r\n");
 
-    // Start with identity transformation
-    float T_composite[3][3] = {
-        {1.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f},
-        {0.0f, 0.0f, 1.0f}
-    };
-
-    float T_temp[3][3];
-    float T_pose[3][3];
+        comms_state    |=  ECHO_REQUEST_FLAG;
 
     // Multiply all intermediate pose transformations sequentially
     for (i = 0; i < pose_ptr->num_elements; i++) {
 
-        Pose *p = &pose_ptr->all_poses[i];
+    // state command was received. This accumulates the pose and defers
+    // command operation to timer-based interrupts to prevent race conditions
+    } else if (Check_UART_Data(UART_Buffer, "!S")) {
 
-        // Convert pose to 3x3 transformation matrix
-        Make_Transformation_Matrix_Pose(p, T_pose);
+//        printf("at uart h\n");
 
-        // T_composite = T_composite × T_pose
-        matrix_multiply_3x3(T_composite, T_pose, T_temp);
+        // let the timer task receive the okay to
+        comms_state    |=  STATE_REQUEST_FLAG;
 
         // Copy result back to T_composite
         for (row = 0; row < 3; row++) {
@@ -237,13 +167,10 @@ void Accumulate_Poses(
     output->x       = T_composite[0][2];      // Translation x
     output->y       = T_composite[1][2];      // Translation y
 
-    // Extract rotation angle from rotation matrix
-    output->theta   = atan2(T_composite[1][0], T_composite[0][0]);
+    } else if (Check_UART_Data(UART_Buffer, "!R")) {
 
-    // Use timestamp from last pose in accumulator with better error handling
-    if (pose_ptr->num_elements > 0) {
-        output->timestamp \
-            = pose_ptr->all_poses[pose_ptr->num_elements - 1].timestamp;
+        // let the timer task receive the okay to
+        comms_state    |=  TIMER_RESET_FLAG;
 
 #ifdef DEBUG_OUTPUT
         // Calculate time span for debugging/analysis
@@ -258,6 +185,7 @@ void Accumulate_Poses(
     } else {
         output->timestamp = 0;  // Fallback for empty accumulator
     }
+
 }
 
 /**
@@ -387,15 +315,15 @@ void Get_Pose(
 //
 // ----------------------------------------------------------------------------
 
-
 void main(void) {
-
 
     // disable watchdog timer
     WDT_A->CTL = WDT_A_CTL_PW | WDT_A_CTL_HOLD;
 
+
     // Initialize unused ports to reduce power consumption
     Init_Unused_Ports();
+
 
     // Initialize the 48 MHz Clock
     Clock_Init48MHz();
@@ -404,7 +332,6 @@ void main(void) {
     // Initialize the built-in red LED and the RGB LEDs
     LED2_Init();
 
-    LED2_Output(RGB_LED_BLUE);
 
     // Initialize EUSCI_A0_UART
     EUSCI_A0_UART_Init_Printf();
@@ -423,11 +350,12 @@ void main(void) {
 
 
 
-    UART_A2_Init(&Communications_Handler);
 
+    /** ----------------------------------------------------------------------
+     * Initialize MSP432 --> T4.0 / i.MX RT1062 communications
+     */
 
-    // Enable the interrupts used by the SysTick and Timer_A timers
-    EnableInterrupts();
+    UART_A2_Init(&Handle_UART_Communications);
 
     while (!comms_established) {
         EUSCI_A2->IE   |=  0x0001;  // RPLiDAR C1
@@ -507,17 +435,37 @@ void main(void) {
     EnableInterrupts();
 
 
-    EUSCI_A0->IE   |=  0x0001;  // printf()
-//    EUSCI_A2->IE   |=  0x0001;  // RPLiDAR C1
-    EUSCI_A3->IE   |=  0x0001;  // BLE UART Friend
 
+    // EUSCI_A0->IE   |=  0x0003;  // printf()
+     EUSCI_A2->IE   |=  0x0001;  // to Teensy UART
+    // EUSCI_A3->IE   |=  0x0003;  // BLE UART Friend
+    
 //    Set_All_Interrupts_1();
 
+
+
 #ifdef DEBUG_OUTPUT
-//    printf("pressed\n");
+    printf("before\n");
 #endif
 
-    TIMER_A1->CCTL[0]  |=  0x0010;
+
+    // receive echo sequence again and proceed and color the LED blue
+//    Wait_Until_Condition(TIMER_RESET_FLAG);
+    // when echo sequence `!E\r\n` is detected, proceed and color the LED red
+    Wait_Until_Condition(ECHO_REQUEST_FLAG);
+
+
+    printf("after\n");
+
+
+    // use Timer_A1_Interrupt to get the odometry measurements resulting
+    // output will be measured in increments of 10 ticks per second
+    Timer_A1_Interrupt_Init(&Timer_A1_Task_Selector,
+                            (uint16_t)(TEN_TICKS_PER_SEC/2));
+                            
+                            
+    LED2_Output(RGB_LED_BLUE);
+
 
 
     /** ----------------------------------------------------------------------

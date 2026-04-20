@@ -74,6 +74,27 @@ void Tachometer_Get(uint16_t *left_tach,
                     int32_t *right_steps);
 
 /**
+ * @brief Get the number of tachometer steps.
+ * 
+ * @note This is a reduced version of the above function that only returns the
+ *  total number of forward steps measured for each wheel, which is the only
+ *  measurement used in main.c. This is to simplify the interface and reduce
+ *  unnecessary parameters.
+ *
+ * @param left_steps:   Pointer to store the total number of forward steps measured for the left wheel (360 steps per ~220 mm circumference)
+ * @param right_steps:  Pointer to store the total number of forward steps measured for the right wheel (360 steps per ~220 mm circumference)
+ *
+ * @note Assumes Tachometer_Init() has been called
+ *
+ * @note Assumes Clock_Init48MHz() has been called
+ *
+ * @return None
+ */
+void Tachometer_Get_Steps(
+        int32_t*    left_steps,
+        int32_t*    right_steps);
+
+/**
  * @brief Calculate the average of an unsigned integer buffer.
  *
  * This function calculates the average value of an array of unsigned integer values.

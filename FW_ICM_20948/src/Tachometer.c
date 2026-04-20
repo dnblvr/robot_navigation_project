@@ -77,6 +77,7 @@ void Tachometer_Left_Int(uint16_t current_time)
     Tachometer_Current_Left_Time    = current_time;
 
 
+    // Increment or decrement the pulse count variables based on the direction of rotation determined by the state of the encoder B pin (P5.2)
     // Check if P5.2 (Left Encoder B) is low
     if ((P5->IN & 0x04) == 0)
     {
@@ -125,6 +126,14 @@ void Tachometer_Get(
 
     *right_tach     = (Tachometer_Current_Right_Time - Tachometer_Previous_Right_Time);
     *right_dir      = Tachometer_Right_Dir;
+    *right_steps    = Tachometer_Right_Steps;
+}
+
+void Tachometer_Get_Steps(
+        int32_t*    left_steps,
+        int32_t*    right_steps)
+{
+    *left_steps     = Tachometer_Left_Steps;
     *right_steps    = Tachometer_Right_Steps;
 }
 

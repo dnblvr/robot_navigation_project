@@ -73,13 +73,13 @@
 //#include "inc/ICP_2D.h"
 //#include "inc/graphslam.h"
 
+
+// state estimator header
+#include "inc/inEKF_se2.h"
+
+
 void I2C_Task(void) {
     printf("hi\n");
-
-}
-
-
-
 
 }
 
@@ -93,7 +93,7 @@ void I2C_Task(void) {
 // ----------------------------------------------------------------------------
 
 /**
- * @brief Incremental pose change since last scan (from odometry)
+ *
  */
 #define FLAG(n)     (0x01 << n)
 
@@ -120,16 +120,11 @@ void I2C_Task(void) {
  */
 volatile uint8_t comms_state = 0;
 
-    // reset the internal counter
-    pose_ptr->num_elements  = 0;
-}
 
 /**
  * @brief EUSCIA2 RXIFG decision-handler function
  *
  *
- * @param pose_ptr  Pointer to pose accumulator buffer
- * @param output    Resulting composite pose change
  *
  * @param[in] UART_Buffer buffer holding the byte buffer
  */
@@ -143,8 +138,6 @@ void Handle_UART_Communications(volatile char UART_Buffer[]) {
 
         comms_state    |=  ECHO_REQUEST_FLAG;
 
-    // Multiply all intermediate pose transformations sequentially
-    for (i = 0; i < pose_ptr->num_elements; i++) {
 
     // state command was received. This accumulates the pose and defers
     // command operation to timer-based interrupts to prevent race conditions
@@ -155,35 +148,13 @@ void Handle_UART_Communications(volatile char UART_Buffer[]) {
         // let the timer task receive the okay to
         comms_state    |=  STATE_REQUEST_FLAG;
 
-        // Copy result back to T_composite
-        for (row = 0; row < 3; row++) {
-            for (col = 0; col < 3; col++) {
-                T_composite[row][col] = T_temp[row][col];
-            }
-        }
-    }
-
-    // Extract final pose from composite transformation matrix
-    output->x       = T_composite[0][2];      // Translation x
-    output->y       = T_composite[1][2];      // Translation y
 
     } else if (Check_UART_Data(UART_Buffer, "!R")) {
 
         // let the timer task receive the okay to
         comms_state    |=  TIMER_RESET_FLAG;
 
-#ifdef DEBUG_OUTPUT
-        // Calculate time span for debugging/analysis
-//        uint32_t dt = output->timestamp - pose_ptr->all_poses[0].timestamp;
 
-        // Optional: Log time span and sample count for performance analysis
-        if (pose_ptr->num_elements > 1) {
-//            printf("Pose composite: %lu samples over %lu ticks\n",
-//                   pose_ptr->num_elements, dt);
-        }
-#endif
-    } else {
-        output->timestamp = 0;  // Fallback for empty accumulator
     }
 
 }
@@ -213,15 +184,11 @@ void Get_Pose(
         uint32_t    timestamp)
 {
 
-    #define COUNTS_TO_DIST 0.6111111111
 
     // Distance between wheels in mm
     #define WHEEL_BASE_MM 141.0f
 
 
-    // variables for the previous values for later
-    static float    prev_left_mm   = 0.0f,
-                    prev_right_mm  = 0.0f;
 
 
     float   left_steps_mm, right_steps_mm,
@@ -244,69 +211,48 @@ void Get_Pose(
     delta_left  = left_steps_mm  - prev_left_mm;
     delta_right = right_steps_mm - prev_right_mm;
 
-    // Save current values for next iteration
-    prev_left_mm    = left_steps_mm;
-    prev_right_mm   = right_steps_mm;
 
 
-    /** ---------------------------------------------------------------------
-     * Calculate linear and angular displacement
-     */
 
-    // Average linear displacement `s` between the two wheels
-    delta_s     = (delta_left + delta_right) / 2.0f;
-
-    // Angular change (in radians)
-    delta_theta = (delta_right - delta_left) / WHEEL_BASE_MM;
+// ----------------------------------------------------------------------------
+//
+//  TACHOMETER FUNCTIONS
+//
+// ----------------------------------------------------------------------------
 
 
-    /**
-     * Calculate displacement in local (robot) frame; based on arc motion
-     *  formula `s = r*theta`.
-     */
+// Initialize length of the tachometer buffers
+#define TACHOMETER_BUFFER_LEN         10
 
-    // Option 1: Moving straight; avoid division by zero
-    if (fabs(delta_theta) < 1e-6) {
+// Number of left wheel steps measured by the tachometer
+int32_t Left_Steps                  = 0;
 
-        x_local = delta_s;
-        y_local = 0.0f;
+// Number of right wheel steps measured by the tachometer
+int32_t Right_Steps                 = 0;
 
 
-    // Option 2: arc motion; uses the formula
-    } else {
-        float radius;
+// Store tachometer period of the left wheel in a buffer
+// Number of 83.3 ns clock cycles to rotate 1/360 of a wheel rotation
+uint16_t Tachometer_Buffer_Left[TACHOMETER_BUFFER_LEN];
 
-        radius  = delta_s / delta_theta;
-        x_local = radius * sin(delta_theta);
-        y_local = radius * (1.0f - cos(delta_theta));
-    }
+// Store tachometer period of the right wheel in a buffer
+// Number of 83.3 ns clock cycles to rotate 1/360 of a wheel rotation
+uint16_t Tachometer_Buffer_Right[TACHOMETER_BUFFER_LEN];
 
+// Direction of the left wheel's rotation
+enum Tachometer_Direction Left_Direction;
 
-    // Store incremental pose change (in local robot frame)
-    incremental_pose.x      = x_local;
-    incremental_pose.y      = y_local;
-    incremental_pose.theta  = delta_theta;
-    incremental_pose.timestamp = timestamp;
+// Direction of the right wheel's rotation
+enum Tachometer_Direction Right_Direction;
 
-    // Normalize angle to [-pi, pi]
-    incremental_pose.theta  = normalize_angle(incremental_pose.theta);
+// Buffer index
+int buffer_idx = 0;
 
-    // Add to accumulator
-    if (pose_accumulator->num_elements < POSE_ARRAY_SIZE) {
-        pose_accumulator->all_poses[pose_accumulator->num_elements] \
-                = incremental_pose;
-        pose_accumulator->num_elements++;
-    }
+// Encoder count to millimeter conversion
+#define COUNTS_TO_DIST  0.6111111111
 
-    // Debug output
-#ifdef DEBUG_OUTPUT
-//    printf("trv %3u: L=%7.2f R=%7.2f | x=%7.2f y=%7.2f θ=%6.3f\n",
-//            local_counter,
-//            left_steps_mm, right_steps_mm,
-//            pose_at_time->x, pose_at_time->y, pose_at_time->theta);
-#endif
-
-}
+// Distance between wheels in mm
+#define WHEEL_BASE_MM   141.0f
 
 
 // ----------------------------------------------------------------------------
@@ -369,8 +315,7 @@ void main(void) {
 
 
 #ifdef OLD_SYSTEM
-
-    // Initialize the ICM20948
+    
     EUSCI_B1_I2C_Init();
 
     icm20948_config_t config = {.addr_accel_gyro    = ICM20948_ADDR_ACCEL_GYRO,
@@ -477,6 +422,7 @@ void main(void) {
 
     while (1)
     {
+
         /**
          * @note   blocks execution until *any* interrupt occurs
          */
@@ -492,8 +438,9 @@ void main(void) {
 
 
 #ifdef TASK_0_FLAG
+
         /**
-         * @note TASK 0: receive BLE motor commands at 10 times a second
+         * @note TASK 0: none
          */
         if (task_flag & TASK_0_FLAG) {
             task_flag  &= ~TASK_0_FLAG; // clear the flag
@@ -505,15 +452,20 @@ void main(void) {
 //            Timer_A1_Acknowledge();
 
         }
+
 #endif
 
 
 #ifdef TASK_1_FLAG
+
         /**
          * @note TASK 1: access ICM20948
          */
         if (task_flag & TASK_1_FLAG) {
             task_flag  &= ~TASK_1_FLAG;
+
+            // Get current tachometer readings
+            Tachometer_Get_Steps(&Left_Steps, &Right_Steps);
 
 #ifdef OLD_SYSTEM
 
@@ -557,10 +509,12 @@ void main(void) {
 #endif
 
         }
+
 #endif
 
 
 #ifdef TASK_2_FLAG
+
         /**
          * @note TASK 2: Get the measurements made by the tachometers
          *       Accumulate incremental pose changes between LiDAR scans

@@ -793,13 +793,34 @@ void setup()
     RPLiDAR_UART_AttachISR();
     
     
-    Serial.println("[3/3] Starting loop timer...");
+    
+    // confirm communication with MSP432 by waiting for an echo response to our
+    // handshake message
+    
+    Serial.println("Resetting MSP432 timer...");
+
+
+    while ( !(comms_state & ECHO_REQUEST_FLAG) ) {
+
+        digitalToggle(LED_BUILTIN);
+        
+        LPUART8_OutString("!E\r\n");
+
+        delay(50);
+        
+        WaitForInterrupt();
+    }
+    
+    // confirmmation of comms establishment visually
+    // Serial.println("Communication established.");
+    digitalWrite(LED_BUILTIN, LOW);
+    
+    
+    Serial.println("[3/3]" \
+        // " Starting loop timer..."
+    );
     loop_timer.begin(Task_Selector, LOOP_INTERVAL_MS * MS_TO_US);
-
-
-    Serial.println("Setup complete. Streaming scan frames:");
-    Serial.println("----------------------------------------------");
-
+    
 }
 
 

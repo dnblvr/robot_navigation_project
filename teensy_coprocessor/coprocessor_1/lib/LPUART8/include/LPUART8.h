@@ -1,18 +1,31 @@
 /**
  * @file LPUART8.h
- * @brief Teensy HAL for the LPUART8 driver.
+ * @brief Teensy HAL for the LPUART8 driver with emphasis on bare-metal RX
+ *  handling.
  *
- * @details This is a direct port of RPLiDAR_A2_UART.h. The public API surface is intentionally kept somewhat identical to keep a consistent interface. Only the hardware seam is swapped.
+ * @details This is a direct reference of RPLiDAR_UART codebase. The public API
+ *  surface is intentionally kept somewhat identical to keep a consistent
+ *  interface. Only the hardware seam is swapped.
  *
- * @note Call LPUART8_SetPort() before anything else, then
- *       LPUART8_Init() to start the serial port at 460,800 bps.
+ * @note Call LPUART8_SetPort() before anything else, then LPUART8_Init() to
+ *  start the serial port at a given baud rate.
  *
- * @note For every ISR call, feed every incoming byte
- *       to LPUART8_ProcessByte(b).  The FSM will handle the rest.
+ * @note For every ISR call, feed all FIFO bytes to LPUART8_ProcessByte(b).
+ *  The FSM will handle the rest.
  * 
- * @note LPUART modules are aligned according to Paul Stoffregen's IMXRT1060RM annotations. This is the table:
+ * @note This is inspired by Paul Stoffregen's musing on his forums about
+ *  barebones T4.0 serial drivers. He prefers that we not spend time writing a
+ *  full drivers, considering that he spent a full year writing the core
+ *  library. Instead, he prefers that we write drivers based on his Arduino
+ *  Teensy core library and whittle down to the bare metal. This is part of the
+ *  result of this approach. Over time, this driver will be completed with
+ *  Arduino-independent functions and serve as a reference for LPUART handling.
+ * 
+ * @note LPUART modules are aligned to Serialx ports according to Paul
+ *  Stoffregen's IMXRT1060RM annotations. This is the table for convenience:
+ * 
  *      | Module  | Serial Port |
- *      |---------|-------------|
+ *      | :-----: | :---------: |
  *      | LPUART1 |   Serial6   |
  *      | LPUART2 |   Serial3   |
  *      | LPUART3 |   Serial2   |
@@ -68,13 +81,13 @@ void LPUART8_SetPort(HardwareSerial* port);
 
 
 /**
- * @brief   Open the serial port at LPUART8_BAUD_RATE (460,800).
+ * @brief   Open the serial port at the specified baud rate.
  * 
  * @note    Does NOT install the bare-metal RX ISR.  Call
  *          LPUART8_AttachISR() from setup() once all protocol init
  *          commands (STOP / RESET / GET_HEALTH / SCAN) have been sent.
  * 
- * @param baud_rate 
+ * @param baud_rate  Desired baud rate for the serial port.
  */
 void LPUART8_Init(uint32_t baud_rate);
 
@@ -83,8 +96,7 @@ void LPUART8_Init(uint32_t baud_rate);
  * @brief   Flush TX, disable TX interrupts, then replace HardwareSerial's
  *          LPUART8 vector with the bare-metal LPUART8_RX_ISR.
  * 
- * @details Must be called from setup() AFTER Initialize_RPLiDAR_C1()
- *  returns.  Calling it earlier causes a TX-interrupt infinite loop:
+ * @details Must be called from setup() AFTER LPUART8_Init() returns.  Calling it earlier causes a TX-interrupt infinite loop:
  *  HardwareSerial re-enables CTRL.TIE when it queues TX bytes, but our
  *  RX-only ISR never clears TIE, so LPUART8_IRQ fires endlessly and
  *  starves the CPU (including USB serial).

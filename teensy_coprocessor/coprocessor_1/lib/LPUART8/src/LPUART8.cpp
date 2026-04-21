@@ -1,12 +1,38 @@
 /**
- * @file RPLiDAR_UART.cpp
- * @brief Teensy HAL implementation for the RPLiDAR C1 UART driver.
+ * @file LPUART8.cpp
+ * @brief Teensy HAL for the LPUART8 driver with emphasis on bare-metal RX
+ *  handling.
  *
- * @details This is a direct port of RPLiDAR_A2_UART.c from the MSP432
- *  FW_RPLiDAR_C1 project.  The FSM action functions (Hold_Action,
- *  Find_Pattern_Action, Add_Offset_Action, Skip_Action, Record_Action) and
- *  all helper functions are lifted verbatim — they contain zero
- *  hardware-specific code.
+ * @details This is a direct reference of RPLiDAR_UART codebase. The public API
+ *  surface is intentionally kept somewhat identical to keep a consistent
+ *  interface. Only the hardware seam is swapped.
+ *
+ * @note Call LPUART8_SetPort() before anything else, then LPUART8_Init() to
+ *  start the serial port at a given baud rate.
+ *
+ * @note For every ISR call, feed all FIFO bytes to LPUART8_ProcessByte(b).
+ *  The FSM will handle the rest.
+ * 
+ * @note This is inspired by Paul Stoffregen's musing on his forums about
+ *  barebones T4.0 serial drivers. He prefers that we not spend time writing a
+ *  full drivers, considering that he spent a full year writing the core
+ *  library. Instead, he prefers that we write drivers based on his Arduino
+ *  Teensy core library and whittle down to the bare metal. This is part of the
+ *  result of this approach.
+ * 
+ * @note LPUART modules are aligned to Serialx ports according to Paul
+ *  Stoffregen's IMXRT1060RM annotations. This is the table for convenience:
+ * 
+ *      | Module  | Serial Port |
+ *      | :-----: | :---------: |
+ *      | LPUART1 |   Serial6   |
+ *      | LPUART2 |   Serial3   |
+ *      | LPUART3 |   Serial2   |
+ *      | LPUART4 |   Serial4   |
+ *      | LPUART5 |   Serial8   |
+ *      | LPUART6 |   Serial1   |
+ *      | LPUART7 |   Serial7   |
+ *      | LPUART8 |   Serial5   |
  *
  * @author Gian Fajardo
  */
@@ -49,6 +75,17 @@ static LPUART_ISR_Task task_function = nullptr;
 #define BYTE_0_MASK 0xFFu
 
 
+
+/**
+ * @brief LPUARTx check for the 
+ * 
+ * @details this flag asserts when there is no data currently in the receive
+ *  buffer. it is recommended to assign the full contents of the LPUARTx_DATA
+ *  and check this flag before looping to drain the FIFO.
+ */
+#define DATA_EMPTY_CONDITION (d & LPUART_DATA_RXEMPT)
+
+
 // ----------------------------------------------------------------------------
 //
 //  PRIVATE BUFFER STORAGE
@@ -56,7 +93,7 @@ static LPUART_ISR_Task task_function = nullptr;
 // ----------------------------------------------------------------------------
 
 /** Raw staging buffer — holds UART8_BUFFER_SIZE bytes during pattern search */
-static volatile char  UART8_buffer[UART8_BUFFER_SIZE];
+static volatile char  UART8_buffer[UART8_BUFFER_SIZE] = {0};
 
 
 // ----------------------------------------------------------------------------
@@ -108,13 +145,10 @@ FASTRUN void LPUART8_RX_ISR(void)
 
     // ---- FIFO drain --------------------------------------------------------
     // Read the first DATA word atomically: LPUART_DATA_RXEMPT (bit 12) is
-    // set when the FIFO was already empty at the time of the read.  With
+    // set when the receive FIFO buffer was already empty. With
     // ILIE disabled, this ISR fires only due to RDRF, so the first read
     // almost always returns a valid byte; the counter is just a safety net.
     d   = IMXRT_LPUART8.DATA;
-
-    // this condition 
-    #define DATA_EMPTY_CONDITION (d & LPUART_DATA_RXEMPT)
 
 
     while ( !DATA_EMPTY_CONDITION ) {
@@ -225,13 +259,12 @@ void LPUART8_Restart(void)
 
 void LPUART8_OutChar(uint8_t byte)
 {
-    // Write directly to the hardware DATA register.  After AttachISR the vector is replaced with our RX-only handler, so any _serial->write() call would re-enable TIE and fire the RX ISR on every TX-empty event — an interrupt storm that starves the CPU and drags the TX FIFO along with it.
 
     // wait for TX data register empty
     while (!(IMXRT_LPUART8.STAT & LPUART_STAT_TDRE));
 
-    // IMXRT_LPUART8.DATA = byte;
-    IMXRT_LPUART8.DATA |= (uint32_t)byte;
+    // directly assign to the hardware DATA register
+    IMXRT_LPUART8.DATA = (uint32_t)(byte & BYTE_0_MASK);
 
 }
 

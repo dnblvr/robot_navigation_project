@@ -303,25 +303,61 @@ void LPUART8_InString(uint8_t* buffer, size_t length)
 
 void LPUART8_ProcessByte(uint8_t b)
 {
-    // Check if the received character is a button command from the EUSCI_A2
-    if (b == '!') {
+    static uint32_t length = 0;
 
-        uart_buffer_pointer = RX_POINTER;
+    
+    if (length == 0) {
+        
+        // Check if the received character is a button command from the EUSCI_A2
+        if (b == '!') {
+    
+            uart_buffer_pointer = RX_POINTER;
+            length = 4; // max command length is 4 (e.g. "!E\r\n")
+    
+        } else if (b == '#') {
+    
+            uart_buffer_pointer = RX_POINTER;
+            length = 2 + sizeof(state_se2_t); // 14 bytes for the pose struct
+    
+        }
 
     }
     
 
     // otherwise, add the character to the buffer and increment the pointer
     *(uart_buffer_pointer++)    = b;
+    length--;
 
+#ifdef DEBUG_OUTPUT
+    // Serial.printf("b=0x%02X, l=%d\n", b, length);
+#endif
 
-    // early return if the message is incomplete
-    if (!Check_UART_Data(RX_POINTER, "\r\n"))
+    // early return if the message is incomplete e.g. nonzero length
+    // if (length)
+    if (length > 0)
         return;
 
-    
+#ifdef DEBUG_OUTPUT
+    Serial.printf("msg=%s\n", UART8_buffer);
+#endif
+
     (*task_function)(RX_POINTER);
 
+    memset((void*)UART8_buffer, 0, UART8_BUFFER_SIZE);
+    uart_buffer_pointer = RX_POINTER;
+    length = 0;
+
+}
+
+state_se2_t Get_State_Request(void) {
+
+    static state_se2_t state = {0.0f, 0.0f, 0.0f};
+
+    // alternatively, assign the first 2 bytes which are the command prefix "#S"
+    // state_se2_t state = *((state_se2_t*)(UART8_buffer + 2)); 
+    memcpy(&state, (const void*)(UART8_buffer + 2), sizeof(state_se2_t));
+
+    return state;
 }
 
 

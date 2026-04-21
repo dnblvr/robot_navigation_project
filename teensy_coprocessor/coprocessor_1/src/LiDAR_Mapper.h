@@ -14,6 +14,7 @@
 
 #include <Arduino.h>
 #include <RPLiDAR_C1.h>
+#include <inEKF_se2.h>
 #include <LPUART8.h>
 #include <coordinate_transform.h>
 #include <ICP_2D.h>
@@ -622,7 +623,9 @@ void Communications_Handler(volatile char UART_Buffer[]) {
 
 
 // ----------------------------------------------------------------------------
+//
 //  Module-level state
+//
 // ----------------------------------------------------------------------------
 
 /**
@@ -744,7 +747,7 @@ void setup()
 
 // ============================================================================
 //
-//  LOOP
+//  SUPERLOOP
 //
 // ============================================================================
 
@@ -758,14 +761,69 @@ void loop()
     WaitForInterrupt();
 
     
+    // Serial.printf("task_flag: 0x%02X | comms_state: 0x%02X\n",
+    //               task_flag, comms_state);
+    
+    
+#ifdef TASK_2_FLAG
+    if (task_flag & TASK_2_FLAG) {
+        task_flag &= ~TASK_2_FLAG;
+        
+        
+    }
+#endif
+
+
+#ifdef TASK_3_FLAG
     if (task_flag & TASK_3_FLAG) {
         task_flag &= ~TASK_3_FLAG;
+
         
         Start_Record(NULL);
+        
+        state_se2_t previous_pose   = {0.0f, 0.0f, 0.0f};
+        state_se2_t today_pose      = {0.0f, 0.0f, 0.0f};
+
+        {
+            // 
+            LPUART8_OutString("!S\r\n");
+
+    #ifdef DEBUG_OUTPUT
+
+            Serial.printf("Waiting for pose request...\n");
+
+    #endif
+
+            Timeout_Wait_Until(STATE_REQUEST_FLAG);
+    
+            today_pose = Get_State_Request();
+
+    #ifdef DEBUG_OUTPUT
+
+            Serial.printf("Received pose: x=%.2f y=%.2f theta=%.3f\n",
+                          today_pose.x,
+                          today_pose.y,
+                          today_pose.theta);
+
+    #endif
+
+    #ifdef PROCESSING4_OUTPUT
+
+            Serial.printf("POSE,%5.2f,%5.2f,%5.2f\n",
+                          today_pose.x,
+                          today_pose.y,
+                          today_pose.theta);
+
+    #endif
+
+        }
+
+        
 
     }
+#endif
 
-    // -------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
     // TASK_4: process a complete scan frame (gated by the task scheduler)
     //
     // task_flag is set by Task_Selector() (IntervalTimer ISR) only when
@@ -773,47 +831,63 @@ void loop()
     // via _timer_ignore() at recording start and clears it via
     // _timer_acknowledge() when End_Record() transitions the state to
     // PROCESSING.  So TASK_4_FLAG arrives only after a full frame is ready.
-    // -------------------------------------------------------------------------
+    // ------------------------------------------------------------------------
 
-    if (task_flag & TASK_4_FLAG) {
+#ifdef TASK_4_FLAG
+
+    if (    (task_flag & TASK_4_FLAG)
+         && (rplidar_cfg.current_state == PROCESSING))
+    {
         task_flag &= ~TASK_4_FLAG;
 
-        if (rplidar_cfg.current_state == PROCESSING) {
 
-            Process_RPLiDAR_Data(&rplidar_cloud);
+        Process_RPLiDAR_Data(&rplidar_cloud);
 
+        
+    #ifdef PROCESSING4_OUTPUT
+        Serial.printf("POSE,%5.2f,%5.2f,%5.2f\n",
+                    //   global_pose.x,
+                    //   global_pose.y,
+                    //   global_pose.theta);
+                        0.f,
+                        0.f,
+                        0.f);   
+        Serial.println("SCAN_START");
+    #endif
+
+
+        for (uint32_t i = 0; i < rplidar_cloud.num_pts; i++) {
             
-            #ifdef PROCESSING4_OUTPUT
-            Serial.printf("POSE,%5.2f,%5.2f,%5.2f\n",
-                        //   global_pose.x,
-                        //   global_pose.y,
-                        //   global_pose.theta);
-                          0.f,
-                          0.f,
-                          0.f);   
-            Serial.println("SCAN_START");
-            #endif
-
-
-            for (uint32_t i = 0; i < rplidar_cloud.num_pts; i++) {
-                
     #ifdef PROCESSING4_OUTPUT
-                Serial.printf("P,%5.2f,%5.2f\n",
-                              rplidar_cloud.points[i].x,
-                              rplidar_cloud.points[i].y);
+            // Serial.printf("P,%+5.2f,%+5.2f\n",
+            //                 rplidar_cloud.points[i].x,
+            //                 rplidar_cloud.points[i].y);
     #endif
-                
-            }
+            
+        }
 
     #ifdef PROCESSING4_OUTPUT
-            Serial.println("SCAN_END");
+        Serial.println("SCAN_END");
     #endif
 
 
-            // --- Re-arm for next frame --------------------------------------
-            rplidar_cfg.current_state   = IDLING;
+        // --- Re-arm for next frame --------------------------------------
+        rplidar_cfg.current_state   = IDLING;
 
-        } // if (state == PROCESSING)
 
     } // if (task_flag & TASK_4_FLAG)
+
+#endif 
+
+#ifdef TASK_7_FLAG
+    if (task_flag & TASK_7_FLAG) {
+        task_flag &= ~TASK_7_FLAG;
+
+        static uint32_t counter = 0;
+        
+        Serial.printf("cycle %5u\n\n", counter);
+        counter++;
+    }
+#endif
+
 }

@@ -279,9 +279,18 @@ uint8_t LPUART8_InChar(void)
 
 void LPUART8_OutString(const char* str)
 {
+    // str is a pointer to a null-terminated string, so we can loop until we
+    // hit the null terminator
     while (*str) {
         LPUART8_OutChar(*str);
         str++;
+    }
+}
+
+void LPUART8_InString(uint8_t* buffer, size_t length)
+{
+    while (length--) {
+        *buffer++ = LPUART8_InChar();
     }
 }
 
@@ -300,6 +309,7 @@ void LPUART8_ProcessByte(uint8_t b)
         uart_buffer_pointer = RX_POINTER;
 
     }
+    
 
     // otherwise, add the character to the buffer and increment the pointer
     *(uart_buffer_pointer++)    = b;

@@ -44,6 +44,7 @@
 
 #include <Arduino.h>
 #include <stdint.h>
+#include <inEKF_se2.h>
 
 
 #include "LPUART8_Config.h"
@@ -154,6 +155,15 @@ uint8_t LPUART8_InChar(void);
 void LPUART8_OutString(const char* str);
 
 
+/**
+ * @brief Blocking receive of a string of specified length from the LPUART8.
+ * 
+ * @param buffer  Pointer to the buffer where received bytes will be stored.
+ * @param length  Number of bytes to receive.
+ */
+void LPUART8_InString(uint8_t* buffer, size_t length);
+
+
 // ----------------------------------------------------------------------------
 //
 //  BYTE PROCESSOR
@@ -171,6 +181,12 @@ void LPUART8_OutString(const char* str);
  */
 void LPUART8_ProcessByte(uint8_t b);
 
+/**
+ * @brief extra
+ * 
+ * @return state_se2_t 
+ */
+state_se2_t Get_State_Request(void);
 
 // ----------------------------------------------------------------------------
 //

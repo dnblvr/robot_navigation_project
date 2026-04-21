@@ -4,8 +4,8 @@
 //
 // #define FLOATING_POINT 1   // ICM-20948 orientation via Madgwick / ECF filter
 // #define FIXED_POINT    1   // fixed-point IMU pipeline (WIP)
-#define RPLIDAR_IMPL   1      // RPLiDAR C1 Arduino port — test harness
-// #define LiDAR_MAPPER   1      // RPLiDAR C1 Arduino port — test harness
+// #define RPLIDAR_IMPL   1      // RPLiDAR C1 Arduino port — test harness
+#define LiDAR_MAPPER   1      // RPLiDAR C1 Arduino port — test harness
 
 
 #if defined(RPLIDAR_IMPL)

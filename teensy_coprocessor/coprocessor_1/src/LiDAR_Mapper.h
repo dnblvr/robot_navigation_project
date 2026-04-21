@@ -123,25 +123,25 @@ void Perform_SLAM(
             Pose zero_guess = {0.0f, 0.0f, 0.0f, 0};  // No guess needed - clouds already aligned
             
             slam_perform_icp(&previous_scan_global,
-                           &current_scan_global,
-                           &zero_guess,
-                           &icp_result);
+                             &current_scan_global,
+                             &zero_guess,
+                             &icp_result);
             
             // Compute confidence
             icp_confidence = slam_compute_icp_confidence(&previous_scan_global,
-                                                        &current_scan_global,
-                                                        &zero_guess,
-                                                        &icp_result);
+                                                         &current_scan_global,
+                                                         &zero_guess,
+                                                         &icp_result);
             
             // ICP result is the CORRECTION to apply to the predicted pose
-            icp_correction.x = icp_result.dx;
-            icp_correction.y = icp_result.dy;
-            icp_correction.theta = icp_result.dtheta;
-            have_icp_correction = true;
+            icp_correction.x        = icp_result.dx;
+            icp_correction.y        = icp_result.dy;
+            icp_correction.theta    = icp_result.dtheta;
+            have_icp_correction     = true;
             
 #ifdef DEBUG_OUTPUTS
             float correction_mag = sqrtf(   icp_correction.x*icp_correction.x
-                                         +  icp_correction.y*icp_correction.y);
+                                          + icp_correction.y*icp_correction.y);
 
             if (    (correction_mag > 5.0f)
                  || (fabsf(icp_correction.theta) > 0.02f))

@@ -54,9 +54,9 @@
 //#define TASK_5_DIV_FREQ 30
 //#define TASK_5_OFFSET   24
 
-#define TASK_6_FLAG     0x01 << 6
-#define TASK_6_DIV_FREQ 1
-#define TASK_6_OFFSET   0
+// #define TASK_6_FLAG     0x01 << 6
+// #define TASK_6_DIV_FREQ 1
+// #define TASK_6_OFFSET   0
 
 #define TASK_7_FLAG     0x01 << 7
 #define TASK_7_DIV_FREQ MAX_DIV_FREQ

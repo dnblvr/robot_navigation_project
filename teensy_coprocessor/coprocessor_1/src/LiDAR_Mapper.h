@@ -607,35 +607,106 @@ IntervalTimer loop_timer;
 /**
  * @brief 
  */
-#define MSP432_Serial  Serial5
+#define FLAG_MASK(n)        (1 << (n))
 
 /**
  * @brief 
  */
-#define FLAG_MASK(n)       (1 << (n))
+#define ECHO_REQUEST_FLAG   FLAG_MASK(0)
 
 /**
  * @brief 
  */
-#define ECHO_REQUEST_FLAG  FLAG_MASK(0)
+#define STATE_REQUEST_FLAG   FLAG_MASK(1)
 
 /**
  * @brief 
  */
-uint8_t comms_state = 0;
+#define RESET_REQUEST_FLAG   FLAG_MASK(2)
+
+/**
+ * @brief 
+ */
+volatile uint8_t comms_state = 0;
 
 /**
  * @brief 
  * 
  * @param UART_Buffer 
  */
-void Communications_Handler(volatile char UART_Buffer[]) {
+void Handle_UART_Communications(volatile char UART_Buffer[]) {
 
     // if seen, communication is established
     if (Check_UART_Data(UART_Buffer, "!E")) {
 
         comms_state    |=  ECHO_REQUEST_FLAG;
+
+    } else if (Check_UART_Data(UART_Buffer, "!R")) {
+
+        comms_state    |=  RESET_REQUEST_FLAG;
+
+    } else if (Check_UART_Data(UART_Buffer, "#S")) {
+
+    #ifdef DEBUG_OUTPUT
+        Serial.printf("in handle func\n");
+    #endif
+
+        comms_state    |=  STATE_REQUEST_FLAG;
+
     }
+
+}
+
+/**
+ * @brief generalized function that block-waits until certain UART messages are
+ *  received
+ * 
+ * @note This function assumes the built-in LED is available for visual feedback while waiting
+ *
+ * @param[in] requested_flag   flag that is requested for listening
+ */
+void Timeout_Wait_Until(uint32_t requested_flag) {
+
+    uint32_t timeout_counter = 0;
+
+    // 10 * 3 ms = 30 ms timeout
+    const uint32_t timeout_threshold = 10;
+
+    while (!(comms_state & requested_flag)) {
+
+        delay(3);
+
+        if (timeout_counter >= timeout_threshold) {
+            break;
+        }
+        
+        timeout_counter++;
+        
+        // wfi assembly code
+        WaitForInterrupt();
+        
+    }
+
+}
+
+/**
+ * @brief generalized function that block-waits until certain UART messages are
+ *  received
+ * 
+ * @note This function assumes the built-in LED is available for visual feedback while waiting
+ *
+ * @param[in] requested_flag   flag that is requested for listening
+ */
+void Block_Wait_Until(uint32_t requested_flag) {
+
+    while (!(comms_state & requested_flag)) {
+
+        delay(3);
+
+        // wfi assembly code
+        WaitForInterrupt();
+    }
+
 }
 
 
@@ -697,32 +768,9 @@ void setup()
 
     LPUART8_SetPort(&MSP432_Serial);
     LPUART8_Init(460800);
-    LPUART8_AttachISR(&Communications_Handler);
+    LPUART8_AttachISR(&Handle_UART_Communications);
 
 
-    // confirm communication with MSP432 by waiting for an echo response to our handshake message
-    while (!(comms_state & ECHO_REQUEST_FLAG)) {
-        // Serial.println("Establishing communication...");
-        digitalToggle(LED_BUILTIN);
-
-        LPUART8_OutString("!E\r\n");
-        
-        WaitForInterrupt();
-    }
-
-
-    // confirmmation of comms establishment visually
-    digitalWrite(LED_BUILTIN, LOW);
-
-    return;
-
-#ifdef DEBUG_OUTPUTS
-
-    Serial.println("==============================================");
-    Serial.println("  RPLiDAR C1 — Teensy Arduino port test");
-    Serial.println("==============================================");
-
-#endif
 
     // Bind Serial1 to the RPLiDAR driver ---------------------------------
     RPLiDAR_UART_SetPort(&RPLIDAR_Serial);

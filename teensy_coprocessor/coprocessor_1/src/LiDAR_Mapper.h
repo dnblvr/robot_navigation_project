@@ -575,9 +575,34 @@ void Perform_SLAM(
 
 // ----------------------------------------------------------------------------
 //
-//  Configuration
+//  ISR CONFIGURATION AND HANDLERS
 //
 // ----------------------------------------------------------------------------
+
+
+/**
+ * @brief IntervalTimer instance used to trigger periodic tasks in a deferred
+ *  interrupt handling pattern. Other high priority tasks will be handled in
+ *  the task-selector function.
+ */
+IntervalTimer loop_timer;
+
+#define MS_TO_US        1000
+#define LOOP_INTERVAL_MS 100
+
+
+/**
+ * @brief user-defined macro to wait for interrupt Assembly instruction 
+ * 
+ * @note This macro wraps the assembly instruction "wfi" to improve code
+ *  readability.
+ */
+#define WaitForInterrupt()  asm("wfi")
+
+/**
+ * @brief 
+ */
+#define MSP432_Serial       Serial5
 
 /**
  * @brief 
@@ -640,24 +665,6 @@ static C1_States rplidar_cfg;
  */
 static PointCloud rplidar_cloud;
 
-/**
- * @brief IntervalTimer instance used to trigger periodic tasks in a deferred
- *  interrupt handling pattern. Other high priority tasks will be handled in
- *  the task-selector function.
- */
-IntervalTimer loop_timer;
-
-#define MS_TO_US        1000
-#define LOOP_INTERVAL_MS 100
-
-
-/**
- * @brief user-defined macro to wait for interrupt Assembly instruction 
- * 
- * @note This macro wraps the assembly instruction "wfi" to improve code
- *  readability.
- */
-#define WaitForInterrupt()  asm("wfi")
 
 
 // ============================================================================
@@ -668,14 +675,15 @@ IntervalTimer loop_timer;
 
 void setup()
 {
-
-
-#ifdef DEBUG_OUTPUTS
-
+    
     // USB CDC — wait up to 3 s for a monitor, then continue regardless so
     // the MSP432 hardware-UART handshake is not blocked by USB CDC.
-    // Serial.begin(115200); // cannot be initialized here because if we want the MSP432_Serial communication to be live during setup. This needs to be established until after data collection starts at which point the USB stream will send over the point cloud data for analysis on the PC.
-    // while (!Serial);
+    Serial.begin(115200); 
+
+#ifdef DEBUG_OUTPUTS
+    
+    // cannot be initialized here because if we want the MSP432_Serial communication to be live during setup. This needs to be established until after data collection starts at which point the USB stream will send over the point cloud data for analysis on the PC.
+    while (!Serial);
 
 #endif
 
@@ -726,6 +734,8 @@ void setup()
     //  - STOP --> RESET --> GET_HEALTH --> SCAN
     Serial.println("[1/3] Initializing RPLiDAR C1...");
     Initialize_RPLiDAR_C1(&rplidar_cfg);
+
+    digitalToggle(LED_BUILTIN);
 
     
     // Now that all TX commands are sent, flush TX and replace HardwareSerial's

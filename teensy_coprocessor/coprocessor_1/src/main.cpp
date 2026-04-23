@@ -4,8 +4,9 @@
 //
 // #define FLOATING_POINT 1   // ICM-20948 orientation via Madgwick / ECF filter
 // #define FIXED_POINT    1   // fixed-point IMU pipeline (WIP)
+#define IMU_MAG_CAL    1      // ICM-20948 magnetometer calibration routine
 // #define RPLIDAR_IMPL   1      // RPLiDAR C1 Arduino port — test harness
-#define LiDAR_MAPPER   1      // RPLiDAR C1 Arduino port — test harness
+// #define LiDAR_MAPPER   1      // RPLiDAR C1 Arduino port — test harness
 
 
 #if defined(RPLIDAR_IMPL)
@@ -24,6 +25,10 @@
 #include "fixed_point_impl.h"
 #endif
 
-#if (defined(RPLIDAR_IMPL) + defined(LiDAR_MAPPER) + defined(FLOATING_POINT) + defined(FIXED_POINT)) > 1
+#if defined(IMU_MAG_CAL)
+#include "imu_mag_cal.h"
+#endif
+
+#if (defined(RPLIDAR_IMPL) + defined(LiDAR_MAPPER) + defined(FLOATING_POINT) + defined(FIXED_POINT) + defined(IMU_MAG_CAL)) > 1
     #error "Multiple implementations selected — please uncomment exactly one #define at the top of main.cpp"
 #endif

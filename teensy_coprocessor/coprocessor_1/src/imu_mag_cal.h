@@ -317,18 +317,33 @@ void loop() {
 
         #endif
         
-        #ifdef CALIBRATED_OUTPUT
+        #ifdef CALIBRATED_MOTIONCAL_OUTPUT
+
+        float   ax = 0, ay = 0, az = 0,
+                gx = 0, gy = 0, gz = 0,
+                mx = 0, my = 0, mz = 0; 
+
+        float cal_mx = 0, cal_my = 0, cal_mz = 0;
+
+        // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. this was made from tools like MotionCal, and is used to apply the factory calibration to the raw sensor data.
+        float S[TOTAL] = { 1.055f,   -0.00325f, -0.0035f,
+                          -0.00325f,  0.96625f,	 0.008f,
+                          -0.0035f,	  0.008f,	 0.9815f};
+
+        float hard_offset_x = -124.3925f;
+        float hard_offset_y =  -66.3025f;
+        float hard_offset_z =   57.36f;
 
         // scaling mag since AK09916 has a magnetic sensor sensitivity of 0.15 uT per LSB, and we want to work with integer values in microteslas (uT)
-        mx  = (int32_t)(data.mag.x * 1.5f);
-        my  = (int32_t)(data.mag.y * 1.5f);
-        mz  = (int32_t)(data.mag.z * 1.5f); // 1. in counts
+        mx  = data.mag.x * 1.5f;
+        my  = data.mag.y * 1.5f;
+        mz  = data.mag.z * 1.5f; // 1. in counts
 
         // MotionCal reports hard iron in uT; mx/my/mz are in 0.1 uT/count, so
         // multiply offsets by 10 to match units before subtracting.
-        mx -= (int32_t)(-124.3925f * 10.0f);
-        my -= (int32_t)( -66.3025f * 10.0f);
-        mz -= (int32_t)(  57.36f   * 10.0f); // 2. still in counts
+        mx -= (hard_offset_x * 10.0f);
+        my -= (hard_offset_y * 10.0f);
+        mz -= (hard_offset_z * 10.0f); // 2. still in counts
 
         // matrix transformation to apply factory calibration to raw mag data, reshaping the ellipsoid model into a sphere
         cal_mx  = mx*S[0] + my*S[1] + mz*S[2];

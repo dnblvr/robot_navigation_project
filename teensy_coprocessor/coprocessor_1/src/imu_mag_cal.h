@@ -351,30 +351,45 @@ void loop() {
         cal_mz  = mx*S[6] + my*S[7] + mz*S[8]; // 3. still in counts
 
 
-        Serial.printf("Raw:%i,%i,%i,%i,%i,%i,%i,%i,%i\r\n",
-                ax, ay, az,
-                gx, gy, gz,
-                cal_mx, cal_my, cal_mz);
+        Serial.printf("Raw:%.f,%.f,%.f,%.f,%.f,%.f,%.f,%.f,%.f\r\n",
+                      ax, ay, az,
+                      gx, gy, gz,
+                      cal_mx, cal_my, cal_mz);
 
         #endif
+        
+        #ifdef CALIBRATED_OUTPUT
 
-        #ifdef FXP_OUTPUT
+        float   ax = 0, ay = 0, az = 0,
+                gx = 0, gy = 0, gz = 0,
+                mx = 0, my = 0, mz = 0; 
+
+        float cal_mx = 0, cal_my = 0, cal_mz = 0;
+
+        // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. this was made from tools like MotionCal, and is used to apply the factory calibration to the raw sensor data.
+        float S[TOTAL] = { 1.055f,   -0.00325f, -0.0035f,
+                          -0.00325f,  0.96625f,	 0.008f,
+                          -0.0035f,	  0.008f,	 0.9815f};
+
+        float hard_offset_x = -124.3925f;
+        float hard_offset_y =  -66.3025f;
+        float hard_offset_z =   57.36f;
 
         // scaling mag since AK09916 has a magnetic sensor sensitivity of 0.15 uT per LSB, and we want to work with integer values in microteslas (uT)
-        mx = (int16_t)(data.mag.x * 1.5f);
-        my = (int16_t)(data.mag.y * 1.5f);
-        mz = (int16_t)(data.mag.z * 1.5f);
+        mx  = data.mag.x * 0.15f;
+        my  = data.mag.y * 0.15f;
+        mz  = data.mag.z * 0.15f; // 1. in microteslas
 
         // MotionCal reports hard iron in uT; mx/my/mz are in 0.1 uT/count, so
         // multiply offsets by 10 to match units before subtracting.
-        mx -= (int32_t)(-124.3925f * 10.0f);
-        my -= (int32_t)( -66.3025f * 10.0f);
-        mz -= (int32_t)(  57.36f   * 10.0f);
+        mx -= (hard_offset_x * 1.0f);
+        my -= (hard_offset_y * 1.0f);
+        mz -= (hard_offset_z * 1.0f); // 2. still in microteslas
 
         // matrix transformation to apply factory calibration to raw mag data, reshaping the ellipsoid model into a sphere
-        cal_mx = mx*S[0] + my*S[1] + mz*S[2];
-        cal_my = mx*S[3] + my*S[4] + mz*S[5];
-        cal_mz = mx*S[6] + my*S[7] + mz*S[8];
+        cal_mx  = mx*S[0] + my*S[1] + mz*S[2];
+        cal_my  = mx*S[3] + my*S[4] + mz*S[5];
+        cal_mz  = mx*S[6] + my*S[7] + mz*S[8]; // 3. still in microteslas
 
 
         Serial.printf("Raw:%i,%i,%i,%i,%i,%i,%i,%i,%i\r\n",

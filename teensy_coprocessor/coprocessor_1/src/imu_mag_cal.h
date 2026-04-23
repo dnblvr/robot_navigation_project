@@ -5,7 +5,7 @@
  * @version 0.1
  * @date 2026-04-23
  * 
- * @copyright Copyright (c) 2026
+ * @copyright MIT license or whatever I see fit at the time of publication lmao
  * 
  */
 
@@ -22,8 +22,10 @@
  */
 
 volatile uint8_t  task_flag     = 0;
-volatile uint32_t num_counts    = 0;
 
+/**
+ * @brief cooperative task scheduling flag for data-ready ISR
+ */
 #define DATA_READY_FLAG 0x01
 
 /**
@@ -50,10 +52,13 @@ void Data_Ready_ISR() {
         task_flag  |= DATA_READY_FLAG;
     }
     
-    return;
-
 }
 
+
+// #define UNCALIBRATED_OUTPUT
+// #define CALIBRATED_MOTIONCAL_OUTPUT
+// #define CALIBRATED_OUTPUT
+#define FXP_OUTPUT
 
 // ICM-20948 configuration structures ----------------------------------------
 
@@ -82,16 +87,6 @@ sensor_config_t ak_config = {
     .wire_instance      = (void*) &Wire,
     .offset_instance    = (void*) &ak_offsets
 };
-
-
-/**
- * @brief Maximum number of samples in the data buffer
- */
-#define MAX_BUFFER_SAMPLES 100
-
-dataframe_t data_buffer[MAX_BUFFER_SAMPLES];
-
-uint32_t buffer_count = 1;
 
 
 // ----------------------------------------------------------------------------
@@ -138,11 +133,9 @@ void setup() {
     RPLiDAR_UART_SetPort(&RPLIDAR_Serial);
 
     
-    // Initialize scanner:
-    //  - Configure_RPLiDAR_Struct(&rplidar_cfg)
-    //  - RPLiDAR_UART_Init()   --> Serial1.begin(460800)
-    //  - STOP --> RESET --> GET_HEALTH --> SCAN
-    Serial.println("[1/3] Initializing RPLiDAR C1...");
+    // Initialize the 2D LiDAR scanner for any magnetic interference it may
+    // cause to the IMU
+    Serial.println("Initializing RPLiDAR C1...");
     Initialize_RPLiDAR_C1(&rplidar_cfg);
 
     
@@ -174,32 +167,7 @@ void setup() {
     // deactivate built-in LED to indicate setup complete
     digitalWrite(LED_BUILTIN, LOW);
 
-
-    // setup debug printing via removable jumpers -----------------------------
-    #ifdef DEBUG_OUTPUT
-
-    // pinMode(4, INPUT_PULLDOWN); // accel/gyro/mag output enable
-    // pinMode(5, INPUT_PULLDOWN); // quaternion output enable
-
-    Serial.println("DEBUG OUTPUT ENABLED");
-    #endif
-
-    
-    // initialize data buffer ------------------------------------------------
-
-    data_buffer[0] = {
-            .accel  = {0, 0, 0},
-            .gyro   = {0, 0, 0},
-            .temp     =  0,
-            .mag    = {0, 0, 0},
-            .q        = Quaternion(1.0f, 0.0f, 0.0f, 0.0f),
-            .counts =  0};
-
-
 }
-
-
-#define ICM20948_OK 0x00
 
 void loop() {
     
@@ -221,7 +189,6 @@ void loop() {
         dataframe_t data;
 
         uint8_t status = ICM20948_OK;
-
         
         status |= icm20948_record_data(&icm_config, &data);
         status |= ak09916_record_data(&ak_config, &data);
@@ -230,13 +197,8 @@ void loop() {
             return;
         }
 
-        // #define UNCALIBRATED_OUTPUT
-        // #define CALIBRATED_MOTIONCAL_OUTPUT
-        // #define CALIBRATED_OUTPUT
-        #define FXP_OUTPUT
 
-
-        #ifdef UNCALIBRATED_OUTPUT
+    #ifdef UNCALIBRATED_OUTPUT
 
         int32_t ax = 0, ay = 0, az = 0,
                 gx = 0, gy = 0, gz = 0,
@@ -263,9 +225,9 @@ void loop() {
                       gx, gy, gz,
                       mx, my, mz);
 
-        #endif
-        
-        #ifdef CALIBRATED_MOTIONCAL_OUTPUT
+    #endif
+    
+    #ifdef CALIBRATED_MOTIONCAL_OUTPUT
 
         float   ax = 0, ay = 0, az = 0,
                 gx = 0, gy = 0, gz = 0,
@@ -304,9 +266,9 @@ void loop() {
                       gx, gy, gz,
                       cal_mx, cal_my, cal_mz);
 
-        #endif
-        
-        #ifdef CALIBRATED_OUTPUT
+    #endif
+    
+    #ifdef CALIBRATED_OUTPUT
 
         float   ax = 0, ay = 0, az = 0,
                 gx = 0, gy = 0, gz = 0,
@@ -345,9 +307,9 @@ void loop() {
                       gx, gy, gz,
                       cal_mx, cal_my, cal_mz);
 
-        #endif
+    #endif
 
-        #ifdef FXP_OUTPUT
+    #ifdef FXP_OUTPUT
 
 
         int16_t ax = 0, ay = 0, az = 0,
@@ -416,5 +378,3 @@ void loop() {
     }
 
 }
-
-

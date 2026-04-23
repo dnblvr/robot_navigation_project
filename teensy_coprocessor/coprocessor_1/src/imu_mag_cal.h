@@ -84,28 +84,8 @@ sensor_config_t ak_config = {
 };
 
 
-#define DELTA_T 0.01f // 10 ms sample rate
-
-
-// orientation/motion vars
-Quaternion q_imu;       // [w, x, y, z] quaternion container
-VectorFloat aa;         // [x, y, z]    accel sensor measurements
-VectorFloat av;         // [x, y, z]    angular velocity measurements
-VectorFloat gravity;    // [x, y, z]    gravity vector
-VectorInt16 aaReal;     // [x, y, z]    gravity-free accel sensor
-VectorInt16 aaWorld;    // [x, y, z]    world-frame accel sensor measurements
-
-
-// Madgwick_Filter orientation_filter(100 /*used to be 360*/, 14, 17.f, DELTA_T);
-// ExtendedComplementaryFilter orientation_filter(
-//         0.5f,   // K_norm,
-//         3.f,    // t_norm,
-//         15.f,   // K_init,
-//         (float)DELTA_T);  // dt
-
-
 /**
- * @brief 
+ * @brief Maximum number of samples in the data buffer
  */
 #define MAX_BUFFER_SAMPLES 100
 
@@ -113,10 +93,6 @@ dataframe_t data_buffer[MAX_BUFFER_SAMPLES];
 
 uint32_t buffer_count = 1;
 
-// macro to check if a pin is disconnected (pulled high)
-#define CONNECTED(pin) (digitalRead(pin) == HIGH)
-
-// function declarations ------------------------------------------------------
 
 // ----------------------------------------------------------------------------
 //
@@ -132,8 +108,6 @@ uint32_t buffer_count = 1;
 static C1_States rplidar_cfg;
 
 #define RPLIDAR_Serial Serial1
-
-void record_data_task();
 
 
 // ----------------------------------------------------------------------------
@@ -211,9 +185,7 @@ void setup() {
     #endif
 
     
-
-    // q_imu = {1.0f, 0.0f, 0.0f, 0.0f};
-    q_imu = Quaternion(1.0f, 0.0f, 0.0f, 0.0f);
+    // initialize data buffer ------------------------------------------------
 
     data_buffer[0] = {
             .accel  = {0, 0, 0},
@@ -223,30 +195,6 @@ void setup() {
             .q        = Quaternion(1.0f, 0.0f, 0.0f, 0.0f),
             .counts =  0};
 
-    
-
-#ifdef CALIBRATION_MODE
-    Serial.println("CALIBRATION MODE ENABLED");
-
-    int16_t gyro[3] = {0};
-
-    icm20948_cal_gyro(&icm_config, gyro);
-
-    Serial.printf("gyro = {%10i, %10i, %10i}\n",
-                  gyro[0], gyro[1], gyro[2]);
-
-    // results from multiple runs:
-    // 200 iters
-    // gyro = [        74,         82,        -48]
-    // gyro = [        74,         85,        -46]
-    
-    // 400 iters
-    // gyro = [        75,         79,        -50]
-
-#endif
-
-
-    Serial.println("out setup()");
 
 }
 

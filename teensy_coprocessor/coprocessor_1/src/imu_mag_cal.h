@@ -1,7 +1,16 @@
+/**
+ * @file imu_mag_cal.h
+ * @author your name (you@domain.com)
+ * @brief IMU and magnetometer calibration header file
+ * @version 0.1
+ * @date 2026-04-23
+ * 
+ * @copyright Copyright (c) 2026
+ * 
+ */
+
 #include <Arduino.h>
 #include <Wire.h>
-#include <iostream>
-#include <string>
 
 #include <ICM_20948.h>
 #include <RPLiDAR_C1.h>
@@ -209,9 +218,9 @@ void setup() {
     data_buffer[0] = {
             .accel  = {0, 0, 0},
             .gyro   = {0, 0, 0},
-            .temp   =  0,
+            .temp     =  0,
             .mag    = {0, 0, 0},
-            .q      = Quaternion(1.0f, 0.0f, 0.0f, 0.0f),
+            .q        = Quaternion(1.0f, 0.0f, 0.0f, 0.0f),
             .counts =  0};
 
     
@@ -245,24 +254,9 @@ void setup() {
 #define ICM20948_OK 0x00
 
 void loop() {
-
-    // #define TOTAL 9
-
     
     // Serial.printf("Loop count: %lu\n", num_counts);
-    
-    int32_t ax = 0, ay = 0, az = 0,
-            gx = 0, gy = 0, gz = 0,
-            mx = 0, my = 0, mz = 0;
 
-    int32_t cal_mx = 0, cal_my = 0, cal_mz = 0;
-
-    // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. this was made from tools like MotionCal, and is used to apply the factory calibration to the raw sensor data.
-    float S[TOTAL] = { 1.055f,   -0.00325f, -0.0035f,
-                      -0.00325f,  0.96625f,	 0.008f,
-                      -0.0035f,	  0.008f,	 0.9815f};
-
-#ifndef CALIBRATION_MODE
 
     // Wait for interrupt
     WaitForInterrupt();
@@ -289,17 +283,32 @@ void loop() {
         }
 
         // #define UNCALIBRATED_OUTPUT
-        #define CALIBRATED_OUTPUT
-        // #define FXP_OUTPUT
+        // #define CALIBRATED_MOTIONCAL_OUTPUT
+        // #define CALIBRATED_OUTPUT
+        #define FXP_OUTPUT
+
 
         #ifdef UNCALIBRATED_OUTPUT
 
-        // 
+        int32_t ax = 0, ay = 0, az = 0,
+                gx = 0, gy = 0, gz = 0,
+                mx = 0, my = 0, mz = 0; 
+
+        float cal_mx = 0, cal_my = 0, cal_mz = 0;
+
+        // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. this was made from tools like MotionCal, and is used to apply the factory calibration to the raw sensor data.
+        float S[TOTAL] = { 1.055f,   -0.00325f, -0.0035f,
+                          -0.00325f,  0.96625f,	 0.008f,
+                          -0.0035f,	  0.008f,	 0.9815f};
+
+        float hard_offset_x = -124.3925f;
+        float hard_offset_y =  -66.3025f;
+        float hard_offset_z =   57.36f;
 
         // scaling mag since AK09916 has a magnetic sensor sensitivity of 0.15 uT per LSB, and we want to work with integer values in microteslas (uT)
-        mx = (int16_t)(data.mag.x * 1.5f);
-        my = (int16_t)(data.mag.y * 1.5f);
-        mz = (int16_t)(data.mag.z * 1.5f);
+        mx = (int32_t)(data.mag.x * 1.5f);
+        my = (int32_t)(data.mag.y * 1.5f);
+        mz = (int32_t)(data.mag.z * 1.5f);
 
         Serial.printf("Raw:%i,%i,%i,%i,%i,%i,%i,%i,%i\r\n",
                       ax, ay, az,
@@ -364,9 +373,6 @@ void loop() {
         digitalWrite(LED_BUILTIN, LOW);
         
     }
-
-
-#endif
 
 }
 

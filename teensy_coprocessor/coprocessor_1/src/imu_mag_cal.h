@@ -318,59 +318,58 @@ void loop() {
 
         int32_t cal_mx = 0, cal_my = 0, cal_mz = 0;
 
-        // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. this was gathered from MotionCal.
-        // to get Q8.8, multiply each element by 256 (2^8) and round to the nearest integer
+        // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. these values were computed from MotionCal.
+        // to get Q1.15, multiply each element by 32768 (2^15) and round to the nearest integer
         const int32_t S[TOTAL] = { 
-                270,   -1,   -1,    //  1.055f,   -0.00325f, -0.0035f
-                 -1,  247,    2,    // -0.00325f,  0.96625f,  0.008f,
-                 -1,    2,  251};   // -0.0035f,   0.008f,    0.9815f};
+            34570,  -106,  -115,    //  1.055f,   -0.00325f, -0.0035f
+             -106, 31662,   262,    // -0.00325f,  0.96625f,  0.008f,
+             -115,   262, 32162};   // -0.0035f,   0.008f,    0.9815f
 
-        // convert the hard iron offsets to counts (0.15 uT/count) 
+
+        // hard iron offsets in counts (0.15 uT/count)
         int16_t hard_offset_x = -829;   // -124.3925f;
         int16_t hard_offset_y = -442;   //  -66.3025f;
         int16_t hard_offset_z =  382;   //   57.36f;
 
-        // start by converting to Q16.0
+        // start by converting to Q16.0; mx/my/mz are in 0.1 uT/count (counts)
         mx  = (int16_t)(data.mag.x); 
         my  = (int16_t)(data.mag.y);
         mz  = (int16_t)(data.mag.z);
 
-        // MotionCal reports hard iron in uT; mx/my/mz are in 0.1 uT/count
+        // subtract hard iron offsets; in counts
         mx -= hard_offset_x;
         my -= hard_offset_y;
-        mz -= hard_offset_z; // 2. still in microteslas
+        mz -= hard_offset_z;
 
-        // scaling mag to microTeslas (uT) since AK09916 has a magnetic sensor sensitivity of 0.15 uT per LSB. 0.15 * 256 = 38.4; use 38 for Q8.8 representation
-        // mag values (Q16.0) times 38 (Q8.8) gives Q8.8 values
-        mx  = (int16_t)((int32_t)mx * 38);
-        my  = (int16_t)((int32_t)my * 38);
-        mz  = (int16_t)((int32_t)mz * 38); // 1. in Q8.8 microteslas
+        // scaling mag counts to microTeslas (uT) since AK09916 has a magnetic sensor sensitivity of 0.15 uT per LSb.
+        // mag counts (Q16.0) times 0.15 uT/count (Q1.15), shifted 7, gives Q8.8 mag values uT
+        mx  = (int16_t)( ((int32_t)mx * 4915) >> 7 );
+        my  = (int16_t)( ((int32_t)my * 4915) >> 7 );
+        mz  = (int16_t)( ((int32_t)mz * 4915) >> 7 ); // in Q8.8 microteslas
 
         // matrix transformation to apply factory calibration to raw mag data,
-        // reshaping the ellipsoid model into a sphere
-        // cast to int64 BEFORE multiplying — int32*int32 overflows for Q8.8 values (~3M * ~69K >> 2^31)
-        // Q8.8 * Q8.8 = Q16.16 in int32; >> 8 total gives Q8.8 uT
-        cal_mx  = (int32_t)mx * S[0] + (int32_t)my * S[1] + (int32_t)mz * S[2];
-        cal_my  = (int32_t)mx * S[3] + (int32_t)my * S[4] + (int32_t)mz * S[5];
-        cal_mz  = (int32_t)mx * S[6] + (int32_t)my * S[7] + (int32_t)mz * S[8];
+        // reshaping the ellipsoid model for data gathering into a sphere
+        // note: S is in int32_t Q1.15 format, so we can multiply directly
+        // Q8.8 * Q1.15 = Q9.23 in int32
+        cal_mx  = mx * S[0] + my * S[1] + mz * S[2];
+        cal_my  = mx * S[3] + my * S[4] + mz * S[5];
+        cal_mz  = mx * S[6] + my * S[7] + mz * S[8];
 
-        // convert to Q8.8 fixed point representation
-        cal_mx  = cal_mx >> 8; 
-        cal_my  = cal_my >> 8;
-        cal_mz  = cal_mz >> 8;
+        // shift 15 for Q8.8 fixed point representation
+        cal_mx  = cal_mx >> 15; 
+        cal_my  = cal_my >> 15;
+        cal_mz  = cal_mz >> 15;
 
-        // cast to int32_t: cal_m* is int32_t; passing int32 to %i causes
-        // stack misalignment on ARM (each 64-bit arg occupies 2 slots, so
-        // all subsequent fields are read from the wrong position)
+        // @note: print formatting of int64_t causes problems because of stack misalignment on ARM
         // with switching to Q8.8, this is no longer a problem
         Serial.printf("Raw:%i,%i,%i,%i,%i,%i,%i,%i,%i\r\n",
                       ax, ay, az,
                       gx, gy, gz,
-                      (int32_t)(cal_mx >> 8),
-                      (int32_t)(cal_my >> 8),
-                      (int32_t)(cal_mz >> 8));
+                      
+                      // printing the whole numbers here
+                      cal_mx >> 8, cal_my >> 8, cal_mz >> 8);
 
-        #endif
+    #endif
 
         // indicate data read complete
         digitalWrite(LED_BUILTIN, LOW);

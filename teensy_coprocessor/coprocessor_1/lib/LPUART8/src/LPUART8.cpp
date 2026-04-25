@@ -23,17 +23,17 @@
  * @note LPUART modules are aligned to Serialx ports according to Paul
  *  Stoffregen's IMXRT1060RM annotations. This is the table for convenience:
  * 
- *      | Module  | Serial Port |
- *      | :-----: | :---------: |
- *      | LPUART1 |   Serial6   |
- *      | LPUART2 |   Serial3   |
- *      | LPUART3 |   Serial2   |
- *      | LPUART4 |   Serial4   |
- *      | LPUART5 |   Serial8   |
- *      | LPUART6 |   Serial1   |
- *      | LPUART7 |   Serial7   |
- *      | LPUART8 |   Serial5   |
- *
+ *      | Module  | Serial Port |           | Serial Port | Module  |
+ *      | :-----: | :---------: |           | :---------: | :-----: |
+ *      | LPUART1 |   Serial6   |           |   Serial1   | LPUART6 |
+ *      | LPUART2 |   Serial3   |           |   Serial2   | LPUART3 |
+ *      | LPUART3 |   Serial2   |  <----->  |   Serial3   | LPUART2 |
+ *      | LPUART4 |   Serial4   |           |   Serial4   | LPUART4 |
+ *      | LPUART5 |   Serial8   |           |   Serial5   | LPUART8 |
+ *      | LPUART6 |   Serial1   |           |   Serial6   | LPUART1 |
+ *      | LPUART7 |   Serial7   |           |   Serial7   | LPUART7 |
+ *      | LPUART8 |   Serial5   |           |   Serial8   | LPUART5 |
+ * 
  * @author Gian Fajardo
  */
 
@@ -119,12 +119,10 @@ void LPUART8_SetPort(HardwareSerial* port) {
 // own handler.  The hardware configuration is identical — we only change
 // who is called on each interrupt.
 //
-// FIFO drain: the iMXRT1062 LPUART8 has a 4-byte RX FIFO.  HardwareSerial
-// configures the watermark to 2, so RDRF fires when ≥2 bytes are waiting.
-// Reading (WATER >> 24) & 0x7 gives the exact count so we drain all
-// available bytes in one ISR invocation — equivalent to the MSP432 scheme
-// where every byte triggers EUSCIA2_IRQHandler individually, but without
-// the extra interrupt overhead per byte.
+// FIFO drain: the iMXRT1062 LPUART8 has a 4-byte RX FIFO.  LPUART8_AttachISR
+// sets RXWATER=0 so RDRF fires on every single byte — this prevents short
+// frames (e.g. "!E\r\n") from losing their last byte to a stalled FIFO.
+// The loop drains all available bytes in one ISR invocation.
 
 FASTRUN void LPUART8_RX_ISR(void)
 {
@@ -225,10 +223,14 @@ void LPUART8_AttachISR(LPUART_ISR_Task task)
                              |  LPUART_CTRL_RE);
 
 
+    // changing RX FIFO watermark `RXWATER` affects invocations to the ISR. Setting RXWATER to a set byte causes the ISR to only be invoked when the FIFO has at least that many bytes, which can cause short frames to lose their last byte to a stalled FIFO. setting RXWATER to 0 means the ISR is invoked on every single byte, which prevents this issue and allows the loop in the ISR to drain all available bytes
+    IMXRT_LPUART8.WATER = IMXRT_LPUART8.WATER | LPUART_WATER_RXWATER(1u);
+
+
     // From this point all LPUART8 interrupts are handled by LPUART8_RX_ISR
-    // with priority 64 (HardwareSerial default). 
+    // with typical priority 64 (HardwareSerial default). 0 is highest, 255 is lowest; 60 is just below the default 64 for HardwareSerial so it can preempt if needed
     attachInterruptVector(IRQ_LPUART8, LPUART8_RX_ISR);
-    NVIC_SET_PRIORITY(IRQ_LPUART8, 64);
+    NVIC_SET_PRIORITY(IRQ_LPUART8, 60); 
     NVIC_ENABLE_IRQ(IRQ_LPUART8);
 
 }
@@ -303,23 +305,20 @@ void LPUART8_InString(uint8_t* buffer, size_t length)
 
 void LPUART8_ProcessByte(uint8_t b)
 {
-    static uint32_t length = 0;
+    static int32_t length = 0;
 
-    
-    if (length == 0) {
+
         
-        // Check if the received character is a button command from the EUSCI_A2
-        if (b == '!') {
-    
-            uart_buffer_pointer = RX_POINTER;
-            length = 4; // max command length is 4 (e.g. "!E\r\n")
-    
-        } else if (b == '#') {
-    
-            uart_buffer_pointer = RX_POINTER;
-            length = 2 + sizeof(state_se2_t); // 14 bytes for the pose struct
-    
-        }
+    // Check if the received character is a button command from the EUSCI_A2
+    if (b == '!') {
+
+        uart_buffer_pointer = RX_POINTER;
+        length = 4; // max command length is 4 (e.g. "!E\r\n")
+
+    } else if (b == '#') {
+
+        uart_buffer_pointer = RX_POINTER;
+        length = 2 + sizeof(state_se2_t); // 14 bytes for the pose struct
 
     }
     
@@ -329,16 +328,16 @@ void LPUART8_ProcessByte(uint8_t b)
     length--;
 
 #ifdef DEBUG_OUTPUT
-    // Serial.printf("b=0x%02X, l=%d\n", b, length);
+    Serial.printf("b=0x%02X, l=%u\n", b, length);
 #endif
 
     // early return if the message is incomplete e.g. nonzero length
-    // if (length)
+    // if (!length)
     if (length > 0)
         return;
 
 #ifdef DEBUG_OUTPUT
-    Serial.printf("msg=%s\n", UART8_buffer);
+    Serial.printf("msg=%14s\n", UART8_buffer);
 #endif
 
     (*task_function)(RX_POINTER);
@@ -351,11 +350,11 @@ void LPUART8_ProcessByte(uint8_t b)
 
 state_se2_t Get_State_Request(void) {
 
-    static state_se2_t state = {0.0f, 0.0f, 0.0f};
+    state_se2_t state = {0.0f, 0.0f, 0.0f};
 
     // alternatively, assign the first 2 bytes which are the command prefix "#S"
     // state_se2_t state = *((state_se2_t*)(UART8_buffer + 2)); 
-    memcpy(&state, (const void*)(UART8_buffer + 2), sizeof(state_se2_t));
+    memcpy(&state, (const void*)(&UART8_buffer[0] + 2), sizeof(state_se2_t));
 
     return state;
 }

@@ -639,6 +639,8 @@ void Handle_UART_Communications(volatile char UART_Buffer[]) {
     // if seen, communication is established
     if (Check_UART_Data(UART_Buffer, "!E")) {
 
+        Serial.printf("Echo request received.\n");
+
         comms_state    |=  ECHO_REQUEST_FLAG;
 
     } else if (Check_UART_Data(UART_Buffer, "!R")) {
@@ -799,20 +801,21 @@ void setup()
     
     Serial.println("Resetting MSP432 timer...");
 
+    LPUART8_OutString("!E\r\n");
 
     while ( !(comms_state & ECHO_REQUEST_FLAG) ) {
 
-        digitalToggle(LED_BUILTIN);
-        
-        LPUART8_OutString("!E\r\n");
+        // digitalToggle(LED_BUILTIN);
 
-        delay(50);
+        delay(5);
+
+        // Serial.printf("waiting ... \n");
         
         WaitForInterrupt();
     }
     
     // confirmmation of comms establishment visually
-    // Serial.println("Communication established.");
+    Serial.println("Communication established."); 
     digitalWrite(LED_BUILTIN, LOW);
     
     
@@ -860,44 +863,20 @@ void loop()
         
         Start_Record(NULL);
         
-        state_se2_t previous_pose   = {0.0f, 0.0f, 0.0f};
-        state_se2_t today_pose      = {0.0f, 0.0f, 0.0f};
-
-        {
-            // 
-            LPUART8_OutString("!S\r\n");
+        // 
+        LPUART8_OutString("!S\r\n");
 
     #ifdef DEBUG_OUTPUT
 
-            Serial.printf("Waiting for pose request...\n");
+        Serial.printf("Waiting for pose request...\n");
 
     #endif
 
-            Timeout_Wait_Until(STATE_REQUEST_FLAG);
-    
-            today_pose = Get_State_Request();
+        Block_Wait_Until(STATE_REQUEST_FLAG);
 
-    #ifdef DEBUG_OUTPUT
+        Serial.printf("Pose request received.\n");
 
-            Serial.printf("Received pose: x=%.2f y=%.2f theta=%.3f\n",
-                          today_pose.x,
-                          today_pose.y,
-                          today_pose.theta);
-
-    #endif
-
-    #ifdef PROCESSING4_OUTPUT
-
-            Serial.printf("POSE,%5.2f,%5.2f,%5.2f\n",
-                          today_pose.x,
-                          today_pose.y,
-                          today_pose.theta);
-
-    #endif
-
-        }
-
-        
+        today_pose = Get_State_Request();
 
     }
 #endif

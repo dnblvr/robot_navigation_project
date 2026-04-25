@@ -1,29 +1,23 @@
 /**
- * @file RPLiDAR_Arduino_UART.h
- * @brief Arduino/Teensy HAL for the RPLiDAR C1 UART driver.
+ * @file RPLiDAR_UART.h
+ * @brief Teensy HAL for the RPLiDAR C1 UART driver.
  *
  * @details This is a direct port of RPLiDAR_A2_UART.h from the MSP432
  *  FW_RPLiDAR_C1 project. The public API surface is intentionally kept
  *  identical so that higher-level code (RPLiDAR_C1.cpp) requires zero
- *  changes. Only the hardware seam is swapped:
- *
- *      MSP432 eUSCI_A2 register writes  →  HardwareSerial reference
- *      NVIC / EUSCIA2_IRQHandler        →  RPLiDAR_ProcessByte(uint8_t)
- *      Clock_Delay1ms(n)                →  delay(n)
- *      Timer_A1_Ignore / Acknowledge    →  no-op stubs (poll cfg state
- *                                          from loop() instead)
+ *  changes. Only the hardware seam is swapped.
  *
  * @note Call RPLiDAR_UART_SetPort() before anything else, then
  *       RPLiDAR_UART_Init() to start the serial port at 460 800 bps.
  *
- * @note From loop() or a serialEventN() callback, feed every incoming byte
+ * @note For every ISR call, feed every incoming byte
  *       to RPLiDAR_ProcessByte(b).  The FSM will handle the rest.
  *
  * @author Gian Fajardo
  */
 
-#ifndef __RPLIDAR_ARDUINO_UART_H__
-#define __RPLIDAR_ARDUINO_UART_H__
+#ifndef __RPLIDAR_UART_H__
+#define __RPLIDAR_UART_H__
 
 
 #include <Arduino.h>
@@ -153,7 +147,7 @@ void Start_Record(Angle_Filter filter);
 
 // ----------------------------------------------------------------------------
 //
-//  UART LIFECYCLE  (analogous to EUSCI_A2_UART_Init/Stop/Restart)
+//  UART LIFECYCLE
 //
 // ----------------------------------------------------------------------------
 
@@ -232,7 +226,7 @@ uint8_t RPLiDAR_UART_InChar(void);
 
 // ----------------------------------------------------------------------------
 //
-//  BYTE PROCESSOR  (replaces EUSCIA2_IRQHandler)
+//  BYTE PROCESSOR
 //
 // ----------------------------------------------------------------------------
 
@@ -242,13 +236,15 @@ uint8_t RPLiDAR_UART_InChar(void);
  * @details This is the direct replacement for EUSCIA2_IRQHandler().
  *
  * @param b  Byte freshly read from the serial port.
+ * 
+ * @return None
  */
 void RPLiDAR_ProcessByte(uint8_t b);
 
 
 // ----------------------------------------------------------------------------
 //
-//  INTERNAL DECLARATIONS  (private — not for direct use)
+//  INTERNAL DECLARATIONS
 //
 // ----------------------------------------------------------------------------
 
@@ -262,7 +258,7 @@ extern C1_States* config;
 
 // ----------------------------------------------------------------------------
 //
-//  OPTIONAL DEBUG INTERFACE  (available only when RPLIDAR_DEBUG is defined)
+//  DEBUG INTERFACE
 //
 // ----------------------------------------------------------------------------
 //

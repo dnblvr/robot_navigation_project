@@ -15,7 +15,7 @@
     },
     "license": "MIT",
     "frameworks": "arduino",
-    "platforms": ["teensy", "atmelavr", "espressif32"],
+    "platforms": ["teensy"],
     "build": {
         "includeDir": "include",
         "srcDir": "src"

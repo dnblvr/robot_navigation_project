@@ -5,8 +5,8 @@
  * @details This replaces Project_Config.h from the MSP432 build. All defines
  *  here are safe to override from platformio.ini build_flags.
  *
- * @note To enable debug output add -DRPLIDAR_DEBUG to build_flags.
- *       To enable Processing4 visualiser output add -DPROCESSING4_OUTPUT.
+ * @note To enable debug output add -D RPLIDAR_DEBUG to build_flags.
+ *       To enable Processing4 visualiser output add -D PROCESSING4_OUTPUT.
  */
 
 #ifndef __RPLIDAR_CONFIG_H__
@@ -14,11 +14,13 @@
 
 
 // ----------------------------------------------------------------------------
-//  Baud rate
+//
+//  BAUD RATE CONFIGURATION
+//
 // ----------------------------------------------------------------------------
 
 /**
- * @brief RPLiDAR C1 fixed UART baud rate (460 800 bps).
+ * @brief RPLiDAR C1 fixed UART baud rate (460,800 bps).
  */
 #ifndef RPLIDAR_BAUD
 #define RPLIDAR_BAUD    460800
@@ -26,7 +28,9 @@
 
 
 // ----------------------------------------------------------------------------
-//  Scan decimation
+//
+//  SCAN DECIMATION CHARACTERISTICS
+//
 // ----------------------------------------------------------------------------
 
 /**
@@ -53,32 +57,42 @@
 
 
 // ----------------------------------------------------------------------------
-//  Buffer geometry (derived — not intended to be overridden)
+//
+//  BUFFER GEOMETRY
+//
 // ----------------------------------------------------------------------------
 
-/**  Raw 5-byte RPLiDAR message length  */
+/**
+ * @brief   Raw 5-byte RPLiDAR message length
+ */
 #define MSG_LENGTH              5
 
-/**  Number of bytes consumed during the pattern-search phase  */
+/**
+ * @brief   Number of bytes consumed during the pattern-search phase  
+ */
 #define FIND_INDEX              (MSG_LENGTH * 4)
 
-/**  Number of bytes skipped per decimation cycle  */
+/**
+ * @brief   Number of bytes skipped per decimation cycle
+ */
 #define SKIP_INDEX              (MSG_LENGTH * (DECIMATION_FACTOR - 1))
 
-/**  Number of bytes consumed during the initial hold phase  */
+/**
+ * @brief   Number of bytes consumed during the initial hold phase
+ */
 #define WAIT_INDEX              (MSG_LENGTH * 8)
 
-/**  Intermediary (angle-distance) buffer size  */
+/**
+ * @brief   Intermediary (angle-distance) buffer size
+ */
 #define PROCESS_BUFFER_SIZE     (SKIP_FACTOR * OUTPUT_BUFFER)
 
 
 // ----------------------------------------------------------------------------
-//  Debug / visualiser toggles
+//
+//  DEBUG
+//
 // ----------------------------------------------------------------------------
-
-// #define RPLIDAR_DEBUG       1    ///< verbose protocol tracing
-// #define PROCESSING4_OUTPUT  1    ///< Processing 4 serial output format
-// #define DEBUG_OUTPUT        1    ///< general debug printf output
 
 #if defined(PROCESSING4_OUTPUT) && defined(DEBUG_OUTPUT)
 #error "PROCESSING4_OUTPUT and DEBUG_OUTPUT cannot be active at the same time."

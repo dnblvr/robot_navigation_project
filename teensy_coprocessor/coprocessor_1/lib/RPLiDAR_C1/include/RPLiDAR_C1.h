@@ -1,12 +1,12 @@
 /**
  * @file RPLiDAR_C1.h
- * @brief Higher-level RPLiDAR C1 API — platform-agnostic.
+ * @brief Higher-level RPLiDAR C1 API.
  *
  * @details This header is a direct port of the MSP432 RPLiDAR_C1.h.  It
- *  provides the same public interface: initialise the scanner, issue protocol
+ *  provides the same public interface: initialize the scanner, issue protocol
  *  commands, and convert raw scan data into a PointCloud.
  *
- *  All hardware I/O is delegated to RPLiDAR_Arduino_UART, so this layer
+ *  All hardware I/O is delegated to RPLiDAR_UART, so this layer
  *  contains zero platform-specific code.
  *
  * @author Gian Fajardo
@@ -17,7 +17,7 @@
 
 
 #include "RPLiDAR_Config.h"
-#include "RPLiDAR_Arduino_UART.h"
+#include "RPLiDAR_UART.h"
 #include "data_structures.h"
 
 #include <stdint.h>
@@ -31,7 +31,6 @@
 // ----------------------------------------------------------------------------
 //
 //  COMMAND DESCRIPTOR TYPES
-//  (identical to the MSP432 version)
 //
 // ----------------------------------------------------------------------------
 
@@ -68,21 +67,22 @@ typedef struct {
 // ----------------------------------------------------------------------------
 
 /**
- * @brief Initialise the RPLiDAR C1.
+ * @brief Initialize the RPLiDAR C1 using the basic configuration.
  *
- * @details Sends STOP → RESET → GET_HEALTH → SCAN in sequence, then returns.
- *  The scanner is left continuously streaming scan data.  Feed incoming bytes
- *  to RPLiDAR_ProcessByte() (from serialEventN or a polling loop) to capture
- *  them.  Call Start_Record() to arm the FSM.
+ * @details Sends STOP --> RESET --> GET_HEALTH --> SCAN in sequence. The
+ *  scanner is left continuously streaming scan data. Feed incoming bytes to
+ *  `RPLiDAR_ProcessByte()` through the UART ISR to capture them. Call
+ *  `Start_Record()` to arm the FSM.
  *
- *  Initialisation sequence:
+ *  Initialization sequence:
  *   1. Configure the C1_States struct via Configure_RPLiDAR_Struct().
  *   2. Open UART: RPLiDAR_UART_Init().
  *   3. Issue STOP + RESET (no-response commands with guard delays).
  *   4. Issue GET_HEALTH  (single response — verifies comms).
  *   5. Issue SCAN        (begins the continuous scan data stream).
  *
- * @param config  Caller-allocated C1_States instance (must outlive the driver).
+ * @param config  Caller-allocated C1_States instance; declared outside the
+ *  driver.
  */
 void Initialize_RPLiDAR_C1(const C1_States* config);
 
@@ -92,8 +92,9 @@ void Initialize_RPLiDAR_C1(const C1_States* config);
  *
  * @details Reads from the packed angle-distance buffer populated by the FSM,
  *  optionally sorts by angle, applies SKIP_FACTOR downsampling, and computes
- *  Cartesian (x, y) coordinates.  Call only when
- *  `cfg.current_state == PROCESSING`.
+ *  Cartesian (x, y) coordinates.
+ * 
+ * @note Call only when `cfg.current_state == PROCESSING`.
  *
  * @param[out] output  Destination PointCloud.  `output->num_pts` is set to
  *                     the number of valid points written.

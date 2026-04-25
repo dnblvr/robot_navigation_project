@@ -1,6 +1,6 @@
 /**
- * @file RPLiDAR_Arduino_UART.cpp
- * @brief Arduino/Teensy HAL implementation for the RPLiDAR C1 UART driver.
+ * @file RPLiDAR_UART.cpp
+ * @brief Teensy HAL implementation for the RPLiDAR C1 UART driver.
  *
  * @details This is a direct port of RPLiDAR_A2_UART.c from the MSP432
  *  FW_RPLiDAR_C1 project.  The FSM action functions (Hold_Action,
@@ -21,10 +21,10 @@
  * @author Gian Fajardo
  */
 
-#include "RPLiDAR_Arduino_UART.h"
+#include "RPLiDAR_UART.h"
 
 // Forward-declaration: defined in Timer_A1_Tasks.h (included by main via
-// rplidar_impl.h).  RPLiDAR_Arduino_UART.cpp manipulates this flag from inside
+// rplidar_impl.h).  RPLiDAR_UART.cpp manipulates this flag from inside
 // the ISR without pulling in the full scheduler header, which would cause
 // duplicate-definition link errors.
 extern volatile uint8_t timer_ignore_flag;
@@ -67,6 +67,12 @@ static uint32_t data = 0;
  */
 static uint32_t offset = 0;
 
+/**
+ * @brief   byte-mask for the LPUART DATA register
+ * @details has other accessible bits stored which must be masked to get the FIFO-drainable byte value  
+ */
+#define BYTE_0_MASK 0xFFu
+
 
 // ----------------------------------------------------------------------------
 //
@@ -79,64 +85,6 @@ static uint8_t  lidar_uart_buffer[FIND_INDEX];
 
 /** Packed angle-distance buffer — holds up to PROCESS_BUFFER_SIZE words */
 static uint32_t angle_distance_buffer[PROCESS_BUFFER_SIZE];
-
-
-// ----------------------------------------------------------------------------
-//
-//  DEBUG INSTRUMENTATION  (compiled only when RPLIDAR_DEBUG is defined)
-//
-// ----------------------------------------------------------------------------
-//
-// All counters are written exclusively from ISR context so plain volatile
-// uint32_t increments are race-free (ISR can't preempt itself).
-// loop() reads them only while the FSM is in the PROCESSING state — during
-// that window the ISR is counting HOLD bytes and does NOT touch these
-// counters.  Call RPLiDAR_ResetDebugStats() immediately after printing.
-
-#ifdef RPLIDAR_DEBUG
-
-/** ISR fired but RXEMPT was set on the very first DATA read (FIFO empty on entry). */
-volatile uint32_t dbg_isr_empty_entry  = 0;
-
-/** Find_Pattern_Action exhausted all 5 candidate offsets without a match. */
-volatile uint32_t dbg_find_fail        = 0;
-
-/** Pattern found at byte-offset N within the 20-byte search window (index = N). */
-volatile uint32_t dbg_find_offsets[5]  = {0, 0, 0, 0, 0};
-
-/** Record_Action received a first byte whose start-flag bits [1:0] were neither 0x01 nor 0x02. */
-volatile uint32_t dbg_bad_start_bit    = 0;
-
-/** Raw bytes [0..4] of the first packet that triggered dbg_bad_start_bit. */
-volatile uint8_t  dbg_bad_packet[5]    = {0, 0, 0, 0, 0};
-
-/** Non-zero once dbg_bad_packet holds a valid capture; reset by RPLiDAR_ResetDebugStats(). */
-volatile uint8_t  dbg_bad_packet_valid = 0;
-
-/** Value of interm_buffer_counter at the moment End_Record was last called. */
-volatile uint32_t dbg_last_interm      = 0;
-
-/**
- * STAT.OR (receive overrun) was set when the ISR entered — one byte was
- * silently dropped from the FIFO.  Each increment = one lost byte = one
- * potential frame-level misalignment event.
- */
-volatile uint32_t dbg_stat_or         = 0;
-
-void RPLiDAR_ResetDebugStats(void)
-{
-    dbg_isr_empty_entry  = 0;
-    dbg_find_fail        = 0;
-    for (uint8_t _i = 0; _i < 5; _i++)
-        dbg_find_offsets[_i] = 0;
-    dbg_bad_start_bit    = 0;
-    dbg_bad_packet_valid = 0;
-    dbg_last_interm      = 0;
-    dbg_stat_or          = 0;
-
-}
-
-#endif  // RPLIDAR_DEBUG
 
 
 // ----------------------------------------------------------------------------
@@ -156,13 +104,7 @@ static void            End_Record(void);
 //  TIMER STUBS
 //
 // ----------------------------------------------------------------------------
-//
-// On MSP432, Timer_A1_Ignore() pauses the 10 Hz task-scheduler ISR while the
-// LiDAR is recording so that Process_RPLiDAR_Data() is not called mid-scan.
-// On Teensy we poll `cfg.current_state == PROCESSING` from loop(), so no
-// timer management is needed here.  The stubs are defined to satisfy the
-// linker if any template code references them.
-//
+
 // These write timer_ignore_flag, which is read by Task_Selector() (in the
 // IntervalTimer ISR) to suppress task_flag assignments while the FSM is
 // mid-recording.  A volatile byte write is safe from interrupt context —
@@ -212,6 +154,7 @@ void Configure_RPLiDAR_Struct(const C1_States* input_config)
 
     config->isr_counter     = 0;
     process_data_flag       = 0;
+
 }
 
 
@@ -247,6 +190,9 @@ void Start_Record(Angle_Filter filter)
 
 FASTRUN void LPUART6_RX_ISR(void)
 {
+
+    uint32_t d = 0;
+
     // ---- Overrun detection -------------------------------------------------
     // STAT.OR (bit 19, W1C) is set when the 4-byte RX FIFO filled and the
     // next incoming byte was discarded.  That lost byte causes the FSM byte
@@ -255,59 +201,29 @@ FASTRUN void LPUART6_RX_ISR(void)
     // correlated; clearing OR via |= may also clear other co-asserted W1C
     // flags (NF, FE, PF) — acceptable because the affected bytes are already
     // in (or lost from) the FIFO and cannot be recovered.
-    //
-    // ILIE has been disabled in RPLiDAR_UART_AttachISR() so the idle-line
-    // flag can no longer trigger this ISR; no IDLE handling is needed here.
-#ifdef RPLIDAR_DEBUG
-    if (IMXRT_LPUART6.STAT & LPUART_STAT_OR) {
-        dbg_stat_or++;
-        IMXRT_LPUART6.STAT |= LPUART_STAT_OR;
-    }
-#else
     if (IMXRT_LPUART6.STAT & LPUART_STAT_OR) {
         IMXRT_LPUART6.STAT |= LPUART_STAT_OR;
     }
-#endif
 
     // ---- FIFO drain --------------------------------------------------------
     // Read the first DATA word atomically: LPUART_DATA_RXEMPT (bit 12) is
     // set when the FIFO was already empty at the time of the read.  With
     // ILIE disabled, this ISR fires only due to RDRF, so the first read
     // almost always returns a valid byte; the counter is just a safety net.
-    uint32_t d = IMXRT_LPUART6.DATA;
+    d   = IMXRT_LPUART6.DATA;
 
+    // this condition 
+    #define DATA_EMPTY_CONDITION (d & LPUART_DATA_RXEMPT)
     
 
-#ifdef RPLIDAR_DEBUG
-    if (d & LPUART_DATA_RXEMPT) {
+    while ( !DATA_EMPTY_CONDITION ) {
 
-        // FIFO empty on entry despite RDRF — rare timing edge case.
-        dbg_isr_empty_entry++;
-
-    } else {
-
-        RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
-
-        while (!((d = IMXRT_LPUART6.DATA) & LPUART_DATA_RXEMPT)) {
-            RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
-        }
-        
-    }
-#else
-    if (!(d & LPUART_DATA_RXEMPT)) {
-
-        RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
-
-        while (!((d = IMXRT_LPUART6.DATA) & LPUART_DATA_RXEMPT)) {
-            RPLiDAR_ProcessByte((uint8_t)(d & 0xFFu));
-        }
+        RPLiDAR_ProcessByte( (uint8_t)(d & BYTE_0_MASK) );
+        d   = IMXRT_LPUART6.DATA;
 
     }
-#endif
-
 
 }
-
 
 // ----------------------------------------------------------------------------
 //
@@ -333,48 +249,44 @@ void RPLiDAR_UART_AttachISR(void)
 {
     if (_serial == nullptr) return;
 
-    _serial->flush();  // wait for any pending TX to finish before hijacking the vector
+    // _serial->flush();  // wait for any pending TX to finish before hijacking the vector
 
     // Wait-blocks for TX FIFO to empty (WATER[19:16] = TXCOUNT)
     //  - `7u`: this register holds 0b111 bits
-    // while (IMXRT_LPUART6.WATER & LPUART_WATER_TXCOUNT(7u));
+    while (IMXRT_LPUART6.WATER & LPUART_WATER_TXCOUNT(7u));
 
     // Then wait for shift register to finish
-    // while (!(IMXRT_LPUART6.STAT & LPUART_STAT_TC));
+    while (!(IMXRT_LPUART6.STAT & LPUART_STAT_TC));
 
 
-    // Disable the transmitter and receiver before making other CTRL changes
+    /** -----------------------------------------------------------------------
+     * @brief Disable the transmitter and receiver before making other CTRL
+     *  changes
+     */
     IMXRT_LPUART6.CTRL &= ~(    LPUART_CTRL_TE
                             |   LPUART_CTRL_RE);
 
-    // Belt-and-suspenders: explicitly clear TX interrupt enables AND the idle
-    // line interrupt enable (ILIE) so no spurious interrupt can fire.
-    //
-    // Why disable ILIE:
-    //   HardwareSerial enables ILIE to detect end-of-packet.  We don't need
-    //   it: the FSM counts bytes internally.  Leaving it enabled causes
-    //   ~2 400 useless ISR invocations per 100 ms frame (one per inter-packet
-    //   idle gap at 4 090 packets/sec).  Worse, the IDLE ISR path performs a
-    //   read-modify-write on STAT to clear LPUART_STAT_IDLE; if STAT.OR
-    //   (receive overrun) happens to be set at that moment, |= silently clears
-    //   it — hiding the evidence of the very byte-drop that causes FSM drift.
+    // Explicitly clear TX interrupt enables AND the idle line interrupt enable (ILIE) so no spurious interrupt can fire. HardwareSerial enables ILIE to detect end-of-packet which is not needed for this application. Leaving it enabled causes ~2 400 useless ISR invocations per 100 ms frame (one per inter-packet idle gap at 4 090 packets/sec). Worse, the IDLE ISR path performs a read-modify-write on STAT to clear LPUART_STAT_IDLE; if STAT.OR (receive overrun) happens to be set at that moment, |= silently clears it — hiding the evidence of the very byte-drop that causes FSM drift. Our application only needs the RXINT so the FSM can properly count bytes internally.
     IMXRT_LPUART6.CTRL &= ~(    LPUART_CTRL_TIE
                             |   LPUART_CTRL_TCIE
                             |   LPUART_CTRL_ILIE);
 
     // Clear any IDLE and OR flags left pending from the init-command phase.
-    IMXRT_LPUART6.STAT |=       LPUART_STAT_IDLE
-                            |   LPUART_STAT_OR;
+    IMXRT_LPUART6.STAT |= (     LPUART_STAT_IDLE
+                            |   LPUART_STAT_OR);
 
 
-    // after every changes made, it is safe to re-enable the receiver
+    /** -----------------------------------------------------------------------
+     * @brief after every changes made, it is safe to re-enable the receiver
+     */
     IMXRT_LPUART6.CTRL |=       LPUART_CTRL_RE;
 
-    // Safe to replace the vector now.  From this point all LPUART6
-    // interrupts are handled by LPUART6_RX_ISR.
+    // From this point all LPUART6 interrupts are handled by LPUART6_RX_ISR
+    // with priority 64 (HardwareSerial default). 
     attachInterruptVector(IRQ_LPUART6, LPUART6_RX_ISR);
     NVIC_SET_PRIORITY(IRQ_LPUART6, 64);  // match HardwareSerial default
     NVIC_ENABLE_IRQ(IRQ_LPUART6);
+
 }
 
 
@@ -411,7 +323,7 @@ void RPLiDAR_UART_OutChar(uint8_t byte)
 uint8_t RPLiDAR_UART_InChar(void)
 {
     if (_serial == nullptr) return 0;
-    while (!_serial->available());      // spin — same as the MSP432 IFG poll
+    while (!_serial->available());
     return (uint8_t)_serial->read();
 }
 
@@ -433,7 +345,7 @@ static void Hold_Action(void)
 
     if (config->current_state == READY) {
 
-        _timer_ignore();                        // MSP432: Timer_A1_Ignore()
+        _timer_ignore();
 
         config->current_state   = RECORDING;
         config->  limit_status  = FIND_PATTERN;
@@ -523,9 +435,7 @@ static void Skip_Action(void)
     if (config->interm_buffer_counter > PROCESS_BUFFER_SIZE) {
 
         // Scan frame is full — hand off to application
-#ifdef RPLIDAR_DEBUG
-        dbg_last_interm = config->interm_buffer_counter;
-#endif
+
         End_Record();
         _timer_acknowledge();               // MSP432: Timer_A1_Acknowledge()
 
@@ -550,24 +460,6 @@ static void Record_Action(void)
     config->buffer_pointer  = RX_POINTER;
     config->limit_status    = SKIP;
 
-#ifdef RPLIDAR_DEBUG
-    // Validate the start-flag bits of byte 0 of the accumulated packet.
-    // A valid RPLiDAR C1 packet has bits [1:0] of byte 0 == 0x01 or 0x02
-    // (alternating complement pair).  Any other value means the FSM byte
-    // counter was misaligned — we are recording from the wrong position.
-    {
-        uint8_t sb = RX_POINTER[0] & 0x03u;
-        if (sb != 0x01u && sb != 0x02u) {
-            dbg_bad_start_bit++;
-            if (!dbg_bad_packet_valid) {
-                // Capture first offending packet verbatim for post-mortem.
-                for (uint8_t _i = 0; _i < MSG_LENGTH; _i++)
-                    dbg_bad_packet[_i] = RX_POINTER[_i];
-                dbg_bad_packet_valid = 1;
-            }
-        }
-    }
-#endif
 
     // Zero-distance filter: both distance bytes must be non-zero
     if (config->buffer_pointer[4] && config->buffer_pointer[3]) {
@@ -585,10 +477,10 @@ static void Record_Action(void)
 //
 // ----------------------------------------------------------------------------
 
-struct RPLiDAR_State { void (* const action)(void); };
-typedef const struct RPLiDAR_State RPLiDAR_State_t;
+struct GPS_State { void (* const action)(void); };
+typedef const struct GPS_State GPS_State_t;
 
-static RPLiDAR_State_t FSM_Table[5] = {
+static GPS_State_t FSM_Table[5] = {
     { &Hold_Action          },  // HOLD
     { &Find_Pattern_Action  },  // FIND_PATTERN
     { &Add_Offset_Action    },  // ADD_OFFSET
@@ -607,8 +499,8 @@ void RPLiDAR_ProcessByte(uint8_t b)
 {
     if (config == nullptr) return;
 
-    data = b;                                   // MSP432: data = RXBUF
-    FSM_Table[config->limit_status].action();   // same dispatch as ISR
+    data = b;
+    FSM_Table[config->limit_status].action();
 }
 
 

@@ -15,6 +15,7 @@
 #include <ICM_20948.h>
 #include <RPLiDAR_C1.h>
 #include <inEKF_se2.h>
+#include <arm_math.h>
 
 
 /* ----------------------------------------------------------------------------
@@ -206,15 +207,6 @@ void loop() {
 
         float cal_mx = 0, cal_my = 0, cal_mz = 0;
 
-        // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. this was made from tools like MotionCal, and is used to apply the factory calibration to the raw sensor data.
-        float S[TOTAL] = { 1.055f,   -0.00325f, -0.0035f,
-                          -0.00325f,  0.96625f,	 0.008f,
-                          -0.0035f,	  0.008f,	 0.9815f};
-
-        float hard_offset_x = -124.3925f;
-        float hard_offset_y =  -66.3025f;
-        float hard_offset_z =   57.36f;
-
         // scaling mag since AK09916 has a magnetic sensor sensitivity of 0.15 uT per LSB, and we want to work with integer values in microteslas (uT)
         mx = (int32_t)(data.mag.x * 1.5f);
         my = (int32_t)(data.mag.y * 1.5f);
@@ -236,13 +228,13 @@ void loop() {
         float cal_mx = 0, cal_my = 0, cal_mz = 0;
 
         // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. this was made from tools like MotionCal, and is used to apply the factory calibration to the raw sensor data.
-        float S[TOTAL] = { 1.055f,   -0.00325f, -0.0035f,
-                          -0.00325f,  0.96625f,	 0.008f,
-                          -0.0035f,	  0.008f,	 0.9815f};
+        float S[TOTAL] = { 1.041f,  -0.009f,  -0.0005f,
+                          -0.009f,	 0.985f,   0.0245f,
+                          -0.0005f,	 0.0245f,  0.9765f};
 
-        float hard_offset_x = -124.3925f;
-        float hard_offset_y =  -66.3025f;
-        float hard_offset_z =   57.36f;
+        float hard_offset_x = -126.715f;
+        float hard_offset_y =  -52.53f;
+        float hard_offset_z =   89.245f;
 
         // scaling mag since AK09916 has a magnetic sensor sensitivity of 0.15 uT per LSB, and we want to work with integer values in microteslas (uT)
         mx  = data.mag.x * 1.5f;
@@ -277,13 +269,13 @@ void loop() {
         float cal_mx = 0, cal_my = 0, cal_mz = 0;
 
         // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. this was made from tools like MotionCal, and is used to apply the factory calibration to the raw sensor data.
-        float S[TOTAL] = { 1.055f,   -0.00325f, -0.0035f,
-                          -0.00325f,  0.96625f,	 0.008f,
-                          -0.0035f,	  0.008f,	 0.9815f};
+        float S[TOTAL] = { 1.041f,  -0.009f,  -0.0005f,
+                          -0.009f,	 0.985f,   0.0245f,
+                          -0.0005f,	 0.0245f,  0.9765f};
 
-        float hard_offset_x = -124.3925f;
-        float hard_offset_y =  -66.3025f;
-        float hard_offset_z =   57.36f;
+        float hard_offset_x = -126.715f;
+        float hard_offset_y =  -52.53f;
+        float hard_offset_z =   89.245f;
 
         // scaling mag since AK09916 has a magnetic sensor sensitivity of 0.15 uT per LSB, and we want to work with integer values in microteslas (uT)
         mx  = data.mag.x * 0.15f;
@@ -321,15 +313,15 @@ void loop() {
         // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. these values were computed from MotionCal.
         // to get Q1.15, multiply each element by 32768 (2^15) and round to the nearest integer
         const int32_t S[TOTAL] = { 
-            34570,  -106,  -115,    //  1.055f,   -0.00325f, -0.0035f
-             -106, 31662,   262,    // -0.00325f,  0.96625f,  0.008f,
-             -115,   262, 32162};   // -0.0035f,   0.008f,    0.9815f
+                34111,	 -295,	  -16,  //  1.041f,  -0.009f,  -0.0005f,
+                 -295,	32276,	  803,  // -0.009f,   0.985f,   0.0245f,
+                  -16,	  803,	31998}; // -0.0005f,  0.0245f,  0.9765f};
 
 
         // hard iron offsets in counts (0.15 uT/count)
-        int16_t hard_offset_x = -829;   // -124.3925f;
-        int16_t hard_offset_y = -442;   //  -66.3025f;
-        int16_t hard_offset_z =  382;   //   57.36f;
+        int16_t hard_offset_x = -845;   // -126.715f;
+        int16_t hard_offset_y = -350;   //  -52.53f;
+        int16_t hard_offset_z =  595;   //   89.245f;
 
         // start by converting to Q16.0; mx/my/mz are in 0.1 uT/count (counts)
         mx  = (int16_t)(data.mag.x); 
@@ -366,7 +358,7 @@ void loop() {
                       ax, ay, az,
                       gx, gy, gz,
                       
-                      // printing the whole numbers here
+                      // printing the whole numbers of Q8.8
                       cal_mx >> 8, cal_my >> 8, cal_mz >> 8);
 
     #endif

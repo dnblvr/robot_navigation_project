@@ -224,7 +224,10 @@ void LPUART8_AttachISR(LPUART_ISR_Task task)
 
 
     // changing RX FIFO watermark `RXWATER` affects invocations to the ISR. Setting RXWATER to a set byte causes the ISR to only be invoked when the FIFO has at least that many bytes, which can cause short frames to lose their last byte to a stalled FIFO. setting RXWATER to 0 means the ISR is invoked on every single byte, which prevents this issue and allows the loop in the ISR to drain all available bytes
-    IMXRT_LPUART8.WATER = IMXRT_LPUART8.WATER | LPUART_WATER_RXWATER(1u);
+    IMXRT_LPUART8.WATER =  (IMXRT_LPUART8.WATER
+                            //  &  ~LPUART_WATER_RXWATER(3u))
+                            //  |   LPUART_WATER_RXWATER(1u);
+                             &  ~LPUART_WATER_RXWATER(3u));
 
 
     // From this point all LPUART8 interrupts are handled by LPUART8_RX_ISR
@@ -307,7 +310,6 @@ void LPUART8_ProcessByte(uint8_t b)
 {
     static int32_t length = 0;
 
-
         
     // Check if the received character is a button command from the EUSCI_A2
     if (b == '!') {
@@ -337,7 +339,7 @@ void LPUART8_ProcessByte(uint8_t b)
         return;
 
 #ifdef DEBUG_OUTPUT
-    Serial.printf("msg=%14s\n", UART8_buffer);
+    // Serial.printf("msg=%14s\n", UART8_buffer);
 #endif
 
     (*task_function)(RX_POINTER);

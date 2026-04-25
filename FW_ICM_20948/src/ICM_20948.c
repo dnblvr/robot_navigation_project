@@ -9,12 +9,30 @@
 #include "./inc/ICM_20948.h"
 
 
-
-#define INT_TYPE    uint32_t
-#define DIMS        3
-
-
 #define DEBUG_OUTPUT 1
+
+// ----------------------------------------------------------------------------
+//
+//  DATA STRUCTURES & CONSTANTS
+//
+// ----------------------------------------------------------------------------
+
+
+
+
+// matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. these values were computed from MotionCal.
+// to get floats to Q1.15, multiply each element by 32768 (2^15) and round to the nearest integer
+const int32_t S[TOTAL] = {
+        34111,  -295,   -16,    //  1.041f,  -0.009f,  -0.0005f,
+         -295, 32276,   803,    // -0.009f,   0.985f,   0.0245f,
+          -16,   803, 31998};   // -0.0005f,  0.0245f,  0.9765f};
+
+
+// hard iron offsets in counts (0.15 uT/count)
+int16_t hard_offset_x = -845;   // -126.715f;
+int16_t hard_offset_y = -350;   //  -52.53f;
+int16_t hard_offset_z =  595;   //   89.245f;
+
 
 #ifdef OLD_SYSTEM
 
@@ -221,7 +239,7 @@ void icm20948_read_raw_accel(
         int16_t             accel[DIMS])
 {
     // counter
-    INT_TYPE i;
+    uint32_t i;
 
     uint8_t buf[6];
 
@@ -244,7 +262,7 @@ void icm20948_read_raw_gyro(
         int16_t             gyro[DIMS])
 {
     // counter
-    INT_TYPE i;
+    uint32_t i;
 
     uint8_t buf[6];
 
@@ -287,10 +305,10 @@ void icm20948_read_raw_temp(
 
 void icm20948_read_raw_mag(
         icm20948_config_t*  config,
-        int16_t             mag[DIMS])
+        int16_t             mag[])
 {
     // counter
-    INT_TYPE i;
+    uint32_t i;
 
     uint8_t buf[8];
 
@@ -313,17 +331,17 @@ void icm20948_read_raw_mag(
     //if ((buf[0] & 0x02) != 0x02) printf("mag: ST1: Data is NOT ready\n");
 #endif
 
-    return;
 }
+
 
 void icm20948_cal_gyro(
         icm20948_config_t* config,
         int16_t gyro_bias[DIMS])
 {
-    const INT_TYPE MAX_ITERS = 200;
+    const uint32_t MAX_ITERS = 200;
 
     // counters
-    INT_TYPE i, j;
+    uint32_t i, j;
 
     int16_t buf[DIMS]  = {0};
     int32_t bias[DIMS] = {0};
@@ -353,7 +371,7 @@ void icm20948_read_cal_gyro(
         int16_t             bias[DIMS])
 {
     // counters
-    INT_TYPE i;
+    uint32_t i;
 
     icm20948_read_raw_gyro(config, gyro);
 
@@ -368,7 +386,7 @@ void icm20948_cal_accel(
         int16_t             accel_bias[DIMS])
 {
     // counters
-    INT_TYPE i, j;
+    uint32_t i, j;
 
     int16_t buf[DIMS]  = {0};
     int32_t bias[DIMS] = {0};
@@ -403,7 +421,7 @@ void icm20948_read_cal_accel(
         int16_t             bias[DIMS])
 {
     // counters
-    INT_TYPE i;
+    uint32_t i;
 
     icm20948_read_raw_accel(config, accel);
 
@@ -419,7 +437,7 @@ void icm20948_cal_mag_simple(
 
 {
     // counters
-    INT_TYPE i, j;
+    uint32_t i, j;
 
     int16_t buf[DIMS] = {0}, max[DIMS] = {0}, min[DIMS] = {0};
 
@@ -455,7 +473,7 @@ void icm20948_read_cal_mag(
         int16_t             bias[DIMS])
 {
     // counters
-    INT_TYPE i;
+    uint32_t i;
 
     icm20948_read_raw_mag(config, mag);
 
@@ -463,6 +481,75 @@ void icm20948_read_cal_mag(
         mag[i] -= bias[i];
 
     return;
+}
+
+
+void icm20948_read_mag(
+        icm20948_config_t*  config,
+        float               mag[])
+{
+//    int32_t i;
+
+
+    #define mx mag_r[0]
+    #define my mag_r[1]
+    #define mz mag_r[2]
+
+
+    uint8_t buf[8];
+
+    int16_t mag_r[DIMS] = {0};
+
+    int32_t cal_mx = 0, cal_my = 0, cal_mz = 0;
+
+    EUSCI_B1_I2C_Send_A_Byte(config->addr_mag, AK09916_XOUT_L);
+    EUSCI_B1_I2C_Receive_Multiple_Bytes(config->addr_mag, buf, 8);
+
+
+#ifdef DEBUG_OUTPUT
+    if ((buf[6] & 0x08) == 0x08)
+        printf("mag: ST1: Sensor overflow\n");
+
+    // printf below works only if we read 0x10
+    //if ((buf[0] & 0x01) == 0x01) printf("mag: ST1: Data overrun\n");
+    //if ((buf[0] & 0x02) != 0x02) printf("mag: ST1: Data is NOT ready\n");
+#endif
+
+    /**
+     * @note the formula below applies factory calibration to raw mag data,
+     *  reshaping the ellipsoid model for data gathering into a sphere:
+     * 
+     * - cal_m = S * (mag_r - hard_offset)
+     */
+
+    
+    // start by building the data to Q16.0 in mag count format (0.15 uT/count)
+    // while removing hard-iron distortions
+    mag_r[0]    = (buf[1] << 8 | buf[0])  -  hard_offset_x;
+    mag_r[1]    = (buf[3] << 8 | buf[2])  -  hard_offset_y;
+    mag_r[2]    = (buf[5] << 8 | buf[4])  -  hard_offset_z;
+
+    // scaling mag counts to microTeslas (uT) since AK09916 has a magnetic
+    // sensor sensitivity of 0.15 uT per LSb. mag counts (Q16.0) times 0.15 uT
+    // per count (Q1.15), left-shifted 7, gives Q8.8 mag values (uT).
+    mag_r[0]    = (int16_t)( ((int32_t)mag_r[0] * 4915)  >>  7 );
+    mag_r[1]    = (int16_t)( ((int32_t)mag_r[1] * 4915)  >>  7 );
+    mag_r[2]    = (int16_t)( ((int32_t)mag_r[2] * 4915)  >>  7 );
+
+    // Matrix transformation to apply factory calibration to raw mag data,
+    // reshaping the ellipsoid model for data gathering into a sphere.
+    // Note: S is in int32_t (Q1.15) format, so we can multiply directly.
+    // Q8.8 * Q1.15 = Q9.23 in int32. Left-shift 15 for Q8.8 fixed point
+    // representation.
+    cal_mx  = (mx * S[0]  +  my * S[1]  +  mz * S[2]) >> 15;
+    cal_my  = (mx * S[3]  +  my * S[4]  +  mz * S[5]) >> 15;
+    cal_mz  = (mx * S[6]  +  my * S[7]  +  mz * S[8]) >> 15;
+
+    // convert to float; in microTeslas
+    mag[0]  = (float)cal_mx * CONVERT_Q8_8;
+    mag[1]  = (float)cal_my * CONVERT_Q8_8;
+    mag[2]  = (float)cal_mz * CONVERT_Q8_8;
+
 }
 
 void icm20948_read_temp_c(

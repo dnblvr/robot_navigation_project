@@ -31,9 +31,24 @@
 // ----------------------------------------------------------------------------
 
 /**
+ * @brief 
+ */
+#define DIMS        3
+
+/**
+ * @brief total number of elements in the reshaping matrix S 
+ */
+#define TOTAL       DIMS*DIMS
+
+/**
  * @brief Adddress of the ICM-20948 sensor when AD0 is low
  */
-#define ICM20948_ADDR_ACCEL_GYRO    0x68
+#define ICM20948_ADDR_ACCEL_GYRO_0    0x68
+
+/**
+ * @brief Adddress of the ICM-20948 sensor when AD0 is high
+ */
+#define ICM20948_ADDR_ACCEL_GYRO_1    0x69
 
 /**
  * @brief Address of the AK09916 magnetometer sensor
@@ -76,6 +91,28 @@ typedef struct {
 } icm20984_data_t;
 
 
+/**
+ *
+ */
+#define CONVERT_Q8_8 (1.f / 256.f)
+
+
+/**
+ * @brief constant that holds the magnetometer calibration-correction data
+ * 
+ * @note this matrix was computed from MotionCal, and processed in Q1.15 fixed-
+ *  point format for efficient integer arithmetic in the microcontroller
+ *  firmware.
+ * 
+ * @note this matrix is defined in the source file.
+ */
+extern const int32_t S[TOTAL];
+
+extern int16_t hard_offset_x;
+extern int16_t hard_offset_y;
+extern int16_t hard_offset_z;
+
+
 // ----------------------------------------------------------------------------
 //
 //  INITIALIZATION FUNCTIONS
@@ -112,6 +149,10 @@ void icm20948_read_raw_accel(icm20948_config_t *config, int16_t accel[3]);
 void icm20948_read_raw_gyro(icm20948_config_t *config, int16_t gyro[3]);
 void icm20948_read_raw_temp(icm20948_config_t *config, int16_t *temp);
 void icm20948_read_raw_mag(icm20948_config_t *config, int16_t mag[3]);
+
+void icm20948_read_mag(
+        icm20948_config_t*  config,
+        float               mag[]);
 
 /** ---------------------------------------------------------------------------
  * CALIBRATION FUNCTIONS

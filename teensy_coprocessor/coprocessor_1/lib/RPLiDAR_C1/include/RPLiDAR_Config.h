@@ -22,9 +22,7 @@
 /**
  * @brief RPLiDAR C1 fixed UART baud rate (460,800 bps).
  */
-#ifndef RPLIDAR_BAUD
 #define RPLIDAR_BAUD    460800
-#endif
 
 
 // ----------------------------------------------------------------------------
@@ -39,9 +37,7 @@
  * @note  Must be >= 2.  Value of 4 gives full angle coverage at 100 points/
  *        scan on an RPLiDAR C1 running at its standard ~4 000 samples/s.
  */
-#ifndef DECIMATION_FACTOR
 #define DECIMATION_FACTOR   4
-#endif
 
 #if DECIMATION_FACTOR < 2
 #error "DECIMATION_FACTOR must be >= 2"
@@ -51,9 +47,7 @@
 /**
  * @brief Output downsampling applied after acquisition (1 = no downsampling).
  */
-#ifndef SKIP_FACTOR
 #define SKIP_FACTOR     1
-#endif
 
 
 // ----------------------------------------------------------------------------

@@ -11,10 +11,10 @@
  *  The only things that changed from the MSP432 version:
  *
  *   | MSP432                        | This file                          |
- *   |-------------------------------|------------------------------------|
+ *   | :---------------------------: | :--------------------------------: |
  *   | EUSCI_A2 register writes      | HardwareSerial* _serial            |
  *   | NVIC / EUSCIA2_IRQHandler()   | RPLiDAR_ProcessByte(uint8_t b)     |
- *   | Clock_Delay1ms(n)             | delay(n)          (not used here)  |
+ *   | Clock_Delay1ms(n)             | delay(n)                           |
  *   | Timer_A1_Ignore()             | _timer_ignore_stub()  (no-op)      |
  *   | Timer_A1_Acknowledge()        | _timer_ack_stub()     (no-op)      |
  *

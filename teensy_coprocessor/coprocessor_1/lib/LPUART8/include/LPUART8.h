@@ -24,16 +24,16 @@
  * @note LPUART modules are aligned to Serialx ports according to Paul
  *  Stoffregen's IMXRT1060RM annotations. This is the table for convenience:
  * 
- *      | Module  | Serial Port |
- *      | :-----: | :---------: |
- *      | LPUART1 |   Serial6   |
- *      | LPUART2 |   Serial3   |
- *      | LPUART3 |   Serial2   |
- *      | LPUART4 |   Serial4   |
- *      | LPUART5 |   Serial8   |
- *      | LPUART6 |   Serial1   |
- *      | LPUART7 |   Serial7   |
- *      | LPUART8 |   Serial5   |
+ *      | Module  | Serial Port |           | Serial Port | Module  |
+ *      | :-----: | :---------: |           | :---------: | :-----: |
+ *      | LPUART1 |   Serial6   |           |   Serial1   | LPUART6 |
+ *      | LPUART2 |   Serial3   |           |   Serial2   | LPUART3 |
+ *      | LPUART3 |   Serial2   |  <----->  |   Serial3   | LPUART2 |
+ *      | LPUART4 |   Serial4   |           |   Serial4   | LPUART4 |
+ *      | LPUART5 |   Serial8   |           |   Serial5   | LPUART8 |
+ *      | LPUART6 |   Serial1   |           |   Serial6   | LPUART1 |
+ *      | LPUART7 |   Serial7   |           |   Serial7   | LPUART7 |
+ *      | LPUART8 |   Serial5   |           |   Serial8   | LPUART5 |
  *
  * @author Gian Fajardo
  */
@@ -186,7 +186,7 @@ void LPUART8_ProcessByte(uint8_t b);
  * 
  * @return state_se2_t 
  */
-state_se2_t Get_State_Request(void);
+state_se2_t Get_Current_State(void);
 
 // ----------------------------------------------------------------------------
 //

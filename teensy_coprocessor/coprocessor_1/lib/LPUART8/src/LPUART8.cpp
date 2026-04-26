@@ -74,8 +74,6 @@ static LPUART_ISR_Task task_function = nullptr;
  */
 #define BYTE_0_MASK 0xFFu
 
-
-
 /**
  * @brief LPUARTx check for the 
  * 
@@ -113,17 +111,15 @@ void LPUART8_SetPort(HardwareSerial* port) {
 //
 // ----------------------------------------------------------------------------
 
-// Strategy: call Serial1.begin(LPUART8_BAUD_RATE) to let HardwareSerial configure
-// the baud rate, I/O pins, FIFO, and CTRL enable bits, then overwrite the
-// single function-pointer HardwareSerial installed in _VectorsRam with our
-// own handler.  The hardware configuration is identical — we only change
-// who is called on each interrupt.
-//
-// FIFO drain: the iMXRT1062 LPUART8 has a 4-byte RX FIFO.  LPUART8_AttachISR
-// sets RXWATER=0 so RDRF fires on every single byte — this prevents short
-// frames (e.g. "!E\r\n") from losing their last byte to a stalled FIFO.
-// The loop drains all available bytes in one ISR invocation.
+// Strategy: call Serial1.begin(LPUART8_BAUD_RATE) to let HardwareSerial configure the baud rate, I/O pins, FIFO, and CTRL enable bits, then overwrite the single function-pointer HardwareSerial installed in _VectorsRam with our own handler.  The hardware configuration is identical — we only change who is called on each interrupt.
 
+// FIFO drain: the iMXRT1062 LPUART8 has a 4-byte RX FIFO.  LPUART8_AttachISR sets RXWATER=0 so RDRF fires on every single byte — this prevents short frames (e.g. "!E\r\n") from losing their last byte to a stalled FIFO. The loop drains all available bytes in one ISR invocation.
+
+/**
+ * @brief 
+ * 
+ * @note This is the function that is called when the LPUART8 RX interrupt fires. It reads bytes from the LPUART8 DATA register and processes them using the LPUART8_ProcessByte function. It also handles overrun detection and clears the overrun flag if necessary.
+ */
 FASTRUN void LPUART8_RX_ISR(void)
 {
 
@@ -243,7 +239,7 @@ void LPUART8_Stop(void)
 {
     // Flush any pending TX data, then close the peripheral.
     // Note: calling end() and begin() rapidly can cause a brief glitch on the
-    // RX line; prefer using the Start_Record / IDLING state guard instead.
+    // RX line; prefer using the Start_RPLiDAR_C1_Record / IDLING state guard instead.
     if (_serial == nullptr) return;
     _serial->end();
 }
@@ -330,11 +326,10 @@ void LPUART8_ProcessByte(uint8_t b)
     length--;
 
 #ifdef DEBUG_OUTPUT
-    Serial.printf("b=0x%02X, l=%u\n", b, length);
+    // Serial.printf("b=0x%02X, l=%u\n", b, length);
 #endif
 
     // early return if the message is incomplete e.g. nonzero length
-    // if (!length)
     if (length > 0)
         return;
 
@@ -343,23 +338,11 @@ void LPUART8_ProcessByte(uint8_t b)
 #endif
 
     (*task_function)(RX_POINTER);
-
-    memset((void*)UART8_buffer, 0, UART8_BUFFER_SIZE);
-    uart_buffer_pointer = RX_POINTER;
     length = 0;
 
 }
 
-state_se2_t Get_State_Request(void) {
 
-    state_se2_t state = {0.0f, 0.0f, 0.0f};
-
-    // alternatively, assign the first 2 bytes which are the command prefix "#S"
-    // state_se2_t state = *((state_se2_t*)(UART8_buffer + 2)); 
-    memcpy(&state, (const void*)(&UART8_buffer[0] + 2), sizeof(state_se2_t));
-
-    return state;
-}
 
 
 // ----------------------------------------------------------------------------

@@ -704,7 +704,7 @@ void setup()
     //  - Configure_RPLiDAR_Struct(&rplidar_cfg)
     //  - RPLiDAR_UART_Init()   --> Serial1.begin(460800)
     //  - STOP --> RESET --> GET_HEALTH --> SCAN
-    Serial.println("[1/3] Initializing RPLiDAR C1...");
+    Serial.println("[1/4] Initializing RPLiDAR C1...");
     Initialize_RPLiDAR_C1(&rplidar_cfg);
 
     digitalToggle(LED_BUILTIN);
@@ -713,7 +713,7 @@ void setup()
     // Now that all TX commands are sent, flush TX and replace HardwareSerial's
     // LPUART6 vector with our bare-metal RX ISR.  Must happen AFTER init so
     // that HardwareSerial's TX-interrupt path is no longer needed.
-    Serial.println("[2/3] Attaching bare-metal LPUART6 RX ISR...");
+    Serial.println("[2/4] Attaching bare-metal LPUART6 RX ISR...");
     RPLiDAR_UART_AttachISR();
     
     
@@ -721,23 +721,22 @@ void setup()
     // confirm communication with MSP432 by waiting for an echo response to our
     // handshake message
     
-    Serial.println("Resetting MSP432 timer...");
+    Serial.println("[3/4] Resetting MSP432 timer...");
 
     LPUART8_OutString("!E\r\n");
 
+    Block_Wait_Until(ECHO_REQUEST_FLAG);
+
     // while ( !(comms_state & ECHO_REQUEST_FLAG) ) {
-        
     //     WaitForInterrupt();
     // }
-
-    Block_Wait_Until(ECHO_REQUEST_FLAG);
     
-    // confirmmation of comms establishment visually
-    Serial.println("Communication established."); 
+    // confirmation of comms establishment visually
+    Serial.println("Communication established.");
     digitalWrite(LED_BUILTIN, LOW);
     
     
-    Serial.println("[3/3] Starting loop timer...");
+    Serial.println("[4/4] Starting loop timer...");
     loop_timer.begin(Task_Selector, LOOP_INTERVAL_MS * MS_TO_US);
     
 }

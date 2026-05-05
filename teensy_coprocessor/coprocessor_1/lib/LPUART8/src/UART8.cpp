@@ -92,7 +92,7 @@ void Handle_UART_Communications(volatile char UART_Buffer[]) {
 
 void Block_Wait_Until(uint32_t requested_flag) {
 
-    while (!(comms_state & requested_flag)) {
+    while ( !(comms_state & requested_flag) ) {
 
         // wfi assembly code
         asm("wfi");

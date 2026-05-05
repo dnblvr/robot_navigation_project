@@ -463,6 +463,10 @@ typedef struct {
     // vector_float_t  mag;
     // Quaternion      quat;
     // uint32_t        counts;
+    
+    // VectorInt16     accel_r;
+    // VectorInt16     gyro_r;
+    // VectorInt16     mag_r;
 
     VectorFloat     accel;
     VectorFloat     gyro;

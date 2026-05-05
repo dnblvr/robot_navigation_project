@@ -158,7 +158,7 @@ void Configure_RPLiDAR_Struct(const C1_States* input_config)
 }
 
 
-void Start_Record(Angle_Filter filter)
+void Start_RPLiDAR_C1_Record(Angle_Filter filter)
 {
     // Install the angle filter (NULL --> accept all)
     config->angle_filter = (filter == nullptr) ? &Scan_All : filter;
@@ -294,7 +294,7 @@ void RPLiDAR_UART_Stop(void)
 {
     // Flush any pending TX data, then close the peripheral.
     // Note: calling end() and begin() rapidly can cause a brief glitch on the
-    // RX line; prefer using the Start_Record / IDLING state guard instead.
+    // RX line; prefer using the Start_RPLiDAR_C1_Record / IDLING state guard instead.
     if (_serial == nullptr) return;
     _serial->end();
 }
@@ -369,7 +369,7 @@ static void Find_Pattern_Action(void)
     if (config->isr_counter < FIND_INDEX)   return;
 
 
-    // otherwise, reset the counter and search 
+    // otherwise, reset the counter and search
     config->isr_counter = 0;
 
 
@@ -428,6 +428,7 @@ static void Skip_Action(void)
     config->isr_counter++;
     if (config->isr_counter < SKIP_INDEX)   return;
 
+
     // otherwise, reset the counter and wait, or process the frame if full
     config->isr_counter = 0;
 
@@ -437,11 +438,12 @@ static void Skip_Action(void)
         // Scan frame is full — hand off to application
 
         End_Record();
-        _timer_acknowledge();               // MSP432: Timer_A1_Acknowledge()
+        _timer_acknowledge();
 
     } else {
 
         config->limit_status = RECORD;
+        
     }
 }
 

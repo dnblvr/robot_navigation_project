@@ -19,6 +19,7 @@
 #include "RPLiDAR_Config.h"
 #include "RPLiDAR_UART.h"
 #include "data_structures.h"
+#include <inEKF_se2.h>
 
 #include <stdint.h>
 #include <math.h>
@@ -26,6 +27,7 @@
 #ifdef RPLIDAR_DEBUG
 #include <Arduino.h>    // Serial.printf for debug output
 #endif
+
 
 
 // ----------------------------------------------------------------------------
@@ -68,11 +70,11 @@ typedef struct {
 
 /**
  * @brief Initialize the RPLiDAR C1 using the basic configuration.
- *
+ * 
  * @details Sends STOP --> RESET --> GET_HEALTH --> SCAN in sequence. The
  *  scanner is left continuously streaming scan data. Feed incoming bytes to
  *  `RPLiDAR_ProcessByte()` through the UART ISR to capture them. Call
- *  `Start_Record()` to arm the FSM.
+ *  `Start_RPLiDAR_C1_Record()` to arm the FSM.
  *
  *  Initialization sequence:
  *   1. Configure the C1_States struct via Configure_RPLiDAR_Struct().
@@ -96,10 +98,13 @@ void Initialize_RPLiDAR_C1(const C1_States* config);
  * 
  * @note Call only when `cfg.current_state == PROCESSING`.
  *
+ * @param[in]  pose    Current pose of the scanner in SE(2) coordinates.
  * @param[out] output  Destination PointCloud.  `output->num_pts` is set to
  *                     the number of valid points written.
  */
-void Process_RPLiDAR_Data(PointCloud* output);
+void Process_RPLiDAR_Data(
+        const state_se2_t*  pose, 
+        PointCloud*         output);
 
 
 // ----------------------------------------------------------------------------

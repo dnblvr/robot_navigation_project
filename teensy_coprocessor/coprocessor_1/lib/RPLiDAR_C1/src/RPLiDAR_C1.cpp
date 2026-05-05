@@ -52,15 +52,35 @@ void Initialize_RPLiDAR_C1(const C1_States* config_in)
 //
 // ============================================================================
 
-void Process_RPLiDAR_Data(PointCloud* output)
+void Process_RPLiDAR_Data(
+    const state_se2_t*  pose,
+          PointCloud*   output)
 {
 #define STATEMENT (j == 2 || j == 4)
 
-    // persistent counter (mirrors original)
+    // persistent counter
     static uint32_t j = 0;
 
     uint32_t i, k;
     uint32_t limits = config->interm_buffer_counter - 1;
+
+    //
+
+    float T[TOTAL] = IDENTITY;
+
+    // Fill in rotation and translation
+    T[R_00] =  cosf(pose->theta);
+    T[R_01] = -sinf(pose->theta);
+    T[T_x_] =  pose->x;    // tx
+
+    T[R_10] =  sinf(pose->theta);
+    T[R_11] =  cosf(pose->theta);
+    T[T_y_] =  pose->y;    // ty
+
+    T[Z_20] = 0.f;
+    T[Z_21] = 0.f;
+    T[I_22] = 1.f;
+
 
 #ifdef DEBUG_OUTPUT
     print_buffer_u32(STATEMENT, limits);
@@ -74,19 +94,27 @@ void Process_RPLiDAR_Data(PointCloud* output)
     k = 0;
     for (i = 0; i < limits; i += SKIP_FACTOR) {
 
-        float angle_r  =   ((M_PI / 180.f) / 64.f)
-                         * (float)(INTERM_POINTER[i] >> 16);
-
         float distance =    0.25f
                          * (float)(INTERM_POINTER[i] & 0xFFFF);
 
+        float angle_r  =   ((M_PI / 180.f) / 64.f)
+                         * (float)(INTERM_POINTER[i] >> 16);
+
         /**
-         * @note The angle is negated to correct the flipped output on the
-         *  pointcloud_visualizer. Undo the negation if the scanner is mounted
+         * @note The y-component is negated to correct the flipped output on
+         *  `pointcloud_visualizer`. Undo the negation if the scanner is mounted
          *  upside-down.
          */
-        output->points[k].x = distance *  cosf(angle_r);
-        output->points[k].y = distance * -sinf(angle_r);
+        // output->points[k].x = distance *  cosf(angle_r);
+        // output->points[k].y = distance * -sinf(angle_r);
+
+        float x = distance *  cosf(angle_r);
+        float y = distance * -sinf(angle_r);
+
+        // Transform point from sensor frame to global frame using the SE(2)
+        // transformation matrix T
+        output->points[k].x = T[R_00]*x + T[R_01]*y + T[T_x_]*1.f;
+        output->points[k].y = T[R_10]*x + T[R_11]*y + T[T_y_]*1.f;
 
         k++;
     }

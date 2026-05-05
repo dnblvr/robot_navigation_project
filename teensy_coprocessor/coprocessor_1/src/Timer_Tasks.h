@@ -30,23 +30,23 @@
 
 #define MAX_DIV_FREQ    10
 
-//#define TASK_0_FLAG     0x01 << 0
+//#define TASK_0_FLAG     0x01u << 0
 //#define TASK_0_DIV_FREQ 1
 //#define TASK_0_OFFSET   0
 
-//#define TASK_1_FLAG     0x01 << 1
+//#define TASK_1_FLAG     0x01u << 1
 //#define TASK_1_DIV_FREQ 30
 //#define TASK_1_OFFSET   0
 
-#define TASK_2_FLAG     0x01 << 2
-#define TASK_2_DIV_FREQ 2
-#define TASK_2_OFFSET   0
+// #define TASK_2_FLAG     0x01u << 2
+// #define TASK_2_DIV_FREQ 2
+// #define TASK_2_OFFSET   0
 
-#define TASK_3_FLAG     0x01 << 3
+#define TASK_3_FLAG     0x01u << 3
 #define TASK_3_DIV_FREQ MAX_DIV_FREQ
 #define TASK_3_OFFSET   0
 
-#define TASK_4_FLAG     0x01 << 4
+#define TASK_4_FLAG     0x01u << 4
 #define TASK_4_DIV_FREQ MAX_DIV_FREQ
 #define TASK_4_OFFSET   3
 
@@ -54,11 +54,11 @@
 //#define TASK_5_DIV_FREQ 30
 //#define TASK_5_OFFSET   24
 
-// #define TASK_6_FLAG     0x01 << 6
+// #define TASK_6_FLAG     0x01u << 6
 // #define TASK_6_DIV_FREQ 1
 // #define TASK_6_OFFSET   0
 
-#define TASK_7_FLAG     0x01 << 7
+#define TASK_7_FLAG     0x01u << 7
 #define TASK_7_DIV_FREQ MAX_DIV_FREQ
 #define TASK_7_OFFSET   MAX_DIV_FREQ
 

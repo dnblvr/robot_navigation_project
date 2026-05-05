@@ -269,14 +269,12 @@ void LPUART8_OutChar(uint8_t byte)
 
 }
 
-
 uint8_t LPUART8_InChar(void)
 {
     if (_serial == nullptr) return 0;
     while (!_serial->available());
     return (uint8_t)_serial->read();
 }
-
 
 void LPUART8_OutString(const char* str)
 {
@@ -304,8 +302,8 @@ void LPUART8_InString(uint8_t* buffer, size_t length)
 
 void LPUART8_ProcessByte(uint8_t b)
 {
-    static int32_t length = 0;
 
+    static int32_t length = 0;
         
     // Check if the received character is a button command from the EUSCI_A2
     if (b == '!') {
@@ -325,8 +323,9 @@ void LPUART8_ProcessByte(uint8_t b)
     *(uart_buffer_pointer++)    = b;
     length--;
 
+
 #ifdef DEBUG_OUTPUT
-    // Serial.printf("b=0x%02X, l=%u\n", b, length);
+    // Serial.printf("b=0x%02X, l=%u\n", b, length); 
 #endif
 
     // early return if the message is incomplete e.g. nonzero length

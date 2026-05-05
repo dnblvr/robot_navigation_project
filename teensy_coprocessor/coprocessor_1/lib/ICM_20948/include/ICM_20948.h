@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 
+#define ICM20948_OK 0x00
 
 /**
  * @brief Address of the ICM-20948 sensor when AD0 is low

@@ -1,9 +1,6 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <iostream>
-#include <string>
 
-#include <FunctionQueue.h>
 #include <ICM_20948.h>
 #include <helper_3dmath.h>
 // #include <MadgwickGDA.h>
@@ -16,15 +13,11 @@
 // #define DEBUG_FINAL_OUTPUT
 #define VISUALIZE_ORIENTATION
 
-#define DATA_COLLECTION_MODE
+// #define DATA_COLLECTION_MODE
 
 
 
-#define BLE_Serial      Serial5
-#define MSP432_Serial   Serial7
 
-
-#define RTS_Pin 15
 #define SDA_PIN 18
 #define SCL_PIN 19
 
@@ -74,7 +67,7 @@ ak_data_t ak_offsets = {
 
 // ICM
 sensor_config_t icm_config = {
-    .i2c_address        = ICM20948_ADDR_ACCEL_GYRO_0,
+    .i2c_address        = ICM20948_ADDR_ACCEL_GYRO_1,
     .wire_instance      = (void*) &Wire,
     .offset_instance    = (void*) &icm_offsets
 };
@@ -172,7 +165,7 @@ void setup() {
     
     //Serial.println("after BLE UART init");
     
-/*
+
     // I2C initialization -----------------------------------------------------
     Wire.setSDA(SDA_PIN);
     Wire.setSCL(SCL_PIN);
@@ -246,7 +239,7 @@ void setup() {
     // gyro = [        75,         79,        -50]
 
 #endif
-*/
+
 
     Serial.println("out setup()");
 
@@ -262,40 +255,23 @@ void loop() {
     // Serial.printf("Loop count: %lu\n", num_counts);
 
     // Wait for interrupt
-    // WaitForInterrupt();
+    WaitForInterrupt();
 
     // if the task flag is not set, return and do not perform any tasks
-    // if (task_flag & DATA_READY_FLAG) {
+    if (task_flag & DATA_READY_FLAG) {
 
         // clear the task flag
-        // task_flag  &= ~DATA_READY_FLAG;
+        task_flag  &= ~DATA_READY_FLAG;
 
         // indicate data read in progress
-        // digitalWrite(LED_BUILTIN, HIGH);
+        digitalWrite(LED_BUILTIN, HIGH);
 
-        // record_data_task();
+        record_data_task();
 
         // indicate data read complete
-        // digitalWrite(LED_BUILTIN, LOW);
+        digitalWrite(LED_BUILTIN, LOW);
         
-    // }
-
-    if (BLE_Serial.available())
-    {
-        static char buffer[20];
-        size_t len = BLE_Serial.readBytesUntil('!', buffer, sizeof(buffer) - 1);
-        // Serial.println(len);
-
-        buffer[len] = '\0';
-
-        if (len > 0)
-            // enqueue_command(handle_BLE_command, buffer);
-            Serial.println(buffer);
-
     }
-
-    //Process queued function calls from serial events
-    // process_function_queue();
 
 #endif
 
@@ -316,7 +292,7 @@ void record_data_task() {
 
 
     // read sensor data
-    status |= icm20948_record_data(&icm_config, np1);
+    // status |= icm20948_record_data(&icm_config, np1);
     status |= ak09916_record_data(&ak_config, np1);
 
 
@@ -332,19 +308,29 @@ void record_data_task() {
         return;
     }
 
-    np1->accel.x   /= 16384.0f;
-    np1->accel.y   /= 16384.0f;
-    np1->accel.z   /= 16384.0f;
+    // np1->accel.x   /= 16384.0f;
+    // np1->accel.y   /= 16384.0f;
+    // np1->accel.z   /= 16384.0f;
 
-    np1->gyro.x    /= 131.0f;
-    np1->gyro.y    /= 131.0f;
-    np1->gyro.z    /= 131.0f;
+    // np1->gyro.x    /= 131.0f;
+    // np1->gyro.y    /= 131.0f;
+    // np1->gyro.z    /= 131.0f;
+
+    // integer based printing
+    // Serial.printf("accel = {%5i, %5i, %5i}\t",
+    //             np1->accel.x, np1->accel.y, np1->accel.z);
+
+    // Serial.printf("gyro = {%5i, %5i, %5i}\t",
+    //             np1->gyro.x, np1->gyro.y, np1->gyro.z);
+
+    Serial.printf("mag = {%5i, %5i, %5i}\n",
+                np1->mag.x, np1->mag.y, np1->mag.z);
 
         
     // orientation_filter.update(&aa, &magS, &av, &q_imu);
     orientation_filter.update(np1, n);
 
-    Get_Gravity(&(np1->q), &gravity);
+    // Get_Gravity(&(np1->q), &gravity);
     // Get_Linear_Accel(&aa, &gravity, &aaReal);
     // Get_World_Accel(&aaReal, &q_imu, &aaWorld);
     
@@ -420,116 +406,3 @@ void record_data_task() {
     // counter for data buffer
     buffer_count++;
 }
-
-
-// ----------------------------------------------------------------------------
-// 
-//  FUNCTION DEFINITIONS
-// 
-// ----------------------------------------------------------------------------
-
-void initialize_BLE_UART() {
-
-    // MOD pin
-    pinMode(RTS_Pin, OUTPUT);
-    BLE_Serial.begin(9600);
-
-    // test BLE UART friend configuration
-    digitalWrite(RTS_Pin, HIGH); // HIGH = AT command mode
-    delay(1000);
-
-    BLE_Serial.write("ATZ\r\n");
-    delay(3000);
-
-    digitalWrite(RTS_Pin, LOW); // LOW = UART mode
-
-    // while (!BLE_Serial);
-}
-
-// Command handler implementations
-void handle_BLE_command(
-        const String& message)
-{
-
-    Serial.println("Processing BLE command: " + message);
-    
-    // Parse different BLE command types
-    if (message.indexOf("!B") != -1) {
-
-        // Basic command
-        char BLE_code[5] = {};
-        strncpy(BLE_code, message.c_str(), 4);
-        BLE_code[4] = '\0';
-        
-        Serial.println("BLE basic command received");
-        Serial.print("Echoing: ");  Serial.println(BLE_code);
-        
-        MSP432_Serial.println(BLE_code);
-
-        
-    } else if (message.indexOf("!NAV") != -1) {
-
-        // Navigation command
-        Serial.println("BLE navigation command received");
-        // Extract navigation parameters and process
-
-        
-    } else if (message.indexOf("!STOP") != -1) {
-
-        // Emergency stop command
-        Serial.println("BLE emergency stop received");
-        MSP432_Serial.println("!STOP");
-
-        
-    } else if (message.indexOf("!STATUS") != -1) {
-        // Status request command
-        Serial.println("BLE status request received");
-        // Send back robot status
-        
-    } else {
-        Serial.println("Unknown BLE command: " + message);
-    }
-}
-
-void handle_MSP432_command(const String& message) {
-    Serial.println("Processing MSP432 command: " + message);
-    
-    // Add your MSP432 command processing logic here
-    // For example, parse navigation commands, sensor data, etc.
-}
-
-
-void serialEvent5() {
-
-  if (BLE_Serial.available()) {
-    String message = BLE_Serial.readStringUntil('!');
-
-    Serial.print("Received from BLE: ");
-    Serial.println(message);
-
-    // Add BLE command to function pointer queue
-    enqueue_function(handle_BLE_command, message);
-  }
-
-}
-
-/**
- * @brief This event is linked to the hardware serial port 7 (hooked up to the
- *    MSP432).
- * 
- */
-void serialEvent7() {
-
-  if (MSP432_Serial.available()) {
-
-    String message = MSP432_Serial.readStringUntil('\n');
-
-    Serial.print("Received from MSP432: ");
-    Serial.println(message);
-
-    // Add MSP432 command to function pointer queue
-    enqueue_function(handle_MSP432_command, message);
-  }
-
-}
-

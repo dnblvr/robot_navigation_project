@@ -1,8 +1,8 @@
 {
-  "name": "FunctionQueue",
+  "name": "GraphSLAM",
   "version": "1.0.0",
-  "description": "Circular buffer-based function pointer queue for Arduino/Teensy",
-  "keywords": ["queue", "circular buffer", "function pointer", "embedded", "teensy"],
+  "description": "GraphSLAM library for Teensy",
+  "keywords": ["graph", "slam", "optimization", "embedded", "teensy"],
   "authors": [
     {
       "name": "Gian Fajardo",

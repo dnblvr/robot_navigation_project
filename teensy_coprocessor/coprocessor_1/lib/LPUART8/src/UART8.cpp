@@ -66,24 +66,17 @@ void Handle_UART_Communications(volatile char UART_Buffer[]) {
         // Serial.printf("in handle func\n");
     #endif
 
-        // @todo do the conversion from UART buffer to the state struct here and set the latest pose variable, which can be retrieved by the Get_Current_State() function. 
-
-        // alternatively, assign the last 12 bytes before the command prefix "#S"
-        // state_se2_t state = *((state_se2_t*)(UART8_buffer + 2)); 
-        // memcpy((void*)&latest_pose,
-        //        (const void*)(&UART_Buffer[0] + 2),
-        //        sizeof(state_se2_t));
 
         /**
          * @brief implemented double-buffer logic for the pose buffer 
          */
 
-        // Write into whichever slot the ISR "owns"
+        // copy the last 12 bytes into whichever buffer the ISR is permitted to write to
         memcpy((void*)&pose_buffer[write_index],
                (const void*)(&UART_Buffer[0] + 2),
                sizeof(state_se2_t));
 
-        // Atomically swap — now the freshly-written slot becomes the readable one
+        // Atomically swap buffer positions. now the freshly-written slot becomes the readable one
         write_index ^= 1;
         read_index  ^= 1;
 
@@ -102,7 +95,6 @@ void Block_Wait_Until(uint32_t requested_flag) {
     while (!(comms_state & requested_flag)) {
 
         // wfi assembly code
-        // WaitForInterrupt();
         asm("wfi");
     }
 
@@ -110,8 +102,10 @@ void Block_Wait_Until(uint32_t requested_flag) {
 
 state_se2_t Get_Current_State(void) {
 
+    // 
     state_se2_t current_state;
 
+    // copy the most recent pose from the buffer into a local variable to return
     memcpy((void*)&current_state,
            (const void*)&pose_buffer[read_index],
            sizeof(state_se2_t));

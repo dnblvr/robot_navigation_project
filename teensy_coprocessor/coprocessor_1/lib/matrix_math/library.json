@@ -1,0 +1,15 @@
+{
+  "name": "matrix_math",
+  "version": "1.0.0",
+  "description": "Matrix math library for Arduino/Teensy",
+  "keywords": ["matrix", "math", "linear algebra", "embedded", "teensy"],
+  "authors": [
+    {
+      "name": "Gian Fajardo",
+      "email": "gianfajardo.prim@gmail.com"
+    }
+  ],
+  "license": "MIT",
+  "frameworks": ["arduino"],
+  "platforms": ["teensy", "espressif32", "atmelavr"]
+}

@@ -16,11 +16,14 @@
 #include <RPLiDAR_C1.h>
 #include <inEKF_se2.h>
 #include <UART8.h>
+#include <Timer_Tasks.h>
+
 #include <coordinate_transform.h>
+#include <cholesky_decomposition.h>
 #include <ICP_2D.h>
 #include <graphslam.h>
 
-#include "Timer_Tasks.h"
+// #define __cplusplus 1
 
 // ----------------------------------------------------------------------------
 //
@@ -72,13 +75,11 @@ void Perform_SLAM(
     // int i;
     static uint32_t scan_counter = 0;
 
-    // debug character
-    // char            debug_buffer[128];
 
-
-#ifdef DEBUG_OUTPUTS
-    printf(
-        "Scan %lu: %d points\n", scan_counter, local_cloud->num_pts);
+#ifdef DEBUG_OUTPUT
+    Serial.printf("Scan %lu: %d points\n",
+                  scan_counter,
+                  local_cloud->num_pts);
 #endif
     
     // Initialize SLAM on first run
@@ -87,7 +88,6 @@ void Perform_SLAM(
 
         slam_initialize(&slam_optimizer);
         slam_initialized = true;
-        // BLE_UART_OutString("SLAM initialized\n");
 
     }
     
@@ -99,6 +99,7 @@ void Perform_SLAM(
     bool have_icp_correction = false;
     
     if (slam_optimizer.buffer_size > 0) {
+
         PointCloud previous_scan_local, previous_scan_global;
         PointCloud current_scan_global;
         Pose previous_pose;
@@ -110,13 +111,21 @@ void Perform_SLAM(
         {
             
             // Transform previous scan to global frame using its pose
-            transform_point_cloud(&previous_scan_local, &previous_pose, &previous_scan_global);
+            transform_point_cloud(&previous_scan_local,
+                                  &previous_pose,
+                                  &previous_scan_global);
             
             // Transform current scan to global frame using predicted pose
             // Predicted pose = previous_pose ⊕ odometry
             Pose predicted_current_pose;
-            compose_poses(&incremental_pose, &previous_pose, &predicted_current_pose);
-            transform_point_cloud(local_cloud, &predicted_current_pose, &current_scan_global);
+
+            compose_poses(&incremental_pose,
+                          &previous_pose,
+                          &predicted_current_pose);
+
+            transform_point_cloud(local_cloud,
+                                  &predicted_current_pose,
+                                  &current_scan_global);
             
             // Now run ICP between these two GLOBAL-frame clouds
             ICPResult icp_result;
@@ -139,7 +148,7 @@ void Perform_SLAM(
             icp_correction.theta    = icp_result.dtheta;
             have_icp_correction     = true;
             
-#ifdef DEBUG_OUTPUTS
+#ifdef DEBUG_OUTPUT
             float correction_mag = sqrtf(   icp_correction.x*icp_correction.x
                                           + icp_correction.y*icp_correction.y);
 
@@ -172,7 +181,7 @@ void Perform_SLAM(
                   &global_pose,
                   local_cloud);
 
-    #ifdef DEBUG_OUTPUTS
+    #ifdef DEBUG_OUTPUT
 //    Serial.printf("Added pose to buffer. New buffer_size: %d\n",
 //           slam_optimizer.buffer_size);
     #endif
@@ -220,13 +229,14 @@ void Perform_SLAM(
 
         // Send results via Bluetooth/Serial
 
-    #ifdef DEBUG_OUTPUTS
+    #ifdef DEBUG_OUTPUT
         // sprintf(
         //         debug_buffer,
-        Serial.printf(
-                "ICP: dx=%.3f dy=%.3f dtheta=%.3f conf=%.2f\n",
-                icp_result.dx, icp_result.dy, icp_result.dtheta, confidence);
-        // BLE_UART_OutString(debug_buffer);
+        Serial.printf("ICP: dx=%.3f dy=%.3f dtheta=%.3f conf=%.2f\n",
+                      icp_result.dx, 
+                      icp_result.dy, 
+                      icp_result.dtheta, 
+                      confidence);
 
     #endif
         
@@ -256,7 +266,7 @@ void Perform_SLAM(
         int prev_id = slam_optimizer.buffer_size - 2;
         int curr_id = slam_optimizer.buffer_size - 1;
         
-        // Measurement = Odometry + ICP correction (Stachniss method)
+        // Measurement = Odometry + ICP correction
         // ICP was run on global-frame clouds, so correction is in global frame
         Pose measurement;
         
@@ -264,22 +274,27 @@ void Perform_SLAM(
             // Apply ICP correction to odometry measurement
             compose_poses(&icp_correction, &incremental_pose, &measurement);
             
-#ifdef DEBUG_OUTPUTS
-            printf("  Measurement: odom=(%.1f,%.1f,%.3f) + ICP_corr=(%.1f,%.1f,%.3f) = final=(%.1f,%.1f,%.3f)\n",
+#ifdef DEBUG_OUTPUT
+            Serial.printf("  Measurement: odom=(%.1f,%.1f,%.3f)"
+                    " + ICP_corr=(%.1f,%.1f,%.3f)"
+                    " = final=(%.1f,%.1f,%.3f)\n",
                    incremental_pose.x, incremental_pose.y, incremental_pose.theta,
                    icp_correction.x, icp_correction.y, icp_correction.theta,
                    measurement.x, measurement.y, measurement.theta);
 #endif
+
+        // Low confidence or no ICP - use odometry only
         } else {
-            // Low confidence or no ICP - use odometry only
             measurement = incremental_pose;
             
-#ifdef DEBUG_OUTPUTS
+#ifdef DEBUG_OUTPUT
             if (have_icp_correction) {
-                printf("  Measurement: odom only (ICP conf too low: %.2f)\n", icp_confidence);
+                Serial.printf("  Measurement: odom only"
+                              " (ICP conf too low: %.2f)\n",
+                              icp_confidence);
             }
 #endif
-        }
+        } // if (have_icp_correction && icp_confidence > 0.2f)
         
         float base_confidence = icp_confidence;
         
@@ -308,17 +323,23 @@ void Perform_SLAM(
                 measurement.theta,
                 effective_confidence);
         
-#ifdef DEBUG_OUTPUTS
+#ifdef DEBUG_OUTPUT
         if (effective_confidence < base_confidence) {
-            printf("Constraint %d->%d: meas=(%.2f,%.2f,%.3f) mag=%.1f conf=%.2f->%.2f [LOW CONF]\n",
-                   prev_id, curr_id,
-                   measurement.x, measurement.y, measurement.theta,
-                   measurement_magnitude, base_confidence, effective_confidence);
+
+            Serial.printf("Constraint %d->%d: meas=(%.2f,%.2f,%.3f)"
+                          " mag=%.1f conf=%.2f->%.2f [LOW CONF]\n",
+                          prev_id, curr_id,
+                          measurement.x, measurement.y, measurement.theta,
+                          measurement_magnitude, base_confidence,   effective_confidence);
+
         } else {
-            printf("Constraint %d->%d: meas=(%.2f,%.2f,%.3f) mag=%.1f conf=%.2f [ADDED]\n",
-                   prev_id, curr_id,
-                   measurement.x, measurement.y, measurement.theta,
-                   measurement_magnitude, effective_confidence);
+
+            Serial.printf("Constraint %d->%d: meas=(%.2f,%.2f,%.3f)"
+                          " mag=%.1f conf=%.2f [ADDED]\n",
+                          prev_id, curr_id,
+                          measurement.x, measurement.y, measurement.theta,
+                          measurement_magnitude, effective_confidence);
+
         }
 #endif
     }
@@ -338,7 +359,7 @@ void Perform_SLAM(
         
 
     #ifdef PROCESSING_EXPECTED_OUTPUTS
-//        printf("CLEAR\n");
+//        Serial.printf("CLEAR\n");
     #endif
 
 
@@ -347,14 +368,14 @@ void Perform_SLAM(
                 slam_optimizer.buffer_size - 1);
 
 
-    #ifdef DEBUG_OUTPUTS
-        printf("\n*** LOOP CLOSURE DETECTION ***");
+    #ifdef DEBUG_OUTPUT
+        Serial.printf("\n*** LOOP CLOSURE DETECTION ***");
     #endif
         
         if (loop_detected) {
 
-    #ifdef DEBUG_OUTPUTS
-            printf(" --> *** LOOP CLOSURE DETECTED! ***\n\n");
+    #ifdef DEBUG_OUTPUT
+            Serial.printf(" --> *** LOOP CLOSURE DETECTED! ***\n\n");
     #endif
 
             // LED2_Output(RGB_LED_BLUE);
@@ -362,7 +383,7 @@ void Perform_SLAM(
 
         } else {
 
-            printf("\n\n");
+            Serial.printf("\n\n");
 
         }
 
@@ -383,19 +404,19 @@ void Perform_SLAM(
          && (slam_optimizer.buffer_size % OPTIMIZE_INTERVAL == 0))
     {
         
-#ifdef DEBUG_OUTPUTS
-        printf("\nOptimizing graph...\n");
+#ifdef DEBUG_OUTPUT
+        Serial.printf("\nOptimizing graph...\n");
 #endif
 
         // LED2_Output(RGB_LED_PINK);
-        
+        delay(40);
 
         slam_optimize_gauss_newton(&slam_optimizer, MAX_GAUSS_NEWTON_ITERS);
         
 
 #ifdef PROCESSING_EXPECTED_OUTPUTS
         // Clear visualization before sending complete optimized map
-        printf("CLEAR\n");
+        Serial.printf("CLEAR\n");
 #endif
 
         // Retrieve and transform all optimized poses and their point clouds
@@ -439,15 +460,17 @@ void Perform_SLAM(
             {
                 last_two_clouds[0] = transformed_scan;
                 clouds_stored = 1;
+
             } else if (     pose_idx == slam_optimizer.buffer_size - 1
                         &&  slam_optimizer.buffer_size >= 2)
             {
                 last_two_clouds[1] = transformed_scan;
                 clouds_stored = 2;
+
             }
             
-#ifdef DEBUG_OUTPUTS
-            // printf("Pose[%2d] optimized: x=%.2f y=%.2f theta=%.3f | %d points transformed\n",
+#ifdef DEBUG_OUTPUT
+            // Serial.printf("Pose[%2d] optimized: x=%.2f y=%.2f theta=%.3f | %d points transformed\n",
             //        pose_idx,
             //        optimized_pose.x, optimized_pose.y, optimized_pose.theta,
             //        transformed_scan.num_pts);
@@ -473,14 +496,15 @@ void Perform_SLAM(
                         transformed_scan.points[k].y);
             }
 
-            printf("SCAN_END\n");
+            Serial.printf("SCAN_END\n");
 #endif
         }
         
-        // ------------------------------------------------------------------------
-        // TEST: Run ICP on last two transformed point clouds to verify alignment
-        // ------------------------------------------------------------------------
-#ifdef DEBUG_OUTPUTS
+        // --------------------------------------------------------------------
+        // TEST: Run ICP on last two transformed point clouds to verify
+        // alignment
+        // --------------------------------------------------------------------
+#ifdef DEBUG_OUTPUT
         if (clouds_stored == 2 && slam_optimizer.buffer_size >= 2) {
             
             float R[4];  // 2x2 rotation matrix
@@ -536,29 +560,31 @@ void Perform_SLAM(
             }
             
             float mean_error = (match_count > 0) ? (total_error / match_count) : -1.0f;
-            printf("Mean correspondence error after ICP: %.2f mm (%d/%d matches)\n",
+            Serial.printf("Mean correspondence error after ICP: %.2f mm (%d/%d matches)\n",
                    mean_error, match_count, transformed_cloud0.num_pts);
             
             // Alignment quality assessment
             if (translation_mag < 10.0f && fabsf(theta_correction) < 0.05f && mean_error < 20.0f) {
-                printf("GOOD ALIGNMENT: Clouds are well-aligned!\n");
+                Serial.printf("GOOD ALIGNMENT: Clouds are well-aligned!\n");
             } else if (translation_mag < 50.0f && fabsf(theta_correction) < 0.2f && mean_error < 50.0f) {
-                printf("MODERATE ALIGNMENT: Some drift present\n");
+                Serial.printf("MODERATE ALIGNMENT: Some drift present\n");
             } else {
-                printf("POOR ALIGNMENT: Significant misalignment detected!\n");
+                Serial.printf("POOR ALIGNMENT: Significant misalignment detected!\n");
             }
-            printf("=======================================================\n\n");
+            Serial.printf("=======================================================\n\n");
         }
         
-#endif // #ifdef DEBUG_OUTPUTS
+#endif // #ifdef DEBUG_OUTPUT
         
-#ifdef DEBUG_OUTPUTS
+#ifdef DEBUG_OUTPUT
 
         // Get current pose for debugging
         slam_get_current_pose(&slam_optimizer, &optimized_pose);
 
-        printf("Current (most recent) pose: x=%.2f y=%.2f theta=%.3f\n",
-               optimized_pose.x, optimized_pose.y, optimized_pose.theta);
+        Serial.printf("Current (most recent) pose: x=%.2f y=%.2f theta=%.3f\n",
+                      optimized_pose.x,
+                      optimized_pose.y,
+                      optimized_pose.theta);
 #endif
         
         // LED2_Output(RGB_LED_GREEN);
@@ -644,7 +670,7 @@ static C1_States rplidar_cfg;
 /**
  * @brief Output point cloud populated by Process_RPLiDAR_Data().
  */
-static PointCloud rplidar_cloud;
+static PointCloud local_cloud;
 
 
 
@@ -657,18 +683,6 @@ static PointCloud rplidar_cloud;
 void setup()
 {
     
-    // USB CDC — wait up to 3 s for a monitor, then continue regardless so
-    // the MSP432 hardware-UART handshake is not blocked by USB CDC.
-    Serial.begin(115200); 
-
-#ifdef DEBUG_OUTPUT
-    
-    // cannot be initialized here because if we want the MSP432_Serial communication to be live during setup. This needs to be established until after data collection starts at which point the USB stream will send over the point cloud data for analysis on the PC.
-    while (!Serial);
-
-#endif
-
-
     // set up LED for debugging
     // Serial.println("Initializing communication with MSP432...");
     pinMode(LED_BUILTIN, OUTPUT);
@@ -711,25 +725,19 @@ void setup()
 
     LPUART8_OutString("!E\r\n");
 
-    while ( !(comms_state & ECHO_REQUEST_FLAG) ) {
-
-        // digitalToggle(LED_BUILTIN);
-
-        delay(5);
-
-        // Serial.printf("waiting ... \n");
+    // while ( !(comms_state & ECHO_REQUEST_FLAG) ) {
         
-        WaitForInterrupt();
-    }
+    //     WaitForInterrupt();
+    // }
+
+    Block_Wait_Until(ECHO_REQUEST_FLAG);
     
     // confirmmation of comms establishment visually
     Serial.println("Communication established."); 
     digitalWrite(LED_BUILTIN, LOW);
     
     
-    Serial.println("[3/3]" \
-        // " Starting loop timer..."
-    );
+    Serial.println("[3/3] Starting loop timer...");
     loop_timer.begin(Task_Selector, LOOP_INTERVAL_MS * MS_TO_US);
     
 }
@@ -747,39 +755,50 @@ void loop()
     // static state_se2_t previous_pose   = {0.0f, 0.0f, 0.0f};
     static state_se2_t today_pose      = {0.0f, 0.0f, 0.0f};
 
-    // Sleep until the next interrupt (LPUART6_RX_ISR or IntervalTimer).
-    // The Cortex-M7 wfi instruction resumes as soon as any unmasked
-    // interrupt fires, so byte processing latency is interrupt latency
-    // rather than polling latency.
+    // Sleep until the next interrupt (LPUART6_RX_ISR or IntervalTimer). The Cortex-M7 wfi instruction resumes as soon as any unmasked interrupt fires.
     WaitForInterrupt();
-
-    
-    // Serial.printf("task_flag: 0x%02X | comms_state: 0x%02X\n",
-    //               task_flag, comms_state);
     
     
 #ifdef TASK_2_FLAG
+    /**
+     * @note TASK 2: high-priority task that, when triggered, all RPLiDAR data collection and processing is paused indefinitely. then, the current pose and scan is 
+     */
     if (task_flag & TASK_2_FLAG) {
         task_flag &= ~TASK_2_FLAG;
         
+        // stop timer to pause all other tasks
+        loop_timer.end();
+
+        // establish communications with PC and wait until handshake is complete
+        Serial.begin(115200); 
+        while (!Serial);
         
+        // send current pose and scan for visualization in Processing
+
+
+        // optionally, run SLAM on what is left of all frames
+
     }
 #endif
 
 
 #ifdef TASK_3_FLAG
+    /**
+     * @note TASK 3: processes recorded data
+     */
     if (task_flag & TASK_3_FLAG) {
         task_flag &= ~TASK_3_FLAG;
 
-        
+        // This function runs to restart the module-level state machine to
+        // begin recording a new frame.
         Start_RPLiDAR_C1_Record(NULL);
 
     #ifdef DEBUG_OUTPUT
-
         Serial.printf("Pose request received.\n");
 
     #endif
 
+        // Get current pose
         today_pose = Get_Current_State();
 
     }
@@ -802,9 +821,19 @@ void loop()
     {
         task_flag &= ~TASK_4_FLAG;
 
+        // store local variables for SLAM function
+        int k;
+        uint32_t valid_point_count;
+        PointCloud transformed_cloud;
 
-        Process_RPLiDAR_Data(&rplidar_cloud);
-
+        // this transforms the raw scan data, given the current pose estimate, into a transformed point cloud in global coordinates
+        Process_RPLiDAR_Data(&today_pose, &transformed_cloud);
+        
+        // for each valid point in the output buffer, print the transformed
+        // coordinates to the Serial port for visualization in Processing.
+        valid_point_count = transformed_cloud.num_pts;
+        for (k = 0; k < valid_point_count; k++) 
+        {
         
     #if (defined(PROCESSING4_OUTPUT) || defined(DEBUG_OUTPUT))
 
@@ -815,16 +844,20 @@ void loop()
         
         // Serial.printf("SCAN_START\n");
 
-        // for (uint32_t i = 0; i < rplidar_cloud.num_pts; i++) {
+        // for (uint32_t i = 0; i < transformed_cloud.num_pts; i++) {
             
         //     Serial.printf("P,%+5.2f,%+5.2f\n",
-        //                     rplidar_cloud.points[i].x,
-        //                     rplidar_cloud.points[i].y);
+        //                     transformed_cloud.points[i].x,
+        //                     transformed_cloud.points[i].y);
         // }
         
         // Serial.printf("SCAN_END\n");
 
     #endif
+
+        }
+
+        Perform_SLAM(&local_cloud, &transformed_cloud);
 
 
         // --- Re-arm for next frame --------------------------------------

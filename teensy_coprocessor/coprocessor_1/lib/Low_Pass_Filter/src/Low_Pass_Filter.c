@@ -39,9 +39,11 @@ static int filter_taps[LOW_PASS_FILTER_TAP_NUM] = {
 };
 
 void Low_Pass_Filter_init(Low_Pass_Filter* f) {
+
     int i;
     for (i = 0; i < LOW_PASS_FILTER_TAP_NUM; ++i)
         f->history[i] = 0;
+
     f->last_index = 0;
 }
 
@@ -55,6 +57,16 @@ void Low_Pass_Filter_put(Low_Pass_Filter* f, int input) {
         f->last_index = 0;
 }
 
+/**
+ * @brief FIR filter output calculation
+ * 
+ * @details this FIR filter multiply-accumulates the most recent `LOW_PASS_FILTER_TAP_NUM` samples in the history buffer with the corresponding filter taps, sums the products, and right-shifts the result by 16 bits to produce the output.
+ * 
+ * to track the appropriate index, it uses the previous index value which is landlocked between the expected index arrays. it uses the index and the latest history stored on the circular buffer to multiplies it with the first filter tap. the list goes down and multiples each subsequent history sample with the corresponding filter tap.
+ * 
+ * @param f 
+ * @return int 
+ */
 int Low_Pass_Filter_get(Low_Pass_Filter* f) {
 
     long long acc   = 0;
@@ -64,8 +76,13 @@ int Low_Pass_Filter_get(Low_Pass_Filter* f) {
     int index       = f->last_index;
 
     for (i = 0; i < LOW_PASS_FILTER_TAP_NUM; ++i) {
+
+        // because the device uses a circular buffer, the filter starts off the multiply-accumulation using the previous index value to access the history buffer's most recent sample and multiplies it with the first filter tap.
         index   = (index != 0) ? (index - 1) : LOW_PASS_FILTER_TAP_NUM - 1;
+
+        // accumulate the product of the history sample and the corresponding filter tap
         acc    += (long long)f->history[index] * filter_taps[i];
     };
+
     return acc >> 16;
 }

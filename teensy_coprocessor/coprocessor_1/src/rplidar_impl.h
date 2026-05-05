@@ -58,7 +58,7 @@ static C1_States rplidar_cfg;
 /**
  * @brief Output point cloud populated by Process_RPLiDAR_Data().
  */
-static PointCloud rplidar_cloud;
+static PointCloud local_cloud;
 
 
 
@@ -145,7 +145,7 @@ void loop()
     if (task_flag & TASK_3_FLAG) {
         task_flag &= ~TASK_3_FLAG;
         
-        Start_Record(NULL);
+        Start_RPLiDAR_C1_Record(NULL);
 
     }
 
@@ -164,7 +164,7 @@ void loop()
 
         if (rplidar_cfg.current_state == PROCESSING) {
 
-            Process_RPLiDAR_Data(&rplidar_cloud);
+            Process_RPLiDAR_Data(&local_cloud);
 
             
             #ifdef PROCESSING4_OUTPUT
@@ -179,12 +179,12 @@ void loop()
             #endif
 
 
-            for (uint32_t i = 0; i < rplidar_cloud.num_pts; i++) {
+            for (uint32_t i = 0; i < local_cloud.num_pts; i++) {
                 
     #ifdef PROCESSING4_OUTPUT
                 Serial.printf("P,%5.2f,%5.2f\n",
-                              rplidar_cloud.points[i].x,
-                              rplidar_cloud.points[i].y);
+                              local_cloud.points[i].x,
+                              local_cloud.points[i].y);
     #endif
                 
             }

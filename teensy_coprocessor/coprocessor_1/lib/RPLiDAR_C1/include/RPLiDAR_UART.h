@@ -64,7 +64,7 @@ uint8_t Scan_All(uint32_t data);
  */
 typedef enum {
     IDLING      = 0,
-    READY,          ///< Start_Record() has been called; waiting for WAIT_INDEX
+    READY,          ///< Start_RPLiDAR_C1_Record() has been called; waiting for WAIT_INDEX
     RECORDING,      ///< Actively collecting scan bytes
     PROCESSING      ///< Scan frame complete; ready for Process_RPLiDAR_Data()
 } RPLiDAR_States;
@@ -98,7 +98,7 @@ typedef enum {
  */
 typedef struct {
 
-    /** Angle-rejection callback — set by Start_Record() */
+    /** Angle-rejection callback — set by Start_RPLiDAR_C1_Record() */
     Angle_Filter            angle_filter;
 
     /** Top-level state visible to application code */
@@ -142,7 +142,7 @@ void Configure_RPLiDAR_Struct(const C1_States* input_config);
  *
  * @param filter    Optional angle-rejection callback.  Pass NULL for Scan_All.
  */
-void Start_Record(Angle_Filter filter);
+void Start_RPLiDAR_C1_Record(Angle_Filter filter);
 
 
 // ----------------------------------------------------------------------------

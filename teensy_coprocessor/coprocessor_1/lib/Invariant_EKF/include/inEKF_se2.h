@@ -18,13 +18,13 @@
 #include <string.h>
 #include <math.h>
 
-#define DIMS 3
-#define TOTAL DIMS*DIMS
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+    
 
+#define DIMS 3
+#define TOTAL DIMS*DIMS
 
 /**
  * @brief SE(2) state struct for a differential-drive robot with a 2D
@@ -78,6 +78,15 @@ typedef struct {
 #define M_20 (3*2 + 0)  // 6
 #define M_21 (3*2 + 1)  // 7
 #define M_22 (3*2 + 2)  // 8
+
+/**
+ * @brief indices for a 2x2 `V` matrix in row-major order, for ease of use in C
+ */
+#define V_00 (2*0 + 0)  // 0
+#define V_01 (2*0 + 1)  // 1
+#define V_10 (2*1 + 0)  // 2
+#define V_11 (2*1 + 1)  // 3
+
 
 /**
  * @brief macro to check if an angle is small enough to use the first-order
@@ -291,7 +300,7 @@ void matrix_to_state(
         state_se2_t*    state);
 
 /**
- * @brief  
+ * @brief  adds two SE(2) poses together using the group operation, i.e. matrix
  * 
  * @param A 
  * @param B 
@@ -302,6 +311,37 @@ void compose_SE2(
         state_se2_t     B,
         state_se2_t*    state_out);
 
+
+/**
+ * @brief  
+ * 
+ * @param B pose that is one or more timesteps ahead of A
+ * @param A pose to "subtract" from B
+ * @param state_out delta pose that transforms A to B, i.e. the state increment
+ *  from A to B, i.e.
+ * 
+ *  - delta_X = inv(A) @ B
+ */
+void difference_SE2(
+        state_se2_t     B,
+        state_se2_t     A,
+        state_se2_t*    state_out);
+
+/**
+ * @brief measures changes in position between two SE(2) poses, ignoring the heading component
+ * 
+ * @param A 
+ * @param B 
+ * @return float 
+ */
+inline float euclidean_distance_SE2(
+        state_se2_t A,
+        state_se2_t B);
+        
+
+/** ---------------------------------------------------------
+ *  HELPER FUNCTIONS - lie group operations
+ */
 
 /**
  * @brief matrix inverse for 3x3 matrices
@@ -409,6 +449,7 @@ void inEKF_SE2_get_state(
  */
 inline float _wrap_angle(
         float  theta);
+
 
 #ifdef __cplusplus
 }

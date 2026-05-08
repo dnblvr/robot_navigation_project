@@ -16,7 +16,7 @@
 // ----------------------------------------------------------------------------
 
 
-void wedge_se2(
+extern inline void wedge_se2(
         state_se2_t*    tau,
         float           tau_wedge[TOTAL])
 {
@@ -35,7 +35,7 @@ void wedge_se2(
 }
 
 
-inline void vee_se2(
+extern inline void vee_se2(
         float           tau_wedge[TOTAL],
         state_se2_t*    tau)
 {
@@ -98,8 +98,8 @@ void exp_se2(
         exp_tau[R_11]   =  c;
         
         //  - translation part: V @ v_vec
-        exp_tau[T_x_]    = V[0*2 + 0]*v_vec[0] + V[0*2 + 1]*v_vec[1];
-        exp_tau[T_y_]    = V[1*2 + 0]*v_vec[0] + V[1*2 + 1]*v_vec[1];
+        exp_tau[T_x_]   = V[V_00]*v_vec[0]  +  V[V_01]*v_vec[1];
+        exp_tau[T_y_]   = V[V_10]*v_vec[0]  +  V[V_11]*v_vec[1];
         
     }
 
@@ -153,8 +153,8 @@ void log_se2(
         
         // fill in the logarithm map / tangent space element:
         //  - translational part: V_inv @ t_vec
-        tau->x  = V_inv[0*2 + 0]*t_x + V_inv[0*2 + 1]*t_y;
-        tau->y  = V_inv[1*2 + 0]*t_x + V_inv[1*2 + 1]*t_y;
+        tau->x  = V_inv[V_00]*t_x  +  V_inv[V_01]*t_y;
+        tau->y  = V_inv[V_10]*t_x  +  V_inv[V_11]*t_y;
 
     }
 
@@ -248,7 +248,7 @@ void inEKF_SE2_init(
     
     
     // set process noise covariance matrix Q as diagonal with provided values
-    float *Q = &filter->process_noise[0];
+    float* Q    = &filter->process_noise[0];
 
     Q[M_00] = process_noise->x      * process_noise->x;
     Q[M_11] = process_noise->y      * process_noise->y;
@@ -267,7 +267,7 @@ void inEKF_SE2_init(
 
     
     // initialization of the covariance matrix P; can be set to a diagonal matrix
-    float *P = &filter->covariance[0];
+    float* P    = &filter->covariance[0];
 
     P[M_00] = 0.1f; // initial variance for x
     P[M_11] = 0.1f; // initial variance for y
@@ -491,7 +491,7 @@ uint8_t inEKF_SE2_update_mag(
 }
 
 /** ---------------------------------------------------------
- *  HELPER FUNCTIONS
+ *  HELPER FUNCTIONS - tangent space functions
  */
 
 void matrix_to_state(
@@ -500,7 +500,8 @@ void matrix_to_state(
 {
     state->x      = state_matrix[T_x_];
     state->y      = state_matrix[T_y_];
-    state->theta  = atan2f(state_matrix[R_10], state_matrix[R_00]);
+    state->theta  = atan2f(state_matrix[R_10],
+                           state_matrix[R_00]);
 }
 
 
@@ -517,14 +518,50 @@ void compose_SE2(
     state_out->theta = _wrap_angle(A.theta + B.theta);
 }
 
+
+void difference_SE2(
+        state_se2_t     B,
+        state_se2_t     A,
+        state_se2_t*    state_out)
+{
+    float c     = cosf(A.theta);
+    float s     = sinf(A.theta);
+    float dx    = B.x - A.x;
+    float dy    = B.y - A.y;
+
+    /**
+     * @note follow this formula, as this produces the opposing rotation
+     *  followed by the translation:
+     * 
+     * delta_x =   R^T_A @ (t_B - t_A)
+     * delta_x = { cos(theta_A) sin(theta_A)    {dx
+     *            -sin(theta_A) cos(theta_A) }   dy} 
+     */
+    state_out->x        =  c*dx + s*dy;
+    state_out->y        = -s*dx + c*dy;
+    state_out->theta    = _wrap_angle(B.theta - A.theta);
+}
+
+extern inline float euclidean_distance_SE2(
+        state_se2_t A,
+        state_se2_t B)
+{
+    float dx = B.x - A.x;
+    float dy = B.y - A.y;
+
+    return sqrtf(dx*dx + dy*dy);
+}
+
+/** ---------------------------------------------------------
+ *  HELPER FUNCTIONS - lie group operations
+ */
+
 void inverse_3x3(
         float   A[TOTAL],
         float   A_inv[TOTAL])
 {
 
 }
-
-
 
 void matmul_3x3(
         float   A[TOTAL],
@@ -615,7 +652,7 @@ void congruence_3x3(
 
 }
 
-inline void matadd_3x3(
+extern inline void matadd_3x3(
         float   A[TOTAL],
         float   B[TOTAL],
         float   AB[TOTAL])
@@ -646,7 +683,7 @@ inline void matadd_3x3(
 }
 
 
-inline void transpose_3x3(
+extern inline void transpose_3x3(
         float   matrix_in[TOTAL],
         float   matrix_out[TOTAL])
 {
@@ -692,7 +729,7 @@ void inEKF_SE2_get_state(
  * @param theta angle to be wrapped
  * @return wrapped angle in the range [-pi, pi]
  */
-inline float _wrap_angle(
+extern inline float _wrap_angle(
         float theta)
 {
     while (theta > M_PI_F) {

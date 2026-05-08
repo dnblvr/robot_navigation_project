@@ -642,10 +642,6 @@ extern volatile uint32_t comms_state;
  */
 extern void Handle_UART_Communications(volatile char UART_Buffer[]);
 
-
-
-
-
 /**
  * @brief Hardware serial port wired to the RPLiDAR C1.
  *        Teensy 4.x Serial1 = pins 0 (RX) / 1 (TX).
@@ -687,13 +683,11 @@ void setup()
     // Serial.println("Initializing communication with MSP432...");
     pinMode(LED_BUILTIN, OUTPUT);
     digitalWrite(LED_BUILTIN, HIGH);
-    
 
 
     LPUART8_SetPort(&MSP432_Serial);
     LPUART8_Init(460800);
     LPUART8_AttachISR(&Handle_UART_Communications);
-
 
 
     // Bind Serial1 to the RPLiDAR driver ---------------------------------
@@ -704,7 +698,7 @@ void setup()
     //  - Configure_RPLiDAR_Struct(&rplidar_cfg)
     //  - RPLiDAR_UART_Init()   --> Serial1.begin(460800)
     //  - STOP --> RESET --> GET_HEALTH --> SCAN
-    Serial.println("[1/4] Initializing RPLiDAR C1...");
+    // Serial.println("[1/4] Initializing RPLiDAR C1...");
     Initialize_RPLiDAR_C1(&rplidar_cfg);
 
     digitalToggle(LED_BUILTIN);
@@ -713,30 +707,27 @@ void setup()
     // Now that all TX commands are sent, flush TX and replace HardwareSerial's
     // LPUART6 vector with our bare-metal RX ISR.  Must happen AFTER init so
     // that HardwareSerial's TX-interrupt path is no longer needed.
-    Serial.println("[2/4] Attaching bare-metal LPUART6 RX ISR...");
+    // Serial.println("[2/4] Attaching bare-metal LPUART6 RX ISR...");
     RPLiDAR_UART_AttachISR();
     
     
     
     // confirm communication with MSP432 by waiting for an echo response to our
     // handshake message
-    
-    Serial.println("[3/4] Resetting MSP432 timer...");
-
+    // Serial.println("[3/4] Resetting MSP432 timer...");
     LPUART8_OutString("!E\r\n");
-
     Block_Wait_Until(ECHO_REQUEST_FLAG);
 
-    // while ( !(comms_state & ECHO_REQUEST_FLAG) ) {
-    //     WaitForInterrupt();
-    // }
+    // bluetooth module should receive a handshake with  
+    Block_Wait_Until(HALT_REQUEST_FLAG);
+    
     
     // confirmation of comms establishment visually
-    Serial.println("Communication established.");
+    // Serial.println("Communication established.");
     digitalWrite(LED_BUILTIN, LOW);
     
     
-    Serial.println("[4/4] Starting loop timer...");
+    // Serial.println("[4/4] Starting loop timer...");
     loop_timer.begin(Task_Selector, LOOP_INTERVAL_MS * MS_TO_US);
     
 }
@@ -751,8 +742,9 @@ void setup()
 void loop()
 {
 
-    // static state_se2_t previous_pose   = {0.0f, 0.0f, 0.0f};
-    static state_se2_t today_pose      = {0.0f, 0.0f, 0.0f};
+    static state_se2_t previous_pose    = {0.0f, 0.0f, 0.0f};
+    static state_se2_t today_pose       = {0.0f, 0.0f, 0.0f};
+    static state_se2_t delta_pose       = {0.0f, 0.0f, 0.0f};
 
     // Sleep until the next interrupt (LPUART6_RX_ISR or IntervalTimer). The Cortex-M7 wfi instruction resumes as soon as any unmasked interrupt fires.
     WaitForInterrupt();
@@ -762,22 +754,45 @@ void loop()
     /**
      * @note TASK 2: high-priority task that, when triggered, all RPLiDAR data collection and processing is paused indefinitely. then, the current pose and scan is 
      */
-    if (task_flag & TASK_2_FLAG) {
-        task_flag &= ~TASK_2_FLAG;
+    if (
+            (task_flag & TASK_2_FLAG)
+         && (comms_state & HALT_REQUEST_FLAG))
+    {
+        // task_flag      &= ~TASK_2_FLAG;
+        comms_state    &= ~HALT_REQUEST_FLAG;
         
+
         // stop timer to pause all other tasks
         loop_timer.end();
+        Serial.printf("in Task 2\n");
+
+        
+        Single_Request_No_Response(&STOP);
+        Single_Request_No_Response(&RESET);
+
 
         // establish communications with PC and wait until handshake is complete
         Serial.begin(115200); 
         while (!Serial);
+
+        Serial.printf("in Task 2\n");
+        digitalToggle(LED_BUILTIN);
+
+        int i;
+        for (i = 0; i < 2*3; i++) {
+            digitalToggle(LED_BUILTIN);
+            delay(20);
+        }
+
         
         // send current pose and scan for visualization in Processing
 
 
         // optionally, run SLAM on what is left of all frames
 
+
     }
+    
 #endif
 
 
@@ -788,17 +803,35 @@ void loop()
     if (task_flag & TASK_3_FLAG) {
         task_flag &= ~TASK_3_FLAG;
 
-        // This function runs to restart the module-level state machine to
-        // begin recording a new frame.
-        Start_RPLiDAR_C1_Record(NULL);
-
-    #ifdef DEBUG_OUTPUT
-        Serial.printf("Pose request received.\n");
-
-    #endif
 
         // Get current pose
-        today_pose = Get_Current_State();
+        today_pose      = Get_Current_State();
+
+        // start a new recording and use it to start SLAM if the pose has changed significantly.  This is a simple heuristic to trigger new frames based on motion, rather than just time.
+        if (euclidean_distance_SE2(previous_pose, today_pose) > 10.0f) {
+
+            Serial.printf("Significant pose change detected: Δx=%.1f mm, Δy=%.1f mm, Δθ=%.3f rad\n",
+                          today_pose.x - previous_pose.x,
+                          today_pose.y - previous_pose.y,
+                          today_pose.theta - previous_pose.theta);
+                          
+            // This function runs to restart the module-level state machine to
+            // begin recording a new frame.
+            Start_RPLiDAR_C1_Record(NULL);
+            
+            #ifdef DEBUG_OUTPUT
+            // Serial.printf("Pose request received.\n");
+            
+            #endif
+
+            // delta_pose is the incremental change since last frame, which will be used as the odometry measurement for SLAM.  
+            difference_SE2(previous_pose, today_pose, &delta_pose);
+            
+            // only update 
+            previous_pose   = today_pose;
+
+        }
+        
 
     }
 #endif
@@ -806,11 +839,11 @@ void loop()
     // ------------------------------------------------------------------------
     // TASK_4: process a complete scan frame (gated by the task scheduler)
     //
-    // task_flag is set by Task_Selector() (IntervalTimer ISR) only when
-    // timer_ignore_flag == 0.  The LiDAR FSM sets timer_ignore_flag = 1
-    // via _timer_ignore() at recording start and clears it via
-    // _timer_acknowledge() when End_Record() transitions the state to
-    // PROCESSING.  So TASK_4_FLAG arrives only after a full frame is ready.
+    //  task_flag is set by Task_Selector() (IntervalTimer ISR) only when
+    //  timer_ignore_flag == 0.  The LiDAR FSM sets timer_ignore_flag = 1
+    //  via _timer_ignore() at recording start and clears it via
+    //  _timer_acknowledge() when End_Record() transitions the state to
+    //  PROCESSING.  So TASK_4_FLAG arrives only after a full frame is ready.
     // ------------------------------------------------------------------------
 
 #ifdef TASK_4_FLAG
@@ -831,19 +864,17 @@ void loop()
         // for each valid point in the output buffer, print the transformed
         // coordinates to the Serial port for visualization in Processing.
         valid_point_count = transformed_cloud.num_pts;
-        for (k = 0; k < valid_point_count; k++) 
-        {
         
     #if (defined(PROCESSING4_OUTPUT) || defined(DEBUG_OUTPUT))
 
-        Serial.printf("POSE,%5.2f,%5.2f,%5.2f\n",
-                      today_pose.x,
-                      today_pose.y,
-                      today_pose.theta);
+        // Serial.printf("POSE,%5.2f,%5.2f,%5.2f\n",
+        //               today_pose.x,
+        //               today_pose.y,
+        //               today_pose.theta);
         
         // Serial.printf("SCAN_START\n");
 
-        // for (uint32_t i = 0; i < transformed_cloud.num_pts; i++) {
+        // for (uint32_t i = 0; i < valid_point_count; i++) {
             
         //     Serial.printf("P,%+5.2f,%+5.2f\n",
         //                     transformed_cloud.points[i].x,
@@ -854,13 +885,20 @@ void loop()
 
     #endif
 
-        }
 
-        Perform_SLAM(&local_cloud, &transformed_cloud);
+        // Perform_SLAM(&local_cloud, &transformed_cloud);
 
 
         // --- Re-arm for next frame --------------------------------------
         rplidar_cfg.current_state   = IDLING;
+        
+
+        // give visual feedback
+        digitalToggle(LED_BUILTIN);
+        delay(10);
+        digitalToggle(LED_BUILTIN);
+        delay(40);
+        digitalToggle(LED_BUILTIN);
 
 
     } // if (task_flag & TASK_4_FLAG)
@@ -873,7 +911,7 @@ void loop()
 
         static uint32_t counter = 0;
         
-        Serial.printf("cycle %5u\n\n", counter);
+        // Serial.printf("cycle %5u\n\n", counter);
         counter++;
     }
 #endif

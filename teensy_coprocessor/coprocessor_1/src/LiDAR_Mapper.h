@@ -23,7 +23,6 @@
 #include <ICP_2D.h>
 #include <graphslam.h>
 
-// #define __cplusplus 1
 
 // ----------------------------------------------------------------------------
 //
@@ -545,7 +544,7 @@ void Perform_SLAM(
             transform_point_cloud(&last_two_clouds[0], &icp_correction, &transformed_cloud0);
             
             // Find mean nearest-neighbor distance
-            for (i = 0; i < transformed_cloud0.num_pts; i++) {
+            for (i = 0; i < (int)transformed_cloud0.num_pts; i++) {
                 float min_dist = FLT_MAX;
                 for (j = 0; j < last_two_clouds[1].num_pts; j++) {
                     float dx = transformed_cloud0.points[i].x - last_two_clouds[1].points[j].x;
@@ -666,7 +665,7 @@ static C1_States rplidar_cfg;
 /**
  * @brief Output point cloud populated by Process_RPLiDAR_Data().
  */
-static PointCloud local_cloud;
+// static PointCloud local_cloud;
 
 
 
@@ -678,6 +677,11 @@ static PointCloud local_cloud;
 
 void setup()
 {
+
+    // establish communications with PC and wait until handshake is complete
+    Serial.begin(115200); 
+    // while (!Serial);
+    
     
     // set up LED for debugging
     // Serial.println("Initializing communication with MSP432...");
@@ -719,7 +723,7 @@ void setup()
     Block_Wait_Until(ECHO_REQUEST_FLAG);
 
     // bluetooth module should receive a handshake with  
-    Block_Wait_Until(HALT_REQUEST_FLAG);
+    // Block_Wait_Until(HALT_REQUEST_FLAG);
     
     
     // confirmation of comms establishment visually
@@ -748,6 +752,8 @@ void loop()
 
     // Sleep until the next interrupt (LPUART6_RX_ISR or IntervalTimer). The Cortex-M7 wfi instruction resumes as soon as any unmasked interrupt fires.
     WaitForInterrupt();
+
+    // Serial.printf(comms_state & HALT_REQUEST_FLAG ? "y": "");
     
     
 #ifdef TASK_2_FLAG
@@ -755,25 +761,19 @@ void loop()
      * @note TASK 2: high-priority task that, when triggered, all RPLiDAR data collection and processing is paused indefinitely. then, the current pose and scan is 
      */
     if (
-            (task_flag & TASK_2_FLAG)
+            (task_flag   & TASK_2_FLAG)
          && (comms_state & HALT_REQUEST_FLAG))
     {
-        // task_flag      &= ~TASK_2_FLAG;
+        task_flag      &= ~TASK_2_FLAG;
         comms_state    &= ~HALT_REQUEST_FLAG;
-        
 
+        
         // stop timer to pause all other tasks
         loop_timer.end();
-        Serial.printf("in Task 2\n");
 
+        // here, do not stop the LiDAR sensor as it provides the necessary
+        // interrupts to get inside here.
         
-        Single_Request_No_Response(&STOP);
-        Single_Request_No_Response(&RESET);
-
-
-        // establish communications with PC and wait until handshake is complete
-        Serial.begin(115200); 
-        while (!Serial);
 
         Serial.printf("in Task 2\n");
         digitalToggle(LED_BUILTIN);
@@ -790,7 +790,6 @@ void loop()
 
         // optionally, run SLAM on what is left of all frames
 
-
     }
     
 #endif
@@ -803,14 +802,18 @@ void loop()
     if (task_flag & TASK_3_FLAG) {
         task_flag &= ~TASK_3_FLAG;
 
+        digitalToggle(LED_BUILTIN);
+        delay(20);
+        digitalToggle(LED_BUILTIN);
 
         // Get current pose
         today_pose      = Get_Current_State();
 
         // start a new recording and use it to start SLAM if the pose has changed significantly.  This is a simple heuristic to trigger new frames based on motion, rather than just time.
-        if (euclidean_distance_SE2(previous_pose, today_pose) > 10.0f) {
+        if (euclidean_distance_SE2(previous_pose, today_pose) > 80.0f) {
 
-            Serial.printf("Significant pose change detected: Δx=%.1f mm, Δy=%.1f mm, Δθ=%.3f rad\n",
+            Serial.printf("Significant pose change detected: dx=%.1f mm,"
+                          " dy=%.1f mm, dθ=%.3f rad\n",
                           today_pose.x - previous_pose.x,
                           today_pose.y - previous_pose.y,
                           today_pose.theta - previous_pose.theta);
@@ -829,6 +832,16 @@ void loop()
             
             // only update 
             previous_pose   = today_pose;
+        
+
+            // give visual feedback
+            digitalToggle(LED_BUILTIN);
+            delay(10);
+            digitalToggle(LED_BUILTIN);
+            delay(40);
+            digitalToggle(LED_BUILTIN);
+            delay(10);
+            digitalToggle(LED_BUILTIN);
 
         }
         
@@ -854,34 +867,34 @@ void loop()
         task_flag &= ~TASK_4_FLAG;
 
         // store local variables for SLAM function
-        int k;
+        // int k;
         uint32_t valid_point_count;
         PointCloud transformed_cloud;
 
         // this transforms the raw scan data, given the current pose estimate, into a transformed point cloud in global coordinates
-        Process_RPLiDAR_Data(&today_pose, &transformed_cloud);
+        Process_RPLiDAR_Data(today_pose, &transformed_cloud);
+        
+    #if (defined(PROCESSING4_OUTPUT) || defined(DEBUG_OUTPUT))
         
         // for each valid point in the output buffer, print the transformed
         // coordinates to the Serial port for visualization in Processing.
         valid_point_count = transformed_cloud.num_pts;
-        
-    #if (defined(PROCESSING4_OUTPUT) || defined(DEBUG_OUTPUT))
 
-        // Serial.printf("POSE,%5.2f,%5.2f,%5.2f\n",
-        //               today_pose.x,
-        //               today_pose.y,
-        //               today_pose.theta);
+        Serial.printf("POSE,%5.2f,%5.2f,%5.2f\n",
+                      today_pose.x,
+                      today_pose.y,
+                      today_pose.theta);
         
-        // Serial.printf("SCAN_START\n");
+        Serial.printf("SCAN_START\n");
 
-        // for (uint32_t i = 0; i < valid_point_count; i++) {
+        for (uint32_t i = 0; i < valid_point_count; i++) {
             
-        //     Serial.printf("P,%+5.2f,%+5.2f\n",
-        //                     transformed_cloud.points[i].x,
-        //                     transformed_cloud.points[i].y);
-        // }
+            Serial.printf("P,%+5.2f,%+5.2f\n",
+                            transformed_cloud.points[i].x,
+                            transformed_cloud.points[i].y);
+        }
         
-        // Serial.printf("SCAN_END\n");
+        Serial.printf("SCAN_END\n");
 
     #endif
 
@@ -891,14 +904,6 @@ void loop()
 
         // --- Re-arm for next frame --------------------------------------
         rplidar_cfg.current_state   = IDLING;
-        
-
-        // give visual feedback
-        digitalToggle(LED_BUILTIN);
-        delay(10);
-        digitalToggle(LED_BUILTIN);
-        delay(40);
-        digitalToggle(LED_BUILTIN);
 
 
     } // if (task_flag & TASK_4_FLAG)

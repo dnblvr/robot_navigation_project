@@ -1,7 +1,7 @@
 /**
  * @file inEKF_se2.h
  * @author your name (you@domain.com)
- * @brief 
+ * @brief port specialized for the Teensy 4.0
  * @version 0.1
  * @date 2026-03-01
  * 
@@ -107,8 +107,14 @@ typedef struct {
     // invariant filter parameters -------------------------------------------
     float dt;
 
+    // pre-computed inverse of dt for efficiency
+    float inv_dt;
+
     // length of the differential-drive robot's wheelbase
-    float L; 
+    float L;
+
+    // pre-computed inverse of the wheelbase for efficiency
+    float inv_L; 
 
     // complementary filter parameter for fusing gyro and encoder measurements
     float alpha;
@@ -240,19 +246,22 @@ void adjoint_se2(
  *  - covariance matrix P as diagonal with somewhat large values, e.g. 0.1 for
  *      position
  * 
- * @param filter InEKF_SE2_t struct to initialize
- * @param dt Time step for the filter
- * @param process_noise Process noise covariance
- * @param mag_noise Magnetometer noise covariance
- * @param chi2_threshold Chi-squared threshold for outlier rejection
+ * @param filter            InEKF_SE2_t struct to initialize
+ * @param dt                Time step for the filter
+ * @param L                 Time step for the filter
+ * @param process_noise     Process noise covariance
+ * @param mag_noise         Magnetometer noise covariance
+ * @param chi2_threshold    Chi-squared threshold for outlier rejection
  */
 void inEKF_SE2_init(
         InEKF_SE2_t*    filter,
 
         float           dt,
+        float           L,
         state_se2_t*    process_noise,
         float           mag_noise,
         float           chi2_threshold);
+
 
 /**
  * @brief InEKF prediction step along the SE(2) manifold for a differential-
@@ -300,7 +309,7 @@ void matrix_to_state(
         state_se2_t*    state);
 
 /**
- * @brief  adds two SE(2) poses together using the group operation, i.e. matrix
+ * @brief  
  * 
  * @param A 
  * @param B 
@@ -334,7 +343,7 @@ void difference_SE2(
  * @param B 
  * @return float 
  */
-inline float euclidean_distance_SE2(
+float euclidean_distance_SE2(
         state_se2_t A,
         state_se2_t B);
         
@@ -384,7 +393,10 @@ inline void matadd_3x3(
 
 
 /**
- * @brief 
+ * @brief matrix multiplication for the specific 3x1 by 1x3 case
+ * 
+ * @note used for calculating K*R*K^T in the covariance update step of the
+ *  magnetometer measurement update
  */
 void matmul_3_1x1_3(
         float   A[DIMS],
@@ -449,7 +461,6 @@ void inEKF_SE2_get_state(
  */
 inline float _wrap_angle(
         float  theta);
-
 
 #ifdef __cplusplus
 }

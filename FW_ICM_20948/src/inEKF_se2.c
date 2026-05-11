@@ -1,7 +1,7 @@
 /**
  * @file inEKF_se2.c
  * @author your name (you@domain.com)
- * @brief 
+ * @brief port specialized for the MSP432
  * @version 0.1
  * @date 2026-03-01
  * 
@@ -36,7 +36,7 @@ void wedge_se2(
 }
 
 
-inline void vee_se2(
+void vee_se2(
         float           tau_wedge[TOTAL],
         state_se2_t*    tau)
 {
@@ -46,15 +46,6 @@ inline void vee_se2(
 }
 
 
-/**
- * @brief exponential map for SE(2) Lie algebra
- * 
- * @details maps a vector in the tangent space, i.e. the Lie algebra se(2), to
- *  a matrix in the Lie group SE(2)
- * 
- * @param tau state_se2_t vector in the tangent space, aka the Lie algebra se(2)
- * @param exp_tau 3x3 matrix in the Lie group SE(2)
- */
 void exp_se2(
         state_se2_t*    tau,
         float           exp_tau[TOTAL])
@@ -113,15 +104,6 @@ void exp_se2(
 }
 
 
-/**
- * @brief logarithm map for SE(2) Lie algebra
- * 
- * @details maps a matrix in the Lie group SE(2) to a vector in the tangent
- *  space, i.e. the Lie algebra se(2)
- * 
- * @param exp_tau 3x3 matrix in the Lie group SE(2)
- * @param tau state_se2_t vector in the tangent space, aka the Lie algebra se(2)
- */
 void log_se2(
         float           exp_tau[TOTAL],
         state_se2_t*    tau)
@@ -155,8 +137,8 @@ void log_se2(
         
         // fill in the logarithm map / tangent space element:
         //  - translational part: V_inv @ t_vec
-        tau->x  = V_inv[0*2 + 0]*t_x + V_inv[0*2 + 1]*t_y;
-        tau->y  = V_inv[1*2 + 0]*t_x + V_inv[1*2 + 1]*t_y;
+        tau->x  = V_inv[V_00]*t_x  +  V_inv[V_01]*t_y;
+        tau->y  = V_inv[V_10]*t_x  +  V_inv[V_11]*t_y;
 
     }
 
@@ -166,20 +148,11 @@ void log_se2(
 }
 
 
-/**
- * @brief adjoint map for SE(2) Lie algebra
- * 
- * @details maps a matrix in the Lie group SE(2) to its adjoint representation
- *  in the Lie algebra se(2)
- * 
- * @param exp_tau 3x3 matrix in the Lie group SE(2)
- * @param adj_exp_tau 3x3 matrix representing the adjoint in the se(2) Lie
- *  algebra 
- */
 void adjoint_se2(
-        float           exp_tau[TOTAL],
-        float           adj_exp_tau[TOTAL])
+        float   exp_tau[TOTAL],
+        float   adj_exp_tau[TOTAL])
 {
+    
     // rotation matrix part of the adjoint map is the same as the rotation
     // matrix part of the exponential map
     adj_exp_tau[R_00]  =  exp_tau[R_00];
@@ -189,8 +162,8 @@ void adjoint_se2(
 
     // translation part of the adjoint map is given by the skew-symmetric matrix
     // formed by the translation part of the exponential map
-    adj_exp_tau[T_x_]   = -exp_tau[T_y_];
-    adj_exp_tau[T_y_]   =  exp_tau[T_x_];
+    adj_exp_tau[T_x_]  = -exp_tau[T_y_];
+    adj_exp_tau[T_y_]  =  exp_tau[T_x_];
 
     // pre-fill the adjoint map matrix with the common elements
     adj_exp_tau[Z_20]  =  0.f;
@@ -206,24 +179,7 @@ void adjoint_se2(
 //
 // ----------------------------------------------------------------------------
 
-/**
- * @brief initializing function
- * 
- * @details variables that are internally declared:
- * 
- *  - alpha = complementary filter fusion of gyro and encoder measurements
- *  - L     = length of the differential-drive robot's wheelbase
- * 
- *  - start starter state as identity, or (x, y, \theta) = (0, 0, 0)
- *  - covariance matrix P as diagonal with somewhat large values, e.g. 0.1 for
- *      position
- * 
- * @param filter InEKF_SE2_t struct to initialize
- * @param dt Time step for the filter
- * @param process_noise Process noise covariance
- * @param mag_noise Magnetometer noise covariance
- * @param chi2_threshold Chi-squared threshold for outlier rejection
- */
+
 void inEKF_SE2_init(
         InEKF_SE2_t* filter,
 
@@ -249,8 +205,8 @@ void inEKF_SE2_init(
     
 
     // minimum & maximum magnetometer norm for outlier
-    filter->mag_norm_min = 2000.0f; 
-    filter->mag_norm_max = 6500.0f; 
+    filter->mag_norm_min = 40.f;
+    filter->mag_norm_max = 60.f;
 
 
     filter->chi2_threshold = chi2_threshold;
@@ -298,6 +254,7 @@ void inEKF_SE2_init(
     filter->state.theta  = 0.0f;
 
 }
+
 
 void inEKF_SE2_predict(
         InEKF_SE2_t* filter,
@@ -376,20 +333,7 @@ void inEKF_SE2_predict(
 
 }
 
-/**
- * @brief InEKF update step using magnetometer measurements
- * 
- * @param[inout] filter InEKF_SE2_t struct containing the current state estimate, 
- *  covariance, and other filter parameters
- * @param[in] theta_mag Magnetometer heading measurement
- * @param[in] mag_norm Magnetometer measurement norm
- * 
- * @return uint8_t boolean flag indicating whether the magnetometer measurement
- *  was rejected as an outlier (1) or accepted (0)
- * 
- * @retval 0 if update successful, 1 if magnetometer measurement rejected as an
- *  outlier
- */
+
 uint8_t inEKF_SE2_update_mag(
         InEKF_SE2_t* filter,
         
@@ -445,7 +389,7 @@ uint8_t inEKF_SE2_update_mag(
     
         // reject magnetometer update if an outlier
         if (mahalanobis_distance > filter->chi2_threshold) {
-            return 1;
+            return 2;
         }
     
         // Kalman gain K = P*H^T*S^-1
@@ -531,6 +475,7 @@ uint8_t inEKF_SE2_update_mag(
     return 0;
 }
 
+
 /** ---------------------------------------------------------
  *  HELPER FUNCTIONS
  */
@@ -541,7 +486,8 @@ void matrix_to_state(
 {
     state->x      = state_matrix[T_x_];
     state->y      = state_matrix[T_y_];
-    state->theta  = atan2f(state_matrix[R_10], state_matrix[R_00]);
+    state->theta  = atan2f(state_matrix[R_10],
+                           state_matrix[R_00]);
 }
 
 
@@ -558,13 +504,52 @@ void compose_SE2(
     state_out->theta = _wrap_angle(A.theta + B.theta);
 }
 
+
+void difference_SE2(
+        state_se2_t     B,
+        state_se2_t     A,
+        state_se2_t*    state_out)
+{
+    float c     = cosf(A.theta);
+    float s     = sinf(A.theta);
+    float dx    = B.x - A.x;
+    float dy    = B.y - A.y;
+
+    /**
+     * @note follow this formula, as this produces the opposing rotation
+     *  followed by the translation:
+     * 
+     * delta_x =   R^T_A @ (t_B - t_A)
+     * delta_x = { cos(theta_A) sin(theta_A)    {dx
+     *            -sin(theta_A) cos(theta_A) }   dy} 
+     */
+    state_out->x        =  c*dx + s*dy;
+    state_out->y        = -s*dx + c*dy;
+    state_out->theta    = _wrap_angle(B.theta - A.theta);
+}
+
+
+float euclidean_distance_SE2(
+        state_se2_t A,
+        state_se2_t B)
+{
+    float dx = B.x - A.x;
+    float dy = B.y - A.y;
+
+    return sqrtf(dx*dx + dy*dy);
+}
+
+
+/** ---------------------------------------------------------
+ *  HELPER FUNCTIONS - lie group operations
+ */
+
 void inverse_3x3(
         float   A[TOTAL],
         float   A_inv[TOTAL])
 {
 
 }
-
 
 
 void matmul_3x3(
@@ -656,7 +641,8 @@ void congruence_3x3(
 
 }
 
-inline void matadd_3x3(
+
+void matadd_3x3(
         float   A[TOTAL],
         float   B[TOTAL],
         float   AB[TOTAL])
@@ -687,7 +673,7 @@ inline void matadd_3x3(
 }
 
 
-inline void transpose_3x3(
+void transpose_3x3(
         float   matrix_in[TOTAL],
         float   matrix_out[TOTAL])
 {
@@ -727,13 +713,7 @@ void inEKF_SE2_get_state(
 //         float trace);
 
 
-/**
- * @brief wraps an angle to the range [-pi, pi]
- * 
- * @param theta angle to be wrapped
- * @return wrapped angle in the range [-pi, pi]
- */
-inline float _wrap_angle(
+float _wrap_angle(
         float theta)
 {
     while (theta > M_PI_F) {
@@ -745,4 +725,3 @@ inline float _wrap_angle(
     
     return theta;
 }
-

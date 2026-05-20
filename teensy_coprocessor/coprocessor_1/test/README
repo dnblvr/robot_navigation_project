@@ -1,11 +1,141 @@
 
+<!-- omit in toc -->
+# Unit Testing
+
+<!-- markdownlint-disable MD033 -->
+
 This directory is intended for PlatformIO Test Runner and project tests.
 
-Unit Testing is a software testing method by which individual units of
-source code, sets of one or more MCU program modules together with associated
-control data, usage procedures, and operating procedures, are tested to
-determine whether they are fit for use. Unit testing finds problems early
-in the development cycle.
+Unit Testing is a software testing method by which individual units of source code, sets of one or more MCU program modules together with associated control data, usage procedures, and operating procedures, are tested to determine whether they are fit for use. Unit testing finds problems early in the development cycle.
 
 More information about PlatformIO Unit Testing:
-- https://docs.platformio.org/en/latest/advanced/unit-testing/index.html
+
+- <https://docs.platformio.org/en/latest/advanced/unit-testing/index.html>
+
+## 1. Notes on Testing
+
+Do some no-smoke tests first, to verify that the test framework is working.
+
+Included is a template file for your test harness file `test_main.c`, including the `unity_config.h` header and `unity_config.c` source file, which is the main entry point for the tests. Run this first before writing any tests, to verify that the test framework is working.
+
+<details>
+  <summary> `unity_config.h` template: </summary>
+
+```C
+/**
+ * @file unity_config.h
+ * @author your name (you@domain.com)
+ * @brief 
+ * @version 0.1
+ * @date 2026-05-15
+ *  
+ */
+#ifndef UNITY_CONFIG_H
+#define UNITY_CONFIG_H
+
+#ifndef NULL
+  #ifndef __cplusplus
+    #define NULL (void*)0
+  #else
+    #define NULL 0
+  #endif
+#endif
+
+#ifdef __cplusplus
+extern "C"
+{
+#endif
+
+
+// ----------------------------------------------------------------------------
+//
+//  Test framework configuration
+//
+// ----------------------------------------------------------------------------
+
+void unityOutputStart();
+void unityOutputChar(char);
+void unityOutputFlush();
+void unityOutputComplete();
+
+
+// ----------------------------------------------------------------------------
+//
+//  Test framework configuration
+//
+// ----------------------------------------------------------------------------
+
+#define UNITY_OUTPUT_START()    unityOutputStart()
+#define UNITY_OUTPUT_CHAR(c)    unityOutputChar(c)
+#define UNITY_OUTPUT_FLUSH()    unityOutputFlush()
+#define UNITY_OUTPUT_COMPLETE() unityOutputComplete()
+
+
+#ifdef __cplusplus
+}
+#endif /* extern "C" */
+
+#endif /* UNITY_CONFIG_H */
+
+```
+
+</details>
+
+<details>
+  <summary> `test_main.c` template:</summary>
+
+```C
+/**
+ * @file test_main.c
+ * @author your name (you@domain.com)
+ * @brief test harness
+ * @version 0.1
+ * @date 2026-05-16
+ * 
+ */
+#include <unity.h>
+#include <unity_config.h>
+#include <stdio.h>
+
+
+void test_1() {}
+
+void test_2() {}
+
+void test_3() {}
+
+void setUp() {
+    // This is run before EACH TEST
+}
+
+void tearDown() {
+    // This is run after EACH TEST
+}
+
+int main(void) {
+    UNITY_BEGIN();
+
+    // RUN_TEST(test_1);
+    // RUN_TEST(test_2);
+    // RUN_TEST(test_3);
+
+    return UNITY_END();
+}
+```
+
+</details>
+
+<br>
+
+you should see output like this when you run the cmd `pio test -e native_sim`:
+
+```bash
+$ pio test -e native_sim
+Processing * in native_sim environment
+-----------------------------------------------
+Building...
+Testing...
+--- native_sim:* [PASSED] Took 2.83 seconds ---
+
+== 0 test cases: 0 succeeded in 00:00:02.832 ==
+```

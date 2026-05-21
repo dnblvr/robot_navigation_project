@@ -3,8 +3,8 @@
  * @brief  
  */
 
-#ifndef __INC_ICP_2D_H__
-#define __INC_ICP_2D_H__
+#ifndef __ICP_2D_H__
+#define __ICP_2D_H__
 
 
 #include "data_structures.h"
@@ -19,9 +19,24 @@
 extern "C" {
 #endif
 
+// ----------------------------------------------------------------------------
+// 
+//  CONSTANTS
+// 
+// ----------------------------------------------------------------------------
+
+
 // #define PRINTF (Serial.printf)
 // #include <Arduino.h>
 #define PRINTF (printf)
+
+
+// ----------------------------------------------------------------------------
+// 
+//  ICP HELPER FUNCTIONS
+// 
+// ----------------------------------------------------------------------------
+
 
 /**
  * @brief Find the index of the closest point in target for a given source
@@ -95,4 +110,4 @@ void ICP_2D_i(
 #endif
 
 
-#endif // __INC_ICP_2D_H__
+#endif // __ICP_2D_H__

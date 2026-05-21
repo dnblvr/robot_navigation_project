@@ -16,12 +16,9 @@
 #endif
 
 
-#ifndef M_PI
-  #define M_PI 3.14159265359f
-#endif
-
-
-// Maximum number of points ICP should handle
+/**
+ * @brief // Maximum number of points ICP should handle
+ */
 #define ICP_MAX_POINTS  OUTPUT_BUFFER
 
 /**
@@ -30,7 +27,10 @@
 #define CORRESPONDENCE_MAX_INDEX ((1ULL << (8*sizeof(index_t))) - 1)
 
 
-// Maximum correspondence quality expressed in distance (mm) - pairs further than this are rejected
+/**
+ * @brief Maximum correspondence quality expressed in distance (mm) - pairs
+ *  further than this are rejected
+ */
 #define ICP_MAX_CORR_DIST       200.0f
 #define ICP_MAX_CORR_DIST_SQ    (ICP_MAX_CORR_DIST * ICP_MAX_CORR_DIST)
 
@@ -47,30 +47,34 @@
 // ----------------------------------------------------------------------------
 
 /**
- * @brief this is the type used for storing correspondences in the ICP
+ * @brief this type is used for storing correspondences in the ICP
  *  algorithm. Must be able to hold an index for any point in the target cloud,
  *  which has at most `ICP_MAX_POINTS` points.
  */
 typedef uint8_t index_t;
 
-/**
- * @brief Statically-allocated buffers declared in the source file for ICP
- *  processing
- */
-
-// stores transformed source points for processing
-static Point2D  icp_src_trans[ICP_MAX_POINTS];
-
-// stores the index of the closest point in target for each source point
-static index_t  icp_correspondences[ICP_MAX_POINTS];
-
-// stores the squared distance for each correspondence
-static float    icp_corr_dist_sq[ICP_MAX_POINTS];
 
 // static assertion to check that the type used for correspondences can hold all possible indices for the target cloud
 static_assert(
         CORRESPONDENCE_MAX_INDEX > (ICP_MAX_POINTS - 1),
         "current type used for each icp_correspondences entry with value must be able to hold an index for ICP_MAX_POINTS");
+
+/**
+ * @brief Statically-allocated buffer for storing transformed source points
+ *  for processing
+ */
+static Point2D  icp_src_trans[ICP_MAX_POINTS];
+
+/**
+ * @brief buffer which stores each index of its closest point in target for
+ *  each source point; index of source is linked to an index of the target cloud
+ */ 
+static index_t  icp_correspondences[ICP_MAX_POINTS];
+
+/**
+ * @brief buffer which stores the squared distance for each correspondence
+ */
+static float    icp_corr_dist_sq[ICP_MAX_POINTS];
 
 
 // Cache variables for ICP to speed up repeated calls with the same input sizes

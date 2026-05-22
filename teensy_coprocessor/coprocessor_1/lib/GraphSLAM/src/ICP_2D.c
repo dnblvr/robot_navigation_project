@@ -10,36 +10,6 @@
 // 
 // ----------------------------------------------------------------------------
 
-// check condition
-#ifdef DEBUG_OUTPUT
-  #define PRINT_CHECK (iter >= 0)
-#endif
-
-
-/**
- * @brief // Maximum number of points ICP should handle
- */
-#define ICP_MAX_POINTS  OUTPUT_BUFFER
-
-/**
- * @brief max unsigned integer value of an index in the `icp_correspondences` buffer, which is statically allocated with type `index_t`. This is used to check that the type can hold all possible indices for the target cloud.
- */
-#define CORRESPONDENCE_MAX_INDEX ((1ULL << (8*sizeof(index_t))) - 1)
-
-
-/**
- * @brief Maximum correspondence quality expressed in distance (mm) - pairs
- *  further than this are rejected
- */
-#define ICP_MAX_CORR_DIST       200.0f
-#define ICP_MAX_CORR_DIST_SQ    (ICP_MAX_CORR_DIST * ICP_MAX_CORR_DIST)
-
-
-
-// max range for points to be included in ICP processing
-#define MAX_ICP_RANGE 2500.f 
-
-
 // ----------------------------------------------------------------------------
 // 
 //  DATA STRUCTURES
@@ -88,18 +58,40 @@ static uint16_t icp_cache_source_size = 0;
 // 
 // ----------------------------------------------------------------------------1
 
+/**
+ * @brief 
+ */
+ICP_CorrespondenceCache* ICP_get_cache() {
+    static ICP_CorrespondenceCache cache;
+
+    memcpy(cache.icp_src_trans,
+           icp_src_trans,
+           sizeof(icp_src_trans));
+    
+    memcpy(cache.icp_correspondences,
+           icp_correspondences,
+           sizeof(icp_correspondences));
+    
+    memcpy(cache.icp_corr_dist_sq,
+           icp_corr_dist_sq,
+           sizeof(icp_corr_dist_sq));
+
+    return &cache;
+}
+
+
 int Find_Closest_Point(
-        const Point2D 	src,
-        const Point2D*	target,
+        const Point2D   src,
+        const Point2D*  target,
         const uint16_t  target_size,
               float*    out_dist_sq)
 {
     // counter
-    uint16_t     i;
+    uint16_t    i;
 
     // properties of closest point
-    float   min_dist    = FLT_MAX;
-    uint16_t     min_idx     = 0;
+    float    min_dist   = FLT_MAX;
+    uint16_t min_idx    = 0;
 
     // iterates through target points to find the closest one
     // via brute-force search
@@ -422,6 +414,7 @@ void ICP_2D_i(
 
     // counter variables
     uint16_t iter, i;
+    int         j;
 
     // limit variables
     uint16_t valid_range;
@@ -457,7 +450,7 @@ void ICP_2D_i(
     }
 
     // Copy source to static buffer while filtering out points beyond max range
-    // we will sort this array in-place such that near points are filled in downwards while far points are filled in from the end, upward.
+    // we will sort this array such that near points are filled in downwards while far points are filled in from the end, upward.
     icp_cache_valid_range = 0;
     Point2D* near   = icp_src_trans;
     Point2D* far    = icp_src_trans + ICP_MAX_POINTS - 1;
@@ -490,12 +483,11 @@ void ICP_2D_i(
      * The goal is for the source points to converge to the target points
      *  iteratively.
      */
-    prev_error = FLT_MAX;
+    prev_error  = FLT_MAX;
     for (iter = 0; iter < max_iteration; iter++)
     {
 
         Point2D centroid_src, centroid_tgt;
-        float S_xx, S_xy, S_yx, S_yy;
         float theta, c, s;
         float R_iter[2][2];
         float t_iter[2];
@@ -542,7 +534,7 @@ void ICP_2D_i(
         // float w_sum = 0.0f;
         for (i = 0; i < icp_cache_valid_range; i++) {
 
-            // alternatively, add this as a Huber loss type penalty instead of hard cutoff
+            // // alternatively, add this as a Huber loss type penalty instead of hard cutoff
             // float w = (icp_corr_dist_sq[i] < ICP_MAX_CORR_DIST_SQ)
             //             ? 1.0f
             //             : ICP_MAX_CORR_DIST_SQ / icp_corr_dist_sq[i];
@@ -583,9 +575,11 @@ void ICP_2D_i(
 
 
         // 3. Compute cross-covariance matrix using only valid correspondences
-        S_xx = 0;   S_xy = 0;
-        S_yx = 0;   S_yy = 0;
-        
+        // this derivces the optimal rotation matrix that minimizes the mean squared error between the source and target points
+
+        float   S_xx = 0,   S_xy = 0,
+                S_yx = 0,   S_yy = 0;
+    
         for (i = 0; i < icp_cache_valid_range; i++) {
 
             // // alternatively, add this as a Huber loss type penalty instead of hard cutoff
@@ -593,10 +587,13 @@ void ICP_2D_i(
             //             ? 1.0f
             //             : ICP_MAX_CORR_DIST_SQ / icp_corr_dist_sq[i];
             
+            
             // float x_s   = icp_src_trans[i].x - centroid_src.x;
             // float y_s   = icp_src_trans[i].y - centroid_src.y;
-            // float x_t   = target[icp_correspondences[i]].x - centroid_tgt.x;
-            // float y_t   = target[icp_correspondences[i]].y - centroid_tgt.y;
+            // float x_t   =   target[icp_correspondences[i]].x
+            //               - centroid_tgt.x;
+            // float y_t   =   target[icp_correspondences[i]].y
+            //               - centroid_tgt.y;
             
             // /**
             //  * {{S_xx, S_xy},
@@ -616,8 +613,10 @@ void ICP_2D_i(
             
             float x_s   = icp_src_trans[i].x - centroid_src.x;
             float y_s   = icp_src_trans[i].y - centroid_src.y;
-            float x_t   = target[icp_correspondences[i]].x - centroid_tgt.x;
-            float y_t   = target[icp_correspondences[i]].y - centroid_tgt.y;
+            float x_t   =   target[icp_correspondences[i]].x
+                          - centroid_tgt.x;
+            float y_t   =   target[icp_correspondences[i]].y
+                          - centroid_tgt.y;
 
             S_xx   += x_s * x_t;
             S_xy   += x_s * y_t;
@@ -629,21 +628,18 @@ void ICP_2D_i(
         // 4. Compute rotation (using SVD for 2x2)
         theta       = atan2f(S_xy - S_yx, S_xx + S_yy);
         
-        #ifdef DEBUG_OUTPUT
+    #ifdef DEBUG_OUTPUT
         // if (PRINT_CHECK) {
         //     PRINTF("ICP iter %u: S_xx=%.2f S_xy=%.2f S_yx=%.2f S_yy=%.2f -> theta=%.3f rad (%.1f deg)\n",
         //         iter,
         //            S_xx, S_xy, S_yx, S_yy, theta, theta * 57.2958f);
         // }
-        #endif
+    #endif
         
-        c   = cosf(theta);
-        s   = sinf(theta);
+        c   = cosf(theta);  s   = sinf(theta);
 
-        R_iter[0][0]    =  c;
-        R_iter[0][1]    = -s;
-        R_iter[1][0]    =  s;
-        R_iter[1][1]    =  c;
+        R_iter[0][0]    =  c;   R_iter[0][1]    = -s;
+        R_iter[1][0]    =  s;   R_iter[1][1]    =  c;
 
 
         // 5. Compute translation
@@ -666,13 +662,14 @@ void ICP_2D_i(
         t_new[0]    = R_iter[0][0]*t[0] + R_iter[0][1]*t[1] + t_iter[0];
         t_new[1]    = R_iter[1][0]*t[0] + R_iter[1][1]*t[1] + t_iter[1];
 
+        // update 
         R[0][0] = R_new[0][0]; R[0][1] = R_new[0][1];
         R[1][0] = R_new[1][0]; R[1][1] = R_new[1][1];
         t[0]    = t_new[0];
         t[1]    = t_new[1];
 
 
-        // 6. Transform source points using accumulated transformation
+        // 6. Transform source points using accumulated transformation R, t
         for (i = 0; i < icp_cache_valid_range; i++) {
 
             float x = icp_src_trans[i].x;
@@ -689,9 +686,9 @@ void ICP_2D_i(
         for (i = 0; i < icp_cache_valid_range; i++) {
 
             // Skip pairs that are too far apart
-            if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ) {
+            if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ) 
                 continue;
-            }
+            
 
             float dx = icp_src_trans[i].x - target[icp_correspondences[i]].x;
             float dy = icp_src_trans[i].y - target[icp_correspondences[i]].y;
@@ -720,9 +717,24 @@ void ICP_2D_i(
 
     }
 
-    // 9. post-processing for the far-range post-filtered points
+    // 9. now that R and t are finalized, perform post-processing for the far-range post-filtered points
 
+    for (j = (int)ICP_MAX_POINTS - 1; j >= (int)icp_cache_valid_range; j--) {
+        
+        // first, perform an action on the far points with the final transformation
+        float x = icp_src_trans[j].x;
+        float y = icp_src_trans[j].y;
 
+        icp_src_trans[j].x = R[0][0]*x + R[0][1]*y + t[0];
+        icp_src_trans[j].y = R[1][0]*x + R[1][1]*y + t[1];
+
+        icp_correspondences[j] = Find_Closest_Point(
+                icp_src_trans[j],
+                target,
+                target_size,
+                &icp_corr_dist_sq[j]);
+                
+    }
 
 
     // 10. return final transformation R,t
@@ -731,6 +743,7 @@ void ICP_2D_i(
 
     out_t[0] = t[0];
     out_t[1] = t[1];
+    
 
 #ifdef DEBUG_OUTPUT
     PRINTF("ICP result: t=(%.3f, %.3f)  theta=%.4f rad (%.2f deg)\n",
@@ -739,5 +752,6 @@ void ICP_2D_i(
            atan2f(R[1][0], R[0][0]),
            atan2f(R[1][0], R[0][0]) * 57.2958f);
 #endif
+
 }
 

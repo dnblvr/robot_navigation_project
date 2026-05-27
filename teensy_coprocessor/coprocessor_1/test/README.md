@@ -139,3 +139,10 @@ Testing...
 
 == 0 test cases: 0 succeeded in 00:00:02.832 ==
 ```
+
+## 2. List of Available Assertions
+
+For a partial list of the available assertions, see the [Unity Assertions Reference][] and [INSTRUCTIONS.md][] (downloaded from their GitHub).
+
+[Unity Assertions Reference]: <docs/UnityAssertionsReference.md>
+[INSTRUCTIONS.md]: <docs/INSTRUCTIONS.md>

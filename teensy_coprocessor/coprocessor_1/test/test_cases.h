@@ -50,6 +50,13 @@ void test_graphslam_loop_closure_fires(void);
 void test_graphslam_per_call_timing(void);
 
 
+// ----------------------------------------------------------------------------
+//  Playground: ICP alignment debugger
+// ----------------------------------------------------------------------------
+
+void test_icp_alignment_problem(void);
+
+
 #ifdef __cplusplus
 }
 #endif

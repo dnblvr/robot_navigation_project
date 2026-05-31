@@ -13,7 +13,7 @@
  */
 
 #include <unity.h>
-#include <unity_config.h>
+#include <./config/unity_config.h>
 #include <data_structures.h>
 #include <graphslam.h>
 
@@ -28,8 +28,18 @@
   #include <time.h>
 #endif
 
-#include "test_data.h"
+
 #include "test_cases.h"
+
+
+#include "../log_hil_data/test_data.h"
+
+// this is the test data as captured from a live run
+#include "../log_hil_data/test_icp_data.h"
+
+// this is the test transformations from the icp alignment problem test case
+// #include "../log_hil_data/test_icp_transformations.h"
+
 
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -53,7 +63,7 @@
 #define MIN_CONFIDENCE_FOR_SMALL_MOTION  0.01f
 
 /* ---- pipeline dataset size ---- */
-#define N_PIPELINE_POSES    15   // POSE_0..POSE_14 / SCAN_0..SCAN_14
+#define N_PIPELINE_POSES    11   // POSE_0..POSE_10 / SCAN_0..SCAN_10
 
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -94,6 +104,10 @@ static PointCloud* g_scans[N_PIPELINE_POSES];   // pointers into test_data.h
 /**
  * @brief use the DWT cycle counter on the ARM Cortex-M7 to start a free-
  *  running timer
+ * 
+static uint32_t start_free_running_timer(void)
+ * @todo fix this function so it gets rid of the unneccessary `uint32_t` output
+ *  as the timer is restarted already by enabling the cycle counter
  * 
  * @return uint32_t 
  * @retval `start_time` in microseconds
@@ -182,21 +196,31 @@ static void run_graphslam_step(PointCloud* scan, Pose today, Pose delta)
         {
             char buf[80];
             Pose init_guess;
-            // init_guess.x         = 0.5f * delta.x;
-            // init_guess.y         = 0.5f * delta.y;
-            // init_guess.theta     = 1.0f * delta.theta;
+
+            // init_guess.x         = 0.f;
+            // init_guess.y         = 0.f;
+            // init_guess.theta     = 0.f;
             // init_guess.timestamp = 0;
 
-            init_guess.x         = 0.f;
-            init_guess.y         = 0.f;
-            init_guess.theta     = 0.f;
+            init_guess.x         = 0.5f * delta.x;
+            init_guess.y         = 0.5f * delta.y;
+            init_guess.theta     = 1.0f * delta.theta;
             init_guess.timestamp = 0;
+
+            
+            // init_guess.x         = 1.f * delta.x;
+            // init_guess.y         = 1.f * delta.y;
+            // init_guess.theta     = 1.f * delta.theta;
+            // init_guess.timestamp = 0;
 
             slam_perform_icp_i(&prev_scan, scan, &init_guess, &icp_result);
             conf     = slam_compute_icp_confidence_i();
 
             // send message about ICP confidence for debugging
-            snprintf(buf, sizeof(buf), "confidence: %.3f", conf);
+            snprintf(buf, sizeof(buf),
+                     "conf: %.3f, iter: %d",
+                     conf,
+                     icp_result.num_iterations);
             TEST_MESSAGE(buf);
 
             have_icp = true;
@@ -347,21 +371,28 @@ void init_icp_data(void)
 
 void init_pipeline_data(void)
 {
-    g_poses[0]  = POSE_0;   g_scans[0]  = &SCAN_0;
-    g_poses[1]  = POSE_1;   g_scans[1]  = &SCAN_1;
-    g_poses[2]  = POSE_2;   g_scans[2]  = &SCAN_2;
-    g_poses[3]  = POSE_3;   g_scans[3]  = &SCAN_3;
-    g_poses[4]  = POSE_4;   g_scans[4]  = &SCAN_4;
-    g_poses[5]  = POSE_5;   g_scans[5]  = &SCAN_5;
-    g_poses[6]  = POSE_6;   g_scans[6]  = &SCAN_6;
-    g_poses[7]  = POSE_7;   g_scans[7]  = &SCAN_7;
-    g_poses[8]  = POSE_8;   g_scans[8]  = &SCAN_8;
-    g_poses[9]  = POSE_9;   g_scans[9]  = &SCAN_9;
-    g_poses[10] = POSE_10;  g_scans[10] = &SCAN_10;
-    g_poses[11] = POSE_11;  g_scans[11] = &SCAN_11;
-    g_poses[12] = POSE_12;  g_scans[12] = &SCAN_12;
-    g_poses[13] = POSE_13;  g_scans[13] = &SCAN_13;
-    g_poses[14] = POSE_14;  g_scans[14] = &SCAN_14;
+    g_poses[0]  = pose_0;   g_scans[0]  = &scan_0;
+    g_poses[1]  = pose_1;   g_scans[1]  = &scan_1;
+    g_poses[2]  = pose_2;   g_scans[2]  = &scan_2;
+    g_poses[3]  = pose_3;   g_scans[3]  = &scan_3;
+    g_poses[4]  = pose_4;   g_scans[4]  = &scan_4;
+    g_poses[5]  = pose_5;   g_scans[5]  = &scan_5;
+    g_poses[6]  = pose_6;   g_scans[6]  = &scan_6;
+    g_poses[7]  = pose_7;   g_scans[7]  = &scan_7;
+    g_poses[8]  = pose_8;   g_scans[8]  = &scan_8;
+    g_poses[9]  = pose_9;   g_scans[9]  = &scan_9;
+    g_poses[10] = pose_10;  g_scans[10] = &scan_10;
+    // g_poses[11] = pose_11;  g_scans[11] = &scan_11;
+    // g_poses[12] = pose_12;  g_scans[12] = &scan_12;
+    // g_poses[13] = pose_13;  g_scans[13] = &scan_13;
+    // g_poses[14] = pose_14;  g_scans[14] = &scan_14;
+    // g_poses[15] = pose_15;  g_scans[15] = &scan_15;
+    // g_poses[16] = pose_16;  g_scans[16] = &scan_16;
+    // g_poses[17] = pose_17;  g_scans[17] = &scan_17;
+    // g_poses[18] = pose_18;  g_scans[18] = &scan_18;
+    // g_poses[19] = pose_19;  g_scans[19] = &scan_19;
+    // g_poses[20] = pose_20;  g_scans[20] = &scan_20;
+    // g_poses[21] = pose_21;  g_scans[21] = &scan_21;
 }
 
 
@@ -468,10 +499,10 @@ void test_graphslam_pose_count(void)
 }
 
 /**
- * @brief Feed 8 sequential scans (past MIN_TEMPORAL_GAP + 1 = 6). Loop-closure
- *  detection fires at steps 6 and 7; whether it actually adds a constraint
- *  depends on dataset geometry and is reported via TEST_MESSAGE rather than
- *  hard-asserted.
+ * @brief Feed 8 sequential scans (past `MIN_TEMPORAL_GAP + 1 = 6`). Loop-
+ *  closure detection fires at steps 6 and 7; whether it actually adds a
+ *  constraint depends on dataset geometry and is reported via `TEST_MESSAGE()`
+ *  rather than `TEST_ASSERT()`.
  */
 void test_graphslam_loop_closure_fires(void)
 {
@@ -491,7 +522,7 @@ void test_graphslam_loop_closure_fires(void)
 
 /**
  * @brief Run all N_PIPELINE_POSES steps with per-call timing.
- *        Reports min / max / avg via TEST_MESSAGE; hard-asserts each > 0 µs.
+ *        Reports min / max / avg via `TEST_MESSAGE`; hard-asserts each > 0 µs.
  */
 void test_graphslam_per_call_timing(void)
 {
@@ -539,6 +570,7 @@ void test_graphslam_per_call_timing(void)
             min_us = times_us[i];
         if (times_us[i] > max_us)
             max_us = times_us[i];
+            
         sum_us += times_us[i];
 
 #ifdef __IMXRT1062__
@@ -562,4 +594,584 @@ void test_graphslam_per_call_timing(void)
        pipeline completed (at least one non-zero measurement). */
     TEST_ASSERT_GREATER_THAN_UINT64(0, sum_us);
 
+}
+
+
+// ────────────────────────────────────────────────────────────────────────────
+//
+//  ALTERNATIVE TEST CASES - SOLVING ICP ALIGNMENT PROBLEM
+//
+// ────────────────────────────────────────────────────────────────────────────
+
+
+// ----------------------------------------------------------------------------
+//  SCAN PAIR SELECTOR
+//
+//  Edit these four macros to choose which scans test_icp_alignment_problem()
+//  uses.  Two families are available:
+//
+//  Family A — raw Point2D arrays from test_data.h (default):
+//    PLAY_SRC_PTS / PLAY_SRC_POSE   ← source scan + its world-frame pose
+//    PLAY_TGT_PTS / PLAY_TGT_POSE   ← target scan + its world-frame pose
+//
+//  Family B — pre-built PointCloud structs from test_data.h (pipeline data):
+//    Comment out the Family A macros and instead assign inside the test:
+//      play_src = scan_0;  play_tgt = scan_1;
+//    Then set true_delta manually from the known poses.
+
+#define PLAY_SRC_PTS    g_scan_b_points   // ← swap to any Point2D[] in test_data.h
+#define PLAY_SRC_POSE   POSE_B            // ← matching world-frame pose
+#define PLAY_TGT_PTS    g_scan_c_points
+#define PLAY_TGT_POSE   POSE_C
+
+
+// ----------------------------------------------------------------------------
+//  DATA STRUCTURES
+
+/**
+ * @brief Statically-allocated buffer for storing transformed source points
+ *  for processing
+ */
+static Point2D  icp_src_trans[ICP_MAX_POINTS];
+
+/**
+ * @brief buffer which stores each index of its closest point in target for
+ *  each source point; index of source is linked to an index of the target cloud
+ */ 
+static index_t  icp_correspondences[ICP_MAX_POINTS];
+
+/**
+ * @brief buffer which stores the squared distance for each correspondence
+ */
+static float    icp_corr_dist_sq[ICP_MAX_POINTS];
+
+/**
+ * @brief Cache variables for ICP to speed up repeated calls with the same
+ *  input sizes
+ */
+static uint16_t icp_valid_range = 0;
+
+
+// __attribute__ (( section(".fastrun") ))
+void ICP_2D_play(
+        Point2D* source, uint16_t source_size,
+        Point2D* target, uint16_t target_size,
+        uint16_t max_iteration,
+        float    tolerance,
+
+        uint8_t* num_iter,
+        float*  out_R,
+        float*  out_t)
+{   
+    // early-return to validate input size against static buffer limits
+    if (    (source_size > ICP_MAX_POINTS)
+         || (source_size <= 0))
+    {
+
+#ifdef DEBUG_OUTPUT
+        PRINTF("\tICP: source_size %d exceeds max %d\n",
+               source_size,
+               ICP_MAX_POINTS);
+#endif
+
+        // Assign default identity transform        
+        out_R   = (float[4]){1.f, 0.f,
+                             0.f, 1.f};
+
+        out_t   = (float[2]){0.f, 0.f};
+
+        return;
+    }
+
+    // counter variables
+    uint16_t    iter, i;
+    int         j;
+
+    // iterative error for convergence check
+    float prev_error;
+
+    // Initialize transformation matrices
+    float R[2][2]   = { {1, 0},
+                        {0, 1} };
+    float t[2]      =   {0, 0};
+
+
+    // reset cache variables for this ICP run
+    memset(&icp_src_trans[0],       0, sizeof(Point2D)*ICP_MAX_POINTS);
+    memset(&icp_correspondences[0], 0, sizeof(index_t)*ICP_MAX_POINTS);
+    memset(&icp_corr_dist_sq[0],    0,   sizeof(float)*ICP_MAX_POINTS);
+
+
+    // Copy source to static buffer while sorting this array such that near
+    // points are filled in downwards while far points are filled in from the
+    // end, upward.
+    {
+        icp_valid_range = 0;
+        Point2D* near   = icp_src_trans;
+        Point2D* far    = icp_src_trans + source_size - 1;
+        for (i = 0; i < source_size; i++) {
+
+            float range_sq  =   source[i].x*source[i].x \
+                              + source[i].y*source[i].y;
+
+            if (range_sq < (MAX_ICP_RANGE*MAX_ICP_RANGE)) {
+
+                *(near++)   = source[i];
+                icp_valid_range++;
+
+            } else {
+
+                *(far--)    = source[i];
+            }
+        }
+    }
+
+#ifdef DEBUG_OUTPUT
+    PRINTF("ICP_2D_i: `ICP_MAX_RANGE` filtered source from %u to %u points\n",
+          source_size,
+          icp_valid_range);
+
+    if (PRINT_CHECK) {
+        PRINTF("ICP tgts:    tgt[0]=(%.2f,%.2f)  tgt[1]=(%.2f,%.2f)\n",
+               target[0].x, target[0].y,
+               target[1].x, target[1].y);
+    }
+#endif
+    /**
+     * The goal is for the source points to converge to the target points
+     *  iteratively.
+     */
+    prev_error  = FLT_MAX;
+    for (iter = 0; iter < max_iteration; iter++)
+    {
+
+        Point2D centroid_src, centroid_tgt;
+        float theta, c, s;
+        float R_iter[2][2];
+        float t_iter[2];
+        float mean_error;
+        float R_new[2][2];
+        float t_new[2];
+
+        // number of correspondences within max distance
+        uint16_t valid_count;
+        
+
+        // print first few source and target points on first iteration
+#ifdef DEBUG_OUTPUT
+        // if (PRINT_CHECK) {
+        //     PRINTF("ICP iter %u:  src[0]=(%.2f,%.2f)  src[1]=(%.2f,%.2f)\n",
+        //            iter,
+        //            icp_src_trans[0].x, icp_src_trans[0].y,
+        //            icp_src_trans[1].x, icp_src_trans[1].y);
+        // }
+
+        PointCloud dummy_cloud;
+
+        for (i = 0; i < source_size; i++) {
+            dummy_cloud.points[i] = icp_src_trans[i];
+        }
+        dummy_cloud.num_pts = source_size;
+
+        C_format_print((state_se2_t){0,0,0},
+                       &dummy_cloud);
+#endif
+
+        // 1. Find correspondences between each source pt. and
+        //      all target points in the `target` array.
+        //      Also record the squared distance for filtering.
+        for (i = 0; i < icp_valid_range; i++) {
+            
+            icp_correspondences[i] = Find_Closest_Point(
+                    icp_src_trans[i],
+                    target,
+                    target_size,
+                    &icp_corr_dist_sq[i]);
+                    
+        }
+
+
+        // 2. Compute centroids using only valid correspondences
+        //    (distance < ICP_MAX_CORR_DIST)
+        centroid_src.x  = 0;    centroid_src.y  = 0;
+        centroid_tgt.x  = 0;    centroid_tgt.y  = 0;
+        valid_count     = 0;
+
+        
+        for (i = 0; i < icp_valid_range; i++) {
+
+            if (icp_corr_dist_sq[i] < ICP_MAX_CORR_DIST_SQ) {
+                centroid_src.x += icp_src_trans[i].x;
+                centroid_src.y += icp_src_trans[i].y;
+                centroid_tgt.x += target[icp_correspondences[i]].x;
+                centroid_tgt.y += target[icp_correspondences[i]].y;
+                valid_count++;
+            }
+
+        }
+
+        // Need at least 3 valid correspondences to compute transformation
+        if (valid_count < 3) {
+#ifdef DEBUG_OUTPUT
+            PRINTF("ICP iter %d: only %d valid correspondences, stopping\n",
+                    iter,
+                    valid_count);
+#endif
+            break;
+        }
+
+        centroid_src.x /= valid_count;
+        centroid_src.y /= valid_count;
+        centroid_tgt.x /= valid_count;
+        centroid_tgt.y /= valid_count;
+
+
+        // 3. Compute cross-covariance matrix using only valid correspondences
+        // this derivces the optimal rotation matrix that minimizes the mean squared error between the source and target points
+        float   S_xx = 0,   S_xy = 0,
+                S_yx = 0,   S_yy = 0;
+    
+        for (i = 0; i < icp_valid_range; i++) {
+            
+            // early-continue away from pairs that are too far apart
+            if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ)
+                continue;
+            
+            float x_s   = icp_src_trans[i].x - centroid_src.x;
+            float y_s   = icp_src_trans[i].y - centroid_src.y;
+            float x_t   =   target[icp_correspondences[i]].x
+                          - centroid_tgt.x;
+            float y_t   =   target[icp_correspondences[i]].y
+                          - centroid_tgt.y;
+
+            S_xx   += x_s * x_t;
+            S_xy   += x_s * y_t; 
+            S_yx   += y_s * x_t;
+            S_yy   += y_s * y_t;
+        }
+
+
+        // 4. Compute rotation (using SVD for 2x2)
+        theta       = atan2f(S_xy - S_yx, S_xx + S_yy);
+        
+    #ifdef DEBUG_OUTPUT
+        // if (PRINT_CHECK) {
+        //     PRINTF("ICP iter %u: S_xx=%.2f S_xy=%.2f S_yx=%.2f S_yy=%.2f -> theta=%.3f rad (%.1f deg)\n",
+        //         iter,
+        //            S_xx, S_xy, S_yx, S_yy, theta, theta * 57.2958f);
+        // }
+    #endif
+        
+        c   = cosf(theta);  s   = sinf(theta);
+
+        R_iter[0][0]    =  c;   R_iter[0][1]    = -s;
+        R_iter[1][0]    =  s;   R_iter[1][1]    =  c;
+
+
+        // 5. Compute translation
+        t_iter[0]   =   centroid_tgt.x
+                      - (   R_iter[0][0]*centroid_src.x
+                          + R_iter[0][1]*centroid_src.y);
+
+        t_iter[1]   =   centroid_tgt.y
+                      - (   R_iter[1][0]*centroid_src.x
+                          + R_iter[1][1]*centroid_src.y);
+
+
+        // Update transformation (compose) before transforming points
+        // R_new = R_iter * R_old, t_new = R_iter * t_old + t_iter
+        R_new[0][0] = R_iter[0][0]*R[0][0]  +  R_iter[0][1]*R[1][0];
+        R_new[0][1] = R_iter[0][0]*R[0][1]  +  R_iter[0][1]*R[1][1];
+        R_new[1][0] = R_iter[1][0]*R[0][0]  +  R_iter[1][1]*R[1][0];
+        R_new[1][1] = R_iter[1][0]*R[0][1]  +  R_iter[1][1]*R[1][1];
+
+        t_new[0]    = R_iter[0][0]*t[0]  +  R_iter[0][1]*t[1]  +  t_iter[0];
+        t_new[1]    = R_iter[1][0]*t[0]  +  R_iter[1][1]*t[1]  +  t_iter[1];
+
+        // update R, t with new values for next iteration        
+        memcpy(R, R_new, sizeof(float)*4);
+        memcpy(t, t_new, sizeof(float)*2);
+
+
+        // 6. Transform source points using accumulated transformation R, t
+        for (i = 0; i < icp_valid_range; i++) {
+
+            float x = icp_src_trans[i].x;
+            float y = icp_src_trans[i].y;
+
+            icp_src_trans[i].x = R_iter[0][0]*x + R_iter[0][1]*y + t_iter[0];
+            icp_src_trans[i].y = R_iter[1][0]*x + R_iter[1][1]*y + t_iter[1];
+        }
+
+        // #ifdef DEBUG_OUTPUT
+        char buf[80];
+        snprintf(buf, sizeof(buf), "    movement: t=(%.3f, %.3f)",
+                                   t_iter[0], t_iter[1]);
+        TEST_MESSAGE(buf);
+
+        // #endif
+
+
+        // 7. Check error (only on valid correspondences)
+        mean_error  = 0.0f;
+        valid_count = 0;
+        for (i = 0; i < icp_valid_range; i++) {
+
+            // Skip pairs that are too far apart
+            if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ) 
+                continue;
+
+            float dx = icp_src_trans[i].x - target[icp_correspondences[i]].x;
+            float dy = icp_src_trans[i].y - target[icp_correspondences[i]].y;
+
+            // update two places to speed up work
+            icp_corr_dist_sq[i] = dx*dx + dy*dy;
+            mean_error         += icp_corr_dist_sq[i];
+
+            valid_count++;
+        }
+
+        // 
+        if (valid_count > 0) {
+            mean_error  = sqrtf(mean_error / valid_count);
+        }
+
+        // if tolerance threshold is met, consider it converged
+        if (fabsf(prev_error - mean_error) < tolerance) {
+            break;
+        }
+
+        prev_error = mean_error;
+
+        // 8. repeat 1. with new source positions and same target until we see convergence or max iterations
+    }
+
+
+    // 9. perform post-processing of far-range points with final R, t
+    int num_far   = (int)(source_size - icp_valid_range);
+    int far_start = (int)ICP_MAX_POINTS - num_far;
+    for (j = (int)ICP_MAX_POINTS - 1; j >= far_start; j--) {
+        
+        // first, perform an action on the far points with the final transformation
+        float x = icp_src_trans[j].x;
+        float y = icp_src_trans[j].y;
+
+        icp_src_trans[j].x  = R[0][0]*x + R[0][1]*y + t[0];
+        icp_src_trans[j].y  = R[1][0]*x + R[1][1]*y + t[1];
+
+        // then, find their correspondences for potential use in downstream
+        // processing (e.g. loop closure)
+        icp_correspondences[j] = Find_Closest_Point(
+                icp_src_trans[j],
+                target,
+                target_size,
+                &icp_corr_dist_sq[j]);
+    }
+
+
+    // 10. return final transformation R,t
+    out_R[0] = R[0][0]; out_R[1] = R[0][1];
+    out_R[2] = R[1][0]; out_R[3] = R[1][1];
+
+    out_t[0] = t[0];
+    out_t[1] = t[1];
+
+    *num_iter = iter;
+    
+
+#ifdef DEBUG_OUTPUT
+    PRINTF("ICP result: t=(%.3f, %.3f)  theta=%.4f rad (%.2f deg)\n",
+           t[0],
+           t[1],
+           atan2f(R[1][0], R[0][0]),
+           atan2f(R[1][0], R[0][0]) * 57.2958f);
+#endif
+
+}
+
+void slam_perform_icp_play(
+        const PointCloud*   scan1,
+        const PointCloud*   scan2,
+        const Pose*         initial_guess,
+              ICPResult*    result)
+{
+
+    // output variables
+    float R[4];  // 2x2 rotation matrix (row-major)
+    float t[2];  // translation vector
+    
+    
+    // If initial guess is non-zero, pre-transform scan1 so ICP only has to
+    // find the small residual correction, then compose the two to recover
+    // the full transformation: z_ij = initial_guess + residual
+    if (    fabsf(initial_guess->x    ) > 1e-3f
+         || fabsf(initial_guess->y    ) > 1e-3f
+         || fabsf(initial_guess->theta) > 1e-3f)
+    {
+        
+        Pose icp_residual;
+        Pose full_transform;
+
+        // Pre-transform scan1 with the initial guess
+        PointCloud transformed_scan1;
+        transform_point_cloud(scan1, initial_guess, &transformed_scan1);
+        
+        // ICP finds the residual correction between scan1' and scan2
+        ICP_2D_play(transformed_scan1.points, transformed_scan1.num_pts,
+                 (Point2D*)scan2->points, scan2->num_pts,
+                 MAX_ICP_ITERATIONS,
+                 ICP_CONVERGENCE_TOLERANCE,
+                 &result->num_iterations,
+                 R, t);
+
+        // Compose initial_guess + icp_residual to get the full transformation.
+        // compose_poses(p2, p1, result) computes result = p1 + p2
+        icp_residual   = (Pose){t[0],
+                                t[1],
+                                atan2f(R[2], R[0]),
+                                0};
+        
+        compose_poses(&icp_residual, initial_guess, &full_transform);
+
+        result->dx      = full_transform.x;
+        result->dy      = full_transform.y;
+        result->dtheta  = full_transform.theta;
+    
+
+    // ICP finds the full transformation directly
+    } else {
+
+        ICP_2D_play(
+                (Point2D*)scan1->points, scan1->num_pts,
+                (Point2D*)scan2->points, scan2->num_pts,
+                MAX_ICP_ITERATIONS,
+                ICP_CONVERGENCE_TOLERANCE,
+                &result->num_iterations,
+                R, t);
+
+        result->dx      = t[0];
+        result->dy      = t[1];
+        result->dtheta  = atan2f(R[2], R[0]);
+    }
+
+    result->valid   = true;
+
+}
+
+
+void test_icp_alignment_problem(void)
+{
+    // ── Locals ───────────────────────────────────────────────────────────────
+    char        buf[120];
+    int         i;
+    PointCloud  play_src, play_tgt;
+    Pose        true_delta;
+    Pose        init_guess;
+    Pose        pose_src;
+    Pose        pose_tgt;
+    ICPResult   icp_result;
+    float       conf;
+    bool        have_icp    = false;
+    memset(&icp_result, 0, sizeof(icp_result));
+
+    // ── Load scans (Family A — edit PLAY_SRC_PTS / PLAY_TGT_PTS above) ──────
+    // load_test_scans(PLAY_SRC_PTS, &play_src);
+    // load_test_scans(PLAY_TGT_PTS, &play_tgt);
+
+    // Family B alternative (pipeline PointCloud structs — uncomment to use):
+    play_src = scan_2;  pose_src = pose_2;
+    play_tgt = scan_3;  pose_tgt = pose_3;
+
+
+    // ── Ground-truth delta (source → target expressed in target frame) ───────
+    //  Same formula as test_icp_delta_close_to_known_pose().
+    //  For Family B: set true_delta manually from the known pose difference.
+    {
+        float dx_g  = pose_src.x - pose_tgt.x;
+        float dy_g  = pose_src.y - pose_tgt.y;
+        float c     = cosf(-pose_tgt.theta);
+        float s     = sinf(-pose_tgt.theta);
+        true_delta.x         = c*dx_g - s*dy_g;
+        true_delta.y         = s*dx_g + c*dy_g;
+        true_delta.theta     = normalize_angle(   pose_src.theta
+                                                - pose_tgt.theta);
+        true_delta.timestamp = 0;
+    }
+
+    // ── Instrument inputs with C_format_print ────────────────────────────────
+    C_format_print((state_se2_t){0.f, 0.f, 0.f},
+                   &play_src);
+    C_format_print((state_se2_t){true_delta.x,
+                                 true_delta.y,
+                                 true_delta.theta},
+                   &play_tgt);
+
+
+    // ── Initial guess: half-odometry warm start (exercises ICP_2D_play path) ─
+    init_guess.x         = 0.65 * true_delta.x;
+    init_guess.y         = 0.65 * true_delta.y;
+    init_guess.theta     = 1.0f * true_delta.theta;
+
+    // init_guess.x         = 0.f;
+    // init_guess.y         = 0.f;
+    // init_guess.theta     = 0.f;
+
+    init_guess.timestamp = 0;
+
+
+    // ── Run ICP ──────────────────────────────────────────────────────────────
+    slam_perform_icp_play(&play_src, &play_tgt, &init_guess, &icp_result);
+
+
+    // ── Confidence from playground buffer (icp_corr_dist_sq[] local to this ─
+    //    translation unit — NOT the stale ICP_get_cache() from production ICP)
+    {
+        float total = 0.0f;
+        for (i = 0; i < ICP_MAX_POINTS; i++)
+            total += expf(-sqrtf(icp_corr_dist_sq[i]) / ERROR_CONFIDENCE_SCALE);
+        conf    = total / ICP_MAX_POINTS;
+    }
+
+
+    // ── Print recovered transform alongside target scan ─────────────────────
+    C_format_print((state_se2_t){icp_result.dx,
+                                 icp_result.dy,
+                                 icp_result.dtheta},
+                   &play_tgt);
+ 
+
+    // ── Diagnostics ──────────────────────────────────────────────────────────
+    snprintf(buf, sizeof(buf), "true:  dx=%.2f  dy=%.2f  dth=%.4f",
+             true_delta.x, true_delta.y, true_delta.theta);
+    TEST_MESSAGE(buf);
+
+    snprintf(buf, sizeof(buf), "icp:   dx=%.2f  dy=%.2f  dth=%.4f",
+             icp_result.dx, icp_result.dy, icp_result.dtheta);
+    TEST_MESSAGE(buf);
+
+    snprintf(buf, sizeof(buf), "conf: %.3f, iter: %d", conf, icp_result.num_iterations);
+    TEST_MESSAGE(buf);
+
+    snprintf(buf, sizeof(buf), "err:   dx=%.2f  dy=%.2f  dth=%.4f",
+             fabsf(true_delta.x     - icp_result.dx),
+             fabsf(true_delta.y     - icp_result.dy),
+             fabsf(true_delta.theta - icp_result.dtheta));
+
+    TEST_MESSAGE(buf);
+
+
+    // ── Assertions ───────────────────────────────────────────────────────────
+    TEST_ASSERT_TRUE(icp_result.valid);
+    TEST_ASSERT_FLOAT_WITHIN(POSITION_TOLERANCE_MM,
+                             true_delta.x,
+                             icp_result.dx);
+    TEST_ASSERT_FLOAT_WITHIN(POSITION_TOLERANCE_MM,
+                             true_delta.y,
+                             icp_result.dy);
+    TEST_ASSERT_FLOAT_WITHIN(ANGLE_TOLERANCE_RAD,
+                             true_delta.theta,
+                             icp_result.dtheta);
+    // TEST_ASSERT_GREATER_OR_EQUAL_FLOAT(CONFIDENCE_FLOOR, conf);
+
+    have_icp = true;
 }

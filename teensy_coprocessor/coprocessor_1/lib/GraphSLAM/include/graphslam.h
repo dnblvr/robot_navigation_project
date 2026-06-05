@@ -38,7 +38,7 @@ extern "C" {
 /**
  * @brief Memory configuration for MSP432
  */
-#define MAX_POSES               20              // Sliding window size
+#define MAX_POSES               30              // Sliding window size
 #define MAX_POINTS_PER_SCAN     OUTPUT_BUFFER   // Full RPLiDAR C1 scan
 #define STATE_SIZE              (3 * MAX_POSES)
 #define MAX_CONSTRAINTS         (MAX_POSES * 2) // Odometry + loop closures
@@ -482,6 +482,30 @@ static inline int slam_get_buffer_size(
 {
     return optimizer->buffer_size;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void slam_perform_icp_play(
+        const PointCloud*   scan1,
+        const PointCloud*   scan2,
+        const Pose*         initial_guess,
+              ICPResult*    result);
+
 
 #ifdef __cplusplus
 }

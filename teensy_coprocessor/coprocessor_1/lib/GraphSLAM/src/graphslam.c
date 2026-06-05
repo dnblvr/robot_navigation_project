@@ -61,26 +61,33 @@ void transform_point_cloud(
     // counter
     uint32_t i;
 
+    // If rotation is negligible, skip it for efficiency
+    if (fabsf(pose->theta) < 1e-3f) {
+
+        for (i = 0; i < scan->num_pts; i++) {
+            out_scan->points[i].x   = scan->points[i].x + pose->x;
+            out_scan->points[i].y   = scan->points[i].y + pose->y;
+        }
+
+        out_scan->num_pts   = scan->num_pts;
+        return;
+    }
+
     // Pre-compute cosine and sine of rotation angle
-    float c, s;
-
-    c = cosf(pose->theta);
-    s = sinf(pose->theta);
+    float c = cosf(pose->theta);
+    float s = sinf(pose->theta);
     
-
-    out_scan->num_pts   = scan->num_pts;
-    
+    // Apply rotation and translation to each point
     for (i = 0; i < scan->num_pts; i++) {
 
-        float x, y;
-
-        // Apply rotation and translation
-        x   = scan->points[i].x;
-        y   = scan->points[i].y;
+        float x = scan->points[i].x;
+        float y = scan->points[i].y;
         
-        out_scan->points[i].x   = c * x - s * y + pose->x;
-        out_scan->points[i].y   = s * x + c * y + pose->y;
+        out_scan->points[i].x   = c*x - s*y + pose->x;
+        out_scan->points[i].y   = s*x + c*y + pose->y;
     }
+
+    out_scan->num_pts   = scan->num_pts;
 }
 
 
@@ -89,34 +96,30 @@ void compose_poses(
         const Pose*	p1,
               Pose* result)
 {
-    float c, s;
 
-    c = cosf(p1->theta);
-    s = sinf(p1->theta);
+    float c = cosf(p1->theta);
+    float s = sinf(p1->theta);
     
-    result->x       = p1->x + c * p2->x - s * p2->y;
-    result->y       = p1->y + s * p2->x + c * p2->y;
+    result->x       = p1->x  +  c*p2->x  -  s*p2->y;
+    result->y       = p1->y  +  s*p2->x  +  c*p2->y;
     result->theta   = normalize_angle(p1->theta + p2->theta);
 
 }
 
 
 void relative_pose(
-        const Pose  *p1,
-        const Pose  *p2,
-        Pose        *relative)
+        const Pose* p1,
+        const Pose* p2,
+              Pose* relative)
 {
-    // temporary variables
-    float   dx, dy,
-            c,  s;
 
-    dx  = p2->x - p1->x;
-    dy  = p2->y - p1->y;
-    c   = cosf(-p1->theta);
-    s   = sinf(-p1->theta);
+    float   dx  = p2->x - p1->x;
+    float   dy  = p2->y - p1->y;
+    float   c   = cosf( -p1->theta );
+    float   s   = sinf( -p1->theta );
     
-    relative->x     = c * dx - s * dy;
-    relative->y     = s * dx + c * dy;
+    relative->x     = c*dx - s*dy;
+    relative->y     = s*dx + c*dy;
     relative->theta = normalize_angle(p2->theta - p1->theta);
 
 }
@@ -261,71 +264,62 @@ void slam_perform_icp(
               ICPResult*    result)
 {
 
-    #define MAX_ICP_ITERATIONS 25
-
     // output variables
     float R[4];  // 2x2 rotation matrix (row-major)
     float t[2];  // translation vector
-
-
-    // OPTION A: Use initial guess (transforms scan1 first)
-    // This returns the CORRECTION on top of initial guess
-    // Total transform = initial_guess ⊕ icp_result
     
-    // OPTION B: Don't use initial guess (work on raw scans)  
-    // This returns the FULL transformation from scan1 to scan2
-    // Measurement z_ij = icp_result directly
     
-    // For GraphSLAM constraints, we want OPTION B - the full observation!
-    // Initial guess can still help ICP converge, but we need to account for it
-    
-    PointCloud transformed_scan1;
-    
-    // If initial guess is non-zero, transform scan1 by it first
-    // Then ICP result will be the correction on top
-    if (    initial_guess->x       != 0.0f
-         || initial_guess->y       != 0.0f
-         || initial_guess->theta   != 0.0f)
+    // If initial guess is non-zero, pre-transform scan1 so ICP only has to
+    // find the small residual correction, then compose the two to recover
+    // the full transformation: z_ij = initial_guess + residual
+    if (    initial_guess->x       != 0.f
+         || initial_guess->y       != 0.f
+         || initial_guess->theta   != 0.f)
     {
+
+        Pose icp_residual;
+        Pose full_transform;
+
+        // Pre-transform scan1 with the initial guess
+        PointCloud transformed_scan1;
         transform_point_cloud(scan1, initial_guess, &transformed_scan1);
         
-        // Run ICP on transformed scan1 vs scan2
-        ICP_2d(transformed_scan1.points, transformed_scan1.num_pts,
+        // ICP finds the residual correction between scan1' and scan2
+        ICP_2D(transformed_scan1.points, transformed_scan1.num_pts,
                (Point2D*)scan2->points, scan2->num_pts,
                MAX_ICP_ITERATIONS,
-               1e-4f,
+               ICP_CONVERGENCE_TOLERANCE,
                R, t);
+
+        // Compose initial_guess + icp_residual to get the full transformation.
+        // compose_poses(p2, p1, result) computes result = p1 + p2
+        icp_residual   = (Pose){t[0],
+                                t[1],
+                                atan2f(R[2], R[0]),
+                                0};
         
-        // ICP returned correction on top of initial guess
-        // We need to compose to get total transformation
-        Pose icp_correction;
-        icp_correction.x = t[0];
-        icp_correction.y = t[1];
-        icp_correction.theta = atan2f(R[2], R[0]);
-        
-        Pose total_transform;
-        compose_poses(&icp_correction, initial_guess, &total_transform);
-        
-        result->dx = total_transform.x;
-        result->dy = total_transform.y;
-        result->dtheta = total_transform.theta;
-        
+        compose_poses(&icp_residual, initial_guess, &full_transform);
+
+        result->dx      = full_transform.x;
+        result->dy      = full_transform.y;
+        result->dtheta  = full_transform.theta;
+    
+
+    // ICP finds the full transformation directly
     } else {
 
-        // No initial guess - work on raw scans directly
-        ICP_2d((Point2D*)scan1->points, scan1->num_pts,
+        ICP_2D((Point2D*)scan1->points, scan1->num_pts,
                (Point2D*)scan2->points, scan2->num_pts,
                MAX_ICP_ITERATIONS,
-               1e-4f,
+               ICP_CONVERGENCE_TOLERANCE,
                R, t);
-        
-        // ICP returned the full transformation
-        result->dx = t[0];
-        result->dy = t[1];
-        result->dtheta = atan2f(R[2], R[0]);
+
+        result->dx      = t[0];
+        result->dy      = t[1];
+        result->dtheta  = atan2f(R[2], R[0]);
     }
-    
-    result->valid = true;
+
+    result->valid   = true;
 
 }
 
@@ -333,29 +327,23 @@ void slam_perform_icp(
 float slam_compute_icp_confidence(
         const PointCloud*   scan1,
         const PointCloud*   scan2,
-        const Pose*         initial_guess,
         const ICPResult*    result)
 {
 
     int i, j;
-    float min_dist, dx, dy, dist;
     float total_error, mean_error, match_ratio;
     float error_confidence, confidence;
     int matches;
     Pose icp_transform;
-    PointCloud transformed_by_guess, transformed;
+    PointCloud transformed;
     
-
-    // First apply initial_guess to scan1 (same as what ICP saw)
-    transform_point_cloud(scan1, initial_guess, &transformed_by_guess);
     
     // Then apply the ICP result transformation
     icp_transform.x     = result->dx;
     icp_transform.y     = result->dy;
     icp_transform.theta = result->dtheta;
     
-    transform_point_cloud(&transformed_by_guess, &icp_transform, &transformed);
-    
+    transform_point_cloud(scan1, &icp_transform, &transformed);
 
     // Compute mean correspondence distance
     total_error = 0.0f;
@@ -1169,5 +1157,103 @@ uint8_t slam_get_scan(
     // Direct array access - no circular buffer
     *out_scan = optimizer->scan_pool[pose_id];
 
-    return 1;
+    return SLAM_SUCCESS;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+void slam_perform_icp_play(
+        const PointCloud*   scan1,
+        const PointCloud*   scan2,
+        const Pose*         initial_guess,
+              ICPResult*    result)
+{
+
+    // output variables
+    float R[4];  // 2x2 rotation matrix (row-major)
+    float t[2];  // translation vector
+
+#ifdef DEBUG_OUTPUT     
+    PRINTF("MAX_ICP_RANGE: %.2f\n", MAX_ICP_RANGE);
+    PRINTF("ICP_MAX_CORR_DIST: %.2f\n", ICP_MAX_CORR_DIST);
+#endif
+    
+    
+    // If initial guess is non-zero, pre-transform scan1 so ICP only has to
+    // find the small residual correction, then compose the two to recover
+    // the full transformation: z_ij = initial_guess + residual
+    if (    (fabsf(initial_guess->x    ) > 1e-3f)
+         || (fabsf(initial_guess->y    ) > 1e-3f)
+         || (fabsf(initial_guess->theta) > 1e-3f))
+    {
+        
+        Pose icp_residual;
+        Pose full_transform;
+
+        // Pre-transform scan1 with the initial guess
+        PointCloud transformed_scan1;
+        transform_point_cloud(scan1, initial_guess, &transformed_scan1);
+        
+        // ICP finds the residual correction between scan1' and scan2
+        ICP_2D_play(transformed_scan1.points, transformed_scan1.num_pts,
+                 (Point2D*)scan2->points, scan2->num_pts,
+                 MAX_ICP_ITERATIONS,
+                 ICP_CONVERGENCE_TOLERANCE,
+                 &result->num_iterations,
+                 R, t);
+
+        // Compose initial_guess + icp_residual to get the full transformation.
+        // compose_poses(p2, p1, result) computes result = p1 + p2
+        icp_residual   = (Pose){t[0],
+                                t[1],
+                                atan2f(R[2], R[0]),
+                                0};
+        
+        compose_poses(&icp_residual, initial_guess, &full_transform);
+
+        result->dx      = full_transform.x;
+        result->dy      = full_transform.y;
+        result->dtheta  = full_transform.theta;
+    
+
+    // ICP finds the full transformation directly
+    } else {
+
+        ICP_2D_play(
+                (Point2D*)scan1->points, scan1->num_pts,
+                (Point2D*)scan2->points, scan2->num_pts,
+                MAX_ICP_ITERATIONS,
+                ICP_CONVERGENCE_TOLERANCE,
+                &result->num_iterations,
+                R, t);
+
+        result->dx      = t[0];
+        result->dy      = t[1];
+        result->dtheta  = atan2f(R[2], R[0]);
+    }
+
+    result->valid   = true;
+
 }

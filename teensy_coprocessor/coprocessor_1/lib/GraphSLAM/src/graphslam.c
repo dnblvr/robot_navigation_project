@@ -22,7 +22,7 @@ static void slam_apply_constraint(
 
 // ----------------------------------------------------------------------------
 //
-//  Helper Functions
+//  HELPER FUNCTIONS
 //
 // ----------------------------------------------------------------------------
 
@@ -132,42 +132,42 @@ void evaluate_error_pose_pose(
         const float z_ij[3],
               float error[3])
 {
-
-    float dx, dy, dtheta;
-
-    float ci, si;
-
+    
     float rel_x, rel_y, rel_theta;
+    
+    {
+        float dx, dy, dtheta;
+        float ci, si;
+        
+        // Compute the relative pose from i to j according to current estimate
+        dx      = x_j->x     - x_i->x;
+        dy      = x_j->y     - x_i->y;
+        dtheta  = x_j->theta - x_i->theta;
+        
+        ci  = cosf( -x_i->theta );
+        si  = sinf( -x_i->theta );
+        
+        // Transform difference into frame of x_i
+        rel_x       =  ci*dx - si*dy;
+        rel_y       =  si*dx + ci*dy;
+        rel_theta   =  dtheta;
+    }
 
-
-    // Compute the relative pose from i to j according to current estimate
-    dx      = x_j->x - x_i->x;
-    dy      = x_j->y - x_i->y;
-    dtheta  = x_j->theta - x_i->theta;
-    
-    ci  = cosf(-x_i->theta);
-    si  = sinf(-x_i->theta);
-    
-    // Transform difference into frame of x_i
-    rel_x       = ci * dx - si * dy;
-    rel_y       = si * dx + ci * dy;
-    rel_theta   = dtheta;
-    
     // Error is difference between predicted and observed
-    error[0]    = rel_x   -   z_ij[0];
-    error[1]    = rel_y   -   z_ij[1];
-    error[2]    = rel_theta - z_ij[2];
+    error[0]    =  rel_x   -   z_ij[0];
+    error[1]    =  rel_y   -   z_ij[1];
+    error[2]    =  rel_theta - z_ij[2];
     
     // Normalize angle error
-    error[2] = normalize_angle(error[2]);
+    error[2]    =  normalize_angle(error[2]);
 }
 
 
 void compute_jacobian_pose_pose(
-    const Pose* x_i,
-    const Pose* x_j,
-    float       A[3][3],
-    float       B[3][3])
+        const Pose* x_i,
+        const Pose* x_j,
+              float A[3][3],
+              float B[3][3])
 {
 
     // helper variables
@@ -183,37 +183,66 @@ void compute_jacobian_pose_pose(
      * Jacobian w.r.t. x_i (A)
      * e_x =  cos(θ_i)*dx + sin(θ_i)*dy - z_x
      * e_y = -sin(θ_i)*dx + cos(θ_i)*dy - z_y
+     * e_θ =  dtheta - z_theta
      * 
      * row 1: derivatives of e_x
-     *      ∂e_x/∂x_i = -cos(θ_i),
-     *      ∂e_x/∂y_i = -sin(θ_i),
+     *      - del e_x / del x_i = -cos(θ_i),
+     *      - del e_x / del y_i = -sin(θ_i),
+     *      - del e_x / del θ_i = -sin(θ_i)*dx + cos(θ_i)*dy
+     * row 2: derivatives of e_y
+     *      - del e_y / del x_i =  sin(θ_i),
+     *      - del e_y / del y_i = -cos(θ_i),
+     *      - del e_y / del θ_i = -cos(θ_i)*dx - sin(θ_i)*dy
+     * row 3: derivatives of e_θ
+     *      - del e_θ / del x_i =  0,
+     *      - del e_θ / del y_i =  0,
+     *      - del e_θ / del θ_i = -1
      */
 
     A[0][0] = -ci;
     A[0][1] = -si;
-    A[0][2] = -si*dx + ci*dy;
-    
     A[1][0] =  si;
     A[1][1] = -ci;
+    
+    A[0][2] = -si*dx + ci*dy;
     A[1][2] = -ci*dx - si*dy;
     
-    A[2][0] =  0.0f;
-    A[2][1] =  0.0f;
-    A[2][2] = -1.0f;
+    A[2][0] =  0.f;
+    A[2][1] =  0.f;
+    A[2][2] = -1.f;
     
 
-    // Jacobian w.r.t. x_j (B)
+    /**
+     * Jacobian w.r.t. x_j (B)
+     * 
+     * e_x =  cos(θ_i)*dx + sin(θ_i)*dy - z_x
+     * e_y = -sin(θ_i)*dx + cos(θ_i)*dy - z_y
+     * e_θ =  dtheta - z_theta
+     * 
+     * row 1: derivatives of e_x
+     *     - del e_x / del x_j =  cos(θ_i),
+     *     - del e_x / del y_j =  sin(θ_i),
+     *     - del e_x / del θ_j =  0
+     * row 2: derivatives of e_y
+     *     - del e_y / del x_j = -sin(θ_i),
+     *     - del e_y / del y_j =  cos(θ_i),
+     *     - del e_y / del θ_j =  0
+     * row 3: derivatives of e_θ
+     *     - del e_θ / del x_j =  0,
+     *     - del e_θ / del y_j =  0,
+     *     - del e_θ / del θ_j =  1
+     */
     B[0][0] =  ci;
     B[0][1] =  si;
-    B[0][2] = 0.0f;
-    
     B[1][0] = -si;
     B[1][1] =  ci;
-    B[1][2] = 0.0f;
     
-    B[2][0] = 0.0f;
-    B[2][1] = 0.0f;
-    B[2][2] = 1.0f;
+    B[0][2] =  0.f;
+    B[1][2] =  0.f;
+    
+    B[2][0] =  0.f;
+    B[2][1] =  0.f;
+    B[2][2] =  1.f;
 }
 
 
@@ -332,11 +361,13 @@ float slam_compute_icp_confidence(
     
     for (i = 0; i < transformed.num_pts; i++) {
 
-        min_dist = FLT_MAX;
+        float dx, dy, dist;
+        float min_dist = FLT_MAX;
         
         for (j = 0; j < scan2->num_pts; j++) {
-            dx  = transformed.points[i].x - scan2->points[j].x;
-            dy  = transformed.points[i].y - scan2->points[j].y;
+
+            dx   = transformed.points[i].x - scan2->points[j].x;
+            dy   = transformed.points[i].y - scan2->points[j].y;
             dist = sqrtf(dx*dx + dy*dy);
             
             if (dist < min_dist) {
@@ -346,10 +377,11 @@ float slam_compute_icp_confidence(
         
         // if the threshold for valid match is met, add to the matches
         // Use larger threshold (100mm) to account for LiDAR noise at long range
-        if (min_dist < 100.0f) {
+        if (min_dist < VALID_MATCH_DISTANCE) {
             total_error += min_dist;
             matches++;
         }
+        
     }
     
 #ifdef DEBUG_OUTPUTS
@@ -364,13 +396,11 @@ float slam_compute_icp_confidence(
     match_ratio = (float)matches / transformed.num_pts;
 
 
-    #define ERROR_CONFIDENCE_SCALE 70.0f
-
-    
     // Confidence based on error and match ratio
     //      - exp(-error/20): 20mm error --> 0.37 confidence
     error_confidence    = expf( -mean_error / ERROR_CONFIDENCE_SCALE );
     confidence          = error_confidence * match_ratio;
+
     
 #ifdef DEBUG_OUTPUTS
     printf("  mean_error=%.3f, error_conf=%.3f,"
@@ -382,16 +412,109 @@ float slam_compute_icp_confidence(
 
 }
 
-
-// -----------------------------------------------------------------------------
-//
-//  Core SLAM Functions
-//
-// -----------------------------------------------------------------------------
-
-void slam_initialize(SLAMOptimizer* optimizer)
+void slam_perform_icp_i(
+        const PointCloud*   scan1,
+        const PointCloud*   scan2,
+        const Pose*         initial_guess,
+              ICPResult*    result)
 {
 
+    // output variables
+    float R[4];  // 2x2 rotation matrix (row-major)
+    float t[2];  // translation vector
+
+#ifdef DEBUG_OUTPUT     
+    PRINTF("MAX_ICP_RANGE: %.2f\n", MAX_ICP_RANGE);
+    PRINTF("ICP_MAX_CORR_DIST: %.2f\n", ICP_MAX_CORR_DIST);
+#endif
+    
+    // If initial guess is non-zero, pre-transform scan1 so ICP only has to
+    // find the small residual correction, then compose the two to recover
+    // the full transformation: z_ij = initial_guess + residual
+    if (    initial_guess->x       != 0.f
+         || initial_guess->y       != 0.f
+         || initial_guess->theta   != 0.f)
+    {
+        Pose icp_residual;
+        Pose full_transform;
+
+        // Pre-transform scan1 with the initial guess
+        PointCloud transformed_scan1;
+        transform_point_cloud(scan1, initial_guess, &transformed_scan1);
+        
+        // ICP finds the residual correction between scan1' and scan2
+        ICP_2D_i(transformed_scan1.points, transformed_scan1.num_pts,
+                 (Point2D*)scan2->points, scan2->num_pts,
+                 MAX_ICP_ITERATIONS,
+                 ICP_CONVERGENCE_TOLERANCE,
+                 &result->num_iterations,
+                 R, t);
+
+        // Compose initial_guess + icp_residual to get the full transformation.
+        // compose_poses(p2, p1, result) computes result = p1 + p2
+        icp_residual   = (Pose){t[0],
+                                t[1],
+                                atan2f(R[2], R[0]),
+                                0};
+        
+        compose_poses(&icp_residual, initial_guess, &full_transform);
+
+        result->dx      = full_transform.x;
+        result->dy      = full_transform.y;
+        result->dtheta  = full_transform.theta;
+    
+
+    // ICP finds the full transformation directly
+    } else {
+
+        ICP_2D_i((Point2D*)scan1->points, scan1->num_pts,
+                 (Point2D*)scan2->points, scan2->num_pts,
+                 MAX_ICP_ITERATIONS,
+                 ICP_CONVERGENCE_TOLERANCE,
+                 &result->num_iterations,
+                 R, t);
+
+        result->dx      = t[0];
+        result->dy      = t[1];
+        result->dtheta  = atan2f(R[2], R[0]);
+    }
+
+    result->valid   = true;
+
+}
+
+float slam_compute_icp_confidence_i() {
+
+    int     i;
+    float   min_dist;
+    float   total_error, confidence;
+
+    float*  cache   = ICP_get_cache();
+
+    // Compute mean correspondence distance
+    total_error = 0.0f;
+    
+    for (i = 0; i < ICP_MAX_POINTS; i++) {
+
+        min_dist        = sqrtf( cache[i] );
+        total_error    += expf( -min_dist / ERROR_CONFIDENCE_SCALE );
+    }
+
+    confidence  = total_error / ICP_MAX_POINTS;
+    
+    return confidence;
+
+}
+
+
+// -----------------------------------------------------------------------------
+//
+//  CORE SLAM FUNCTIONS
+//
+// -----------------------------------------------------------------------------
+
+uint8_t slam_initialize(SLAMOptimizer* optimizer)
+{
     optimizer->current_pose_count       = 0;
     optimizer->buffer_size              = 0;
     optimizer->num_constraints          = 0;
@@ -407,53 +530,62 @@ void slam_initialize(SLAMOptimizer* optimizer)
     
     optimizer->matrices_initialized = true;
 
+    return SLAM_SUCCESS;
+
 }
 
 
 uint8_t slam_add_pose(
-        SLAMOptimizer*      optimizer,
-        const Pose*         pose,
-        const PointCloud*   scan)
+              SLAMOptimizer*    optimizer,
+        const Pose*             pose,
+        const PointCloud*       scan)
 {
-    int idx, i, j;
+    // counters and temporary variables
+    int idx, i;
     int new_constraint_count;
-    
 
-    // If buffer is full, shift everything down (discard oldest)
-    if (optimizer->buffer_size >= MAX_POSES) {
+
+    // append if buffer is not full
+    if (optimizer->buffer_size < MAX_POSES) {
+        
+        idx = optimizer->buffer_size;
+        optimizer->buffer_size++;
+
+
+    // else if buffer is full, shift everything down (discard oldest)
+    } else {
         
         // Shift poses and scans: move 1..MAX_POSES-1 to 0..MAX_POSES-2
-        for (i = 0; i < MAX_POSES - 1; i++) {
+        for (i = 0; i < (MAX_POSES - 1); i++) {
             optimizer->pose_pool[i] = optimizer->pose_pool[i + 1];
             optimizer->scan_pool[i] = optimizer->scan_pool[i + 1];
         }
         
         // Shift state vector similarly
-        for (i = 0; i < (MAX_POSES - 1) * 3; i++) {
+        for (i = 0; i < 3*(MAX_POSES - 1); i++)
             optimizer->state[i] = optimizer->state[i + 3];
-        }
         
         // Shift constraint IDs and remove any that reference pose 0
         // (pose 0 is being discarded, so its constraints are invalid)
         new_constraint_count = 0;
         for (i = 0; i < optimizer->num_constraints; i++) {
-            Constraint *c = &optimizer->constraints[i];
+            Constraint* c = &optimizer->constraints[i];
             
             // Skip constraints that reference pose 0 (being discarded)
-            if (c->pose1_id == 0 || c->pose2_id == 0) {
+            if (c->pose1_id == 0 || c->pose2_id == 0)
                 continue;
-            }
             
             // Decrement pose IDs (since everything shifted down by 1)
             c->pose1_id -= 1;
             c->pose2_id -= 1;
             
             // Keep this constraint (move to front if needed)
-            if (new_constraint_count != i) {
+            if (new_constraint_count != i)
                 optimizer->constraints[new_constraint_count] = *c;
-            }
+
             new_constraint_count++;
         }
+
         optimizer->num_constraints = new_constraint_count;
         
         // Clear H and b - they will be rebuilt with updated constraint IDs
@@ -463,27 +595,26 @@ uint8_t slam_add_pose(
         // New pose goes at the last slot
         idx = MAX_POSES - 1;
         
-    } else {
-        // Buffer not full - just append
-        idx = optimizer->buffer_size;
-        optimizer->buffer_size++;
     }
+
+
     
     // Store pose and scan at computed index
-    optimizer->pose_pool[idx] = *pose;
-    optimizer->scan_pool[idx] = *scan;
+    optimizer->pose_pool[idx]   = *pose;
+    optimizer->scan_pool[idx]   = *scan;
     
     // Update state vector for this new pose
     // IMPORTANT: Initialize state to the provided pose estimate
     // This gives optimization a good starting point, but it will adjust
     // these values to minimize constraint errors
-    optimizer->state[idx * 3 + 0] = pose->x;
-    optimizer->state[idx * 3 + 1] = pose->y;
-    optimizer->state[idx * 3 + 2] = pose->theta;
+    optimizer->state[idx*3 + 0] = pose->x;
+    optimizer->state[idx*3 + 1] = pose->y;
+    optimizer->state[idx*3 + 2] = pose->theta;
     
     optimizer->current_pose_count++;
     
-    return 1;
+    return SLAM_SUCCESS;
+
 }
 
 void slam_add_odometry_constraint(
@@ -497,24 +628,28 @@ void slam_add_odometry_constraint(
 {
     // Store the constraint for later rebuilding during optimization
     if (optimizer->num_constraints < MAX_CONSTRAINTS) {
-        Constraint *c = &optimizer->constraints[optimizer->num_constraints];
-        c->pose1_id   = pose1_id;
-        c->pose2_id   = pose2_id;
-        c->dx         = dx;
-        c->dy         = dy;
-        c->dtheta     = dtheta;
-        c->confidence = confidence;
+
+        Constraint* c   = &optimizer->constraints[optimizer->num_constraints];
+
+        c->pose1_id     = pose1_id;
+        c->pose2_id     = pose2_id;
+        c->dx           = dx;
+        c->dy           = dy;
+        c->dtheta       = dtheta;
+        c->confidence   = confidence;
         optimizer->num_constraints++;
+
     }
-    // Note: H/b are rebuilt from all constraints in slam_optimize_gauss_newton()
+    
 }
 
 
 /**
  * @brief Apply a single constraint to H and b matrices (internal helper)
  * 
- * Uses current state estimate (not original pose_pool) for error/Jacobian calculation.
- * This is critical for Gauss-Newton iteration to converge properly.
+ * Uses current state estimate (not original pose_pool) for error/Jacobian
+ *  calculation. This is critical for Gauss-Newton iteration to converge
+ *  properly.
  */
 static void slam_apply_constraint(
         SLAMOptimizer*  optimizer,
@@ -539,9 +674,13 @@ static void slam_apply_constraint(
 
     if (!optimizer->matrices_initialized)
         return;
-    if (pose1_id < 0 || pose1_id >= optimizer->buffer_size)
+
+    if (    (pose1_id < 0)
+         || (pose1_id >= optimizer->buffer_size))
         return;
-    if (pose2_id < 0 || pose2_id >= optimizer->buffer_size)
+
+    if (    (pose2_id < 0)
+         || (pose2_id >= optimizer->buffer_size))
         return;
     
 
@@ -557,23 +696,26 @@ static void slam_apply_constraint(
 
     // Build poses from CURRENT STATE ESTIMATE (not original pose_pool!)
     // This is essential for Gauss-Newton to work correctly across iterations
-    p1.x     = optimizer->state[i1 + 0];
-    p1.y     = optimizer->state[i1 + 1];
-    p1.theta = optimizer->state[i1 + 2];
+    p1.x        = optimizer->state[i1 + 0];
+    p1.y        = optimizer->state[i1 + 1];
+    p1.theta    = optimizer->state[i1 + 2];
     
-    p2.x     = optimizer->state[i2 + 0];
-    p2.y     = optimizer->state[i2 + 1];
-    p2.theta = optimizer->state[i2 + 2];
+    p2.x        = optimizer->state[i2 + 0];
+    p2.y        = optimizer->state[i2 + 1];
+    p2.theta    = optimizer->state[i2 + 2];
     
-    z_ij[0] = dx;
-    z_ij[1] = dy;
-    z_ij[2] = dtheta;
+    z_ij[0]     = dx;
+    z_ij[1]     = dy;
+    z_ij[2]     = dtheta;
     evaluate_error_pose_pose(&p1, &p2, z_ij, error);
     
 #ifdef DEBUG_OUTPUTS
-    // Debug: print error magnitude for ALL constraints to diagnose zero-error issue
-    float error_mag = sqrtf(error[0]*error[0] + error[1]*error[1]);
-    printf("    Constraint %d->%d: p1=(%.1f,%.1f,%.3f) p2=(%.1f,%.1f,%.3f) z=(%.1f,%.1f,%.3f) err=(%.2f,%.2f,%.3f) mag=%.2f\n",
+    // print error magnitude for ALL constraints to diagnose zero-error issue
+    float error_mag = sqrtf(    error[0]*error[0]
+                              + error[1]*error[1]);
+
+    printf("    Constraint %d->%d: p1=(%.1f,%.1f,%.3f) p2=(%.1f,%.1f,%.3f)"
+           " z=(%.1f,%.1f,%.3f) err=(%.2f,%.2f,%.3f) mag=%.2f\n",
            pose1_id, pose2_id, 
            p1.x, p1.y, p1.theta,
            p2.x, p2.y, p2.theta,
@@ -694,15 +836,15 @@ uint8_t slam_detect_loop_closure(
     float dist, confidence;
     Pose current_pose, candidate_pose;  // Local copies from state vector
     PointCloud *current_scan, *candidate_scan;
-    Pose initial_guess;
-    ICPResult icp_result;
-    int idx_curr, idx_cand;
+    int idx_curr;
+    // int idx_cand;
     
 
-    // early return
-    if (current_pose_id < MIN_TEMPORAL_GAP ||
-        current_pose_id >= optimizer->buffer_size) {
-        return 0;
+    // early return if `current_pose_id` is not within bounds
+    if (    (current_pose_id < MIN_TEMPORAL_GAP)
+         || (current_pose_id >= optimizer->buffer_size))
+    {
+        return SLAM_FAILURE;
     }
     
 
@@ -721,19 +863,23 @@ uint8_t slam_detect_loop_closure(
             candidate++)
     {
         // Build candidate pose from STATE (optimized estimate)
-        idx_cand                = candidate * 3;
-        candidate_pose.x        = optimizer->state[idx_cand + 0];
-        candidate_pose.y        = optimizer->state[idx_cand + 1];
-        candidate_pose.theta    = optimizer->state[idx_cand + 2];
+        // idx_cand                = 3*candidate;
+        candidate_pose.x        = optimizer->state[3*candidate + 0];
+        candidate_pose.y        = optimizer->state[3*candidate + 1];
+        candidate_pose.theta    = optimizer->state[3*candidate + 2];
         
         dist = pose_distance(&current_pose, &candidate_pose);
         
 #ifdef DEBUG_OUTPUTS
-        printf("  Checking candidate %d (buf_idx %d), dist=%.3f (thresh=%.1f)\n",
+        Serial.printf("  Checking candidate %d (buf_idx %d), dist=%.3f (thresh=%.1f)\n",
                 candidate, candidate_buffer_idx, dist, LOOP_DISTANCE_THRESHOLD);
 #endif
 
         if (dist < LOOP_DISTANCE_THRESHOLD) {
+
+            // check scan similarity with ICP alignment
+            Pose initial_guess;
+            ICPResult icp_result;
 
             // Attempt ICP alignment
             candidate_scan  = &optimizer->scan_pool[candidate];
@@ -751,7 +897,6 @@ uint8_t slam_detect_loop_closure(
             confidence = slam_compute_icp_confidence(
                     current_scan,
                     candidate_scan,
-                    &initial_guess,
                     &icp_result);
 
 
@@ -760,50 +905,42 @@ uint8_t slam_detect_loop_closure(
             if (confidence > ICP_CONFIDENCE_THRESHOLD) {
                 
                 // ICP was initialized with expected relative pose (initial_guess)
-                // and returns an incremental correction
-                // Total transform = initial_guess composed with icp_result
-                Pose icp_correction;
-                Pose refined_measurement;
-                
-                icp_correction.x = icp_result.dx;
-                icp_correction.y = icp_result.dy;
-                icp_correction.theta = icp_result.dtheta;
-                
-                // compose: initial_guess ⊕ icp_correction
-                compose_poses(&icp_correction, &initial_guess, &refined_measurement);
 
                 // Add loop closure constraint with moderate confidence boost
                 slam_add_odometry_constraint(
                         optimizer,
                         candidate,
                         current_pose_id,
-                        refined_measurement.x,
-                        refined_measurement.y,
-                        refined_measurement.theta,
-                        confidence * 5.0f  // Moderate boost over odometry
-                );
+                        icp_result.dx,
+                        icp_result.dy,
+                        icp_result.dtheta,
+                        confidence * 5.0f); // Moderate boost over odometry
 
     #ifdef DEBUG_OUTPUTS
-                printf(" --> *** LOOP CLOSURE DETECTED: pose %d matches pose %d! ***\n",
-                       current_pose_id, candidate);
-                printf("     initial_guess: (%.2f, %.2f, %.3f)\n", 
-                       initial_guess.x, initial_guess.y, initial_guess.theta);
-                printf("     ICP correction: (%.2f, %.2f, %.3f)\n",
-                       icp_correction.x, icp_correction.y, icp_correction.theta);
-                printf("     refined: (%.2f, %.2f, %.3f)\n",
-                       refined_measurement.x, refined_measurement.y, refined_measurement.theta);
+                Serial.printf(" --> *** LOOP CLOSURE DETECTED:"
+                              " pose %d matches pose %d! ***\n",
+                              current_pose_id, candidate);
+                Serial.printf("     initial_guess: (%.2f, %.2f, %.3f)\n", 
+                              initial_guess.x, initial_guess.y,
+                              initial_guess.theta);
+                Serial.printf("     ICP correction: (%.2f, %.2f, %.3f)\n",
+                              icp_result.dx, icp_result.dy,
+                              icp_result.dtheta);
     #endif
                 
-                return 1;
-            }
-        }
-    }
+                return SLAM_SUCCESS;
+
+            } // if (confidence > ICP_CONFIDENCE_THRESHOLD)
+
+        } // if (dist < LOOP_DISTANCE_THRESHOLD)
+
+    } // for loop over candidates
     
-    return 0;
+    return SLAM_FAILURE;
 }
 
 void slam_optimize_gauss_newton(
-        SLAMOptimizer   *optimizer,
+        SLAMOptimizer*  optimizer,
         int             max_iterations)
 {
 
@@ -812,19 +949,22 @@ void slam_optimize_gauss_newton(
     if (optimizer->buffer_size < 2)
         return;
     
-    // Need enough constraints to form a connected graph
-    // At minimum, we need (buffer_size - 1) odometry constraints to connect all poses
-    // Without enough constraints, H matrix will be singular
+
+    // Need enough constraints to form a connected graph. At minimum, we need
+    // (buffer_size - 1) odometry constraints to connect all poses. Without 
+    // enough constraints, H matrix will be singular.
     if (optimizer->num_constraints < optimizer->buffer_size - 1) {
+
 #ifdef DEBUG_OUTPUTS
-        printf("Optimization skipped: only %d constraints for %d poses (need %d)\n",
+        Serial.printf("Optimization skipped: only %d constraints for %d poses (need %d)\n",
                optimizer->num_constraints, optimizer->buffer_size, 
                optimizer->buffer_size - 1);
 #endif
+
         return;
     }
 
-    int i, j, iter, p, c;
+    int i, iter, p, c;
     int state_size;
     int8_t result;
     float dx_norm;
@@ -848,8 +988,8 @@ void slam_optimize_gauss_newton(
         Serial.printf("i-%d... ", iter);
 #endif
 
-        // Clear H and b, then rebuild from stored constraints
-        // Must be done each iteration because Jacobians depend on current state
+        // Clear H and b, then rebuild from stored constraints. Must be done
+        // each iteration because Jacobians depend on current state.
         memset(optimizer->H, 0, STATE_SIZE * STATE_SIZE * sizeof(float));
         memset(optimizer->b, 0, STATE_SIZE * sizeof(float));
         
@@ -858,9 +998,14 @@ void slam_optimize_gauss_newton(
             con = &optimizer->constraints[c];
             
             // Skip constraints that reference poses no longer in buffer
-            if (con->pose1_id < 0 || con->pose1_id >= optimizer->buffer_size ||
-                con->pose2_id < 0 || con->pose2_id >= optimizer->buffer_size)
+            if (    (con->pose1_id < 0                      )   \
+                 || (con->pose1_id >= optimizer->buffer_size)   \
+                 || (con->pose2_id < 0                      )   \
+                 || (con->pose2_id >= optimizer->buffer_size))
+            {
                 continue;
+            }
+
                 
             slam_apply_constraint(optimizer,
                                   con->pose1_id,
@@ -950,6 +1095,13 @@ void slam_optimize_gauss_newton(
 
 }
 
+
+// ----------------------------------------------------------------------------
+// 
+//  GETTER FUNCTIONS
+// 
+// ----------------------------------------------------------------------------
+
 void slam_get_current_pose(
         const SLAMOptimizer *optimizer,
         Pose                *out_pose)
@@ -967,13 +1119,14 @@ void slam_get_current_pose(
 
 uint8_t slam_get_pose(
         const SLAMOptimizer *optimizer,
-        int                  pose_id,
-        Pose                *out_pose)
+              int           pose_id,
+              Pose         *out_pose)
 {
     int idx;
 
-    if (pose_id < 0 || pose_id >= optimizer->buffer_size) {
-        return 0;
+    if (    (pose_id < 0)
+         || (pose_id >= optimizer->buffer_size)) {
+        return SLAM_FAILURE;
     }
     
     // Return optimized pose from state vector
@@ -982,7 +1135,7 @@ uint8_t slam_get_pose(
     out_pose->y     = optimizer->state[idx + 1];
     out_pose->theta = optimizer->state[idx + 2];
 
-    return 1;
+    return SLAM_SUCCESS;
 }
 
 uint8_t slam_get_scan(

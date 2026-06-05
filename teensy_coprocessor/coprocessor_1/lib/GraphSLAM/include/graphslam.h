@@ -3,24 +3,18 @@
  * @author your name (you@domain.com)
  * @brief 
  * @version 0.1
- * 
  */
 
-#ifndef __INC_GRAPHSLAM_H__
-#define __INC_GRAPHSLAM_H__
+#ifndef __GRAPHSLAM_H__
+#define __GRAPHSLAM_H__
 
-#include <ICP_2D.h>
-// #include "Project_Config.h"
-
-
-//#include "matrices.h"
-#include "coordinate_transform.h"
-#include "data_structures.h"
-#include "cholesky_decomposition.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
+
+#include <ICP_2D.h>
+#include <cholesky_decomposition.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -48,7 +42,8 @@ extern "C" {
 #define CONVERGENCE_TOLERANCE   1e-4f
 
 /**
- * @brief Math constant for pi (if not defined by the system) 
+ * @brief weight amount to add to diagonal of H for the first pose to fix it as
+ *  an anchor and prevent drift. 
  */
 #ifndef M_PI
 #define M_PI 3.14159265358979323846f
@@ -57,43 +52,58 @@ extern "C" {
 
 // ----------------------------------------------------------------------------
 //
-//  Data Structures
+//  DATA STRUCTURES
 //
 // ----------------------------------------------------------------------------
 
 
 /**
  * @brief Stored constraint for rebuilding H/b
+ * 
+ * @param pose1_id First pose index
+ * @param pose2_id Second pose index
+ * @param dx Relative x
+ * @param dy Relative y
+ * @param dtheta Relative theta
+ * @param confidence Constraint weight
  */
 typedef struct {
-    int     pose1_id;       // First pose index
-    int     pose2_id;       // Second pose index
-    float   dx;             // Relative x
-    float   dy;             // Relative y
-    float   dtheta;         // Relative theta
-    float   confidence;     // Constraint weight
+    int     pose1_id;
+    int     pose2_id;
+    float   dx;
+    float   dy;
+    float   dtheta;
+    float   confidence;
 } Constraint;
 
 /**
  * @brief Main SLAM optimizer state
+ * 
+ * @param pose_pool Buffer for storing poses (sliding window)
+ * @param scan_pool Buffer for storing scans (sliding window)
+ * @param current_pose_count    Total poses added (can exceed `MAX_POSES`)
+ * @param buffer_size   Current number of poses in buffer (0 to `MAX_POSES`)
+ * 
+ * @param constraints   Constraint storage for rebuilding H/b 
+ * @param num_constraints Number of constraints stored
+ * 
+ * @param H     Information matrix (Hessian)
+ * @param b     RHS vector
+ * @param state State vector [x0,y0,θ0, x1,y1,θ1, ...]
+ * 
+ * @param matrices_initialized Flag to indicate if H/b/state buffers have been
+ *  initialized
+ * @param optimization_requested Flag to indicate if optimization is requested
+ * @param last_optimization_time Timestamp of the last optimization
  */
 typedef struct {
-
-    /* Pose and scan storage (simple array with shift-on-full) */
 
     Pose        pose_pool[MAX_POSES];
     PointCloud  scan_pool[MAX_POSES];
 
-
-    // Total poses added (can exceed MAX_POSES)
     int         current_pose_count;
-    
-    // Current number of poses in buffer (0 to MAX_POSES)
     int         buffer_size;
 
-
-
-    /* Constraint storage for rebuilding H/b */
     Constraint  constraints[MAX_CONSTRAINTS];
     int         num_constraints;
 
@@ -122,15 +132,17 @@ typedef struct {
 
 // ----------------------------------------------------------------------------
 //
-//  Helper Functions
+//  HELPER FUNCTIONS
 //
 // ----------------------------------------------------------------------------
 
 /**
  * @brief Normalize angle to [-pi, pi]
  * 
- * @param angle Input angle in radians
- * @return Normalized angle
+ * @param[in] angle Input angle in radians
+ * 
+ * @return `float`
+ * @retval Normalized angle
  */
 float normalize_angle(float angle);
 

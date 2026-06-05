@@ -638,7 +638,6 @@ void test_icp_alignment_problem(void)
     int         i;
     PointCloud  play_src, play_tgt;
     Pose        true_delta;
-    Pose        init_guess;
     Pose        pose_src;
     Pose        pose_tgt;
     ICPResult   icp_result;
@@ -683,24 +682,8 @@ void test_icp_alignment_problem(void)
 #endif
 
 
-    // ── Initial guess: odometry warm start ─────────────────────────
-
-    // because we are expressing the delta in terms of target frame, the odometry guess is actually the inverse of the true delta estimate
-    // we are also playing it safe by scaling the guess to 50% of the true delta so the ICP doesn't overshoot
-    // @todo: will need to transplant this logic into the icp functions themselves so the underlying logic is abstracted away from the test cases and can be used in production code
-    init_guess.x         = -0.5f * true_delta.x;
-    init_guess.y         = -0.5f * true_delta.y;
-    init_guess.theta     = -1.f * true_delta.theta;
-
-    // init_guess.x         = 0.f;
-    // init_guess.y         = 0.f;
-    // init_guess.theta     = 0.f;
-
-    init_guess.timestamp = 0;
-
-
-    // ── Run ICP ─────────────────────────────────────────────────────────────
-    slam_perform_icp_play(&play_src, &play_tgt, &init_guess, &icp_result);
+    // ── Run ICP with odometry warm start ────────────────────────────────────
+    slam_perform_icp_play(&play_src, &play_tgt, &true_delta, &icp_result);
 
 
     // ── Confidence from playground buffer (icp_corr_dist_sq[] local to this ─

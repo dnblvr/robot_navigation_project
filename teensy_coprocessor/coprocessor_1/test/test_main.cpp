@@ -39,6 +39,7 @@ void test_rig() {
     // RUN_TEST(test_improved_icp_confidence_above_floor);
     // RUN_TEST(test_icp_improved_time_above_unimproved);
 
+
     // ── GraphSLAM pipeline tests ────────────────────────────────────────────
     // RUN_TEST(test_graphslam_pose_count);
     // RUN_TEST(test_graphslam_loop_closure_fires);
@@ -46,7 +47,8 @@ void test_rig() {
     // result: Expected 0 to be greater than 0       [FAILED]
     // RUN_TEST(test_graphslam_per_call_timing);
 
-    // ── Playground: ICP alignment debugger ─────────────────────────────────
+
+    // ── Playground: ICP alignment debugger ──────────────────────────────────
     RUN_TEST(test_icp_alignment_problem);
 
 

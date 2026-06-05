@@ -47,21 +47,39 @@ extern "C" {
  * @brief Loop closure detection parameters
  */
 #define LOOP_DISTANCE_THRESHOLD     850.0f  // mm
-#define ICP_CONFIDENCE_THRESHOLD    0.6f    // must be tuned based on sensor noise
+#define ICP_CONFIDENCE_THRESHOLD    0.6f    // tuned based on sensor noise
 #define MIN_TEMPORAL_GAP            5       // poses
 #define OPTIMIZE_INTERVAL           1       // poses
+
+#define SLAM_SUCCESS                1
+#define SLAM_FAILURE                0
 
 // Optimization parameters
 #define MAX_GAUSS_NEWTON_ITERS  3
 #define CONVERGENCE_TOLERANCE   1e-4f
+#define MAX_ICP_ITERATIONS      30
 
 /**
  * @brief weight amount to add to diagonal of H for the first pose to fix it as
  *  an anchor and prevent drift. 
  */
-#ifndef M_PI
-#define M_PI 3.14159265358979323846f
-#endif
+#define ANCHOR_WEIGHT 1000.f
+
+/**
+ * @brief threshold for valid ICP match. if distance between matched points is greater than this; in mm
+ * @todo this is a defunct constant that should be removed if the original ICP formulation is removed.
+ */
+#define VALID_MATCH_DISTANCE    200.0f
+
+/**
+ * @brief Scale factor for error confidence
+ */
+#define ERROR_CONFIDENCE_SCALE  140.f
+
+/**
+ * @brief ICP convergence tolerance
+ */
+#define ICP_CONVERGENCE_TOLERANCE   0.01f
 
 
 // ----------------------------------------------------------------------------
@@ -201,6 +219,17 @@ void relative_pose(
         const Pose  *p1,
         const Pose  *p2,
               Pose  *relative);
+
+
+/**
+ * @brief `T_inv` of pose `p` = (x,y,θ): rotation −θ, translation −R(−θ)·(x,y)
+ * 
+ * @param[in] p Input pose
+ * @param[out] inv Output inverted pose
+ */
+void invert_pose(
+        const Pose* p, 
+              Pose* inv);
 
 
 // ----------------------------------------------------------------------------

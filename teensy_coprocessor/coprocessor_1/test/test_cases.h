@@ -2,9 +2,9 @@
  * @file test_cases.h
  * @brief Declarations for all Unity test cases and their setup helpers.
  *
- *        All 9 test functions and their supporting init routines are defined
- *        in test_cases.cpp.  test_main.cpp includes this header and uses it
- *        as the sole entry point for UNITY_BEGIN / RUN_TEST / UNITY_END.
+ *  All 9 test functions and their supporting init routines are defined in
+ *  `test_cases.cpp`. `test_main.cpp` includes this header and uses it as the
+ *  sole entry point for `UNITY_BEGIN` / `RUN_TEST` / `UNITY_END`.
  */
 
 #pragma once

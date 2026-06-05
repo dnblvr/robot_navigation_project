@@ -125,6 +125,18 @@ void relative_pose(
 }
 
 
+void invert_pose(
+        const Pose* p, 
+              Pose* inv)
+{
+    float c = cosf(p->theta), s = sinf(p->theta);
+
+    inv->x     = -( c*p->x + s*p->y );
+    inv->y     =  ( s*p->x - c*p->y );
+    inv->theta = normalize_angle( -p->theta );
+}
+
+
 // ----------------------------------------------------------------------------
 //
 //  Error and Jacobian Functions
@@ -408,7 +420,6 @@ void slam_perform_icp_i(
         const Pose*         initial_guess,
               ICPResult*    result)
 {
-
     // output variables
     float R[4];  // 2x2 rotation matrix (row-major)
     float t[2];  // translation vector
@@ -1199,22 +1210,32 @@ void slam_perform_icp_play(
     PRINTF("MAX_ICP_RANGE: %.2f\n", MAX_ICP_RANGE);
     PRINTF("ICP_MAX_CORR_DIST: %.2f\n", ICP_MAX_CORR_DIST);
 #endif
+
+    Pose init_guess_aligned;    // starter guess 
+    Pose display_guess;
+
+    invert_pose(initial_guess, &init_guess_aligned);
     
     
     // If initial guess is non-zero, pre-transform scan1 so ICP only has to
     // find the small residual correction, then compose the two to recover
     // the full transformation: z_ij = initial_guess + residual
-    if (    (fabsf(initial_guess->x    ) > 1e-3f)
-         || (fabsf(initial_guess->y    ) > 1e-3f)
-         || (fabsf(initial_guess->theta) > 1e-3f))
+    if (    (fabsf(init_guess_aligned.x    ) > 1e-3f)
+         || (fabsf(init_guess_aligned.y    ) > 1e-3f)
+         || (fabsf(init_guess_aligned.theta) > 1e-3f))
     {
-        
         Pose icp_residual;
         Pose full_transform;
-
+        
+        // tune the initial guess for better convergence, less overshoot, and, within limiting factors, the lowest amount of iterations required for convergence. increasing this ratio doesn't lessen iteration
+        init_guess_aligned.x       *=  0.5f;
+        init_guess_aligned.y       *=  0.5f;
+        init_guess_aligned.theta   *=  1.f;
+        
         // Pre-transform scan1 with the initial guess
         PointCloud transformed_scan1;
-        transform_point_cloud(scan1, initial_guess, &transformed_scan1);
+        transform_point_cloud(scan1, &init_guess_aligned, &transformed_scan1);
+        
         
         // ICP finds the residual correction between scan1' and scan2
         ICP_2D_play(transformed_scan1.points, transformed_scan1.num_pts,
@@ -1231,11 +1252,9 @@ void slam_perform_icp_play(
                                 atan2f(R[2], R[0]),
                                 0};
         
-        compose_poses(&icp_residual, initial_guess, &full_transform);
+        compose_poses(&icp_residual, &init_guess_aligned, &full_transform);
 
-        result->dx      = full_transform.x;
-        result->dy      = full_transform.y;
-        result->dtheta  = full_transform.theta;
+        invert_pose(&full_transform, &display_guess);
     
 
     // ICP finds the full transformation directly
@@ -1249,11 +1268,17 @@ void slam_perform_icp_play(
                 &result->num_iterations,
                 R, t);
 
-        result->dx      = t[0];
-        result->dy      = t[1];
-        result->dtheta  = atan2f(R[2], R[0]);
+        Pose uninverted_guess = {t[0],
+                                t[1],
+                                atan2f(R[2], R[0]),
+                                0};
+
+        invert_pose(&uninverted_guess, &display_guess);
     }
 
+    result->dx      = display_guess.x;
+    result->dy      = display_guess.y;
+    result->dtheta  = display_guess.theta;
     result->valid   = true;
 
 }

@@ -14,6 +14,7 @@
 
 #include <unity.h>
 #include <./config/unity_config.h>
+
 #include <data_structures.h>
 #include <graphslam.h>
 
@@ -35,7 +36,7 @@
 #include "../log_hil_data/test_data.h"
 
 // this is the test data as captured from a live run
-#include "../log_hil_data/test_icp_data.h"
+// #include "../log_hil_data/test_icp_data.h"
 
 // this is the test transformations from the icp alignment problem test case
 // #include "../log_hil_data/test_icp_transformations.h"
@@ -628,908 +629,6 @@ void test_graphslam_per_call_timing(void)
 // ----------------------------------------------------------------------------
 //  DATA STRUCTURES
 
-/**
- * @brief Statically-allocated buffer for storing transformed source points
- *  for processing
- */
-static Point2D  icp_src_trans[ICP_MAX_POINTS];
-
-/**
- * @brief buffer which stores each index of its closest point in target for
- *  each source point; index of source is linked to an index of the target cloud
- */ 
-static index_t  icp_correspondences[ICP_MAX_POINTS];
-
-/**
- * @brief buffer which stores the squared distance for each correspondence
- */
-static float    icp_corr_dist_sq[ICP_MAX_POINTS];
-
-/**
- * @brief Cache variables for ICP to speed up repeated calls with the same
- *  input sizes
- */
-static uint16_t icp_valid_range = 0;
-
-#define PL_ICP 1
-
-#ifdef PL_ICP
-
-// __attribute__ (( section(".fastrun") ))
-void ICP_2D_play(
-        Point2D* source, uint16_t source_size,
-        Point2D* target, uint16_t target_size,
-        uint16_t max_iteration,
-        float    tolerance,
-
-        uint8_t* num_iter,
-        float*  out_R,
-        float*  out_t)
-{   
-    // early-return to validate input size against static buffer limits
-    if (    (source_size > ICP_MAX_POINTS)
-         || (source_size <= 0))
-    {
-
-#ifdef DEBUG_OUTPUT
-        PRINTF("\tICP: source_size %d exceeds max %d\n",
-               source_size,
-               ICP_MAX_POINTS);
-#endif
-
-        // Assign default identity transform
-        // out_R   = (float[4]){1.f, 0.f,
-        //                      0.f, 1.f};
-
-        // out_t   = (float[2]){0.f, 0.f};
-
-        out_R[0] = 1.f; out_R[1] = 0.f;
-        out_R[2] = 0.f; out_R[3] = 1.f;
-
-        out_t[0] = 0.f; out_t[1] = 0.f;
-
-        return;
-    }
-
-    // counter variables
-    uint16_t    iter, i;
-    int         j;
-
-    // iterative error for convergence check
-    float prev_error;
-
-    // Initialize transformation matrices
-    float R[2][2]   = { {1, 0},
-                        {0, 1} };
-    float t[2]      =   {0, 0};
-
-
-    // reset cache variables for this ICP run
-    memset(&icp_src_trans[0],       0, sizeof(Point2D)*ICP_MAX_POINTS);
-    memset(&icp_correspondences[0], 0, sizeof(index_t)*ICP_MAX_POINTS);
-    memset(&icp_corr_dist_sq[0],    0,   sizeof(float)*ICP_MAX_POINTS);
-
-
-    // Copy source to static buffer while sorting this array such that near
-    // points are filled in downwards while far points are filled in from the
-    // end, upward.
-    {
-        icp_valid_range = 0;
-        Point2D* near   = icp_src_trans;
-        Point2D* far    = icp_src_trans + source_size - 1;
-        
-        for (i = 0; i < source_size; i++) {
-
-            float range_sq  =   source[i].x*source[i].x \
-                              + source[i].y*source[i].y;
-
-            if (range_sq < (MAX_ICP_RANGE*MAX_ICP_RANGE)) {
-
-                *(near++)   = source[i];
-                icp_valid_range++;
-
-            } else {
-
-                *(far--)    = source[i];
-            }
-        }
-    }
-
-#ifdef DEBUG_OUTPUT
-    PRINTF("ICP_2D_i: `ICP_MAX_RANGE` filtered source from %u to %u points\n",
-          source_size,
-          icp_valid_range);
-
-    if (PRINT_CHECK) {
-        PRINTF("ICP tgts:    tgt[0]=(%.2f,%.2f)  tgt[1]=(%.2f,%.2f)\n",
-               target[0].x, target[0].y,
-               target[1].x, target[1].y);
-    }
-#endif
-
-    /**
-     * The goal is for the source points to converge to the target points
-     *  iteratively.
-     */
-    prev_error  = FLT_MAX;
-    for (iter = 0; iter < max_iteration; iter++)
-    {
-
-        // Point2D centroid_src, centroid_tgt;
-        float theta, c, s;
-        float R_iter[2][2];
-        float t_iter[2];
-        float mean_error;
-        float R_new[2][2];
-        float t_new[2];
-
-        // number of correspondences within max distance
-        uint16_t valid_count;
-        
-
-        // print first few source and target points on first iteration
-#ifdef DEBUG_OUTPUT
-        // if (PRINT_CHECK) {
-        //     PRINTF("ICP iter %u:  src[0]=(%.2f,%.2f)  src[1]=(%.2f,%.2f)\n",
-        //            iter,
-        //            icp_src_trans[0].x, icp_src_trans[0].y,
-        //            icp_src_trans[1].x, icp_src_trans[1].y);
-        // }
-
-        PointCloud dummy_cloud;
-
-        for (i = 0; i < source_size; i++) {
-            dummy_cloud.points[i] = icp_src_trans[i];
-        }
-        dummy_cloud.num_pts = source_size;
-
-        C_format_print((state_se2_t){0,0,0},
-                       &dummy_cloud);
-#endif
-
-        // 1. Find correspondences between each source pt. and
-        //      all target points in the `target` array.
-        //      Also record the squared distance for filtering.
-        // for (i = 0; i < icp_valid_range; i++) {
-            
-        //     icp_correspondences[i] = Find_Closest_Point(
-        //             icp_src_trans[i],
-        //             target,
-        //             target_size,
-        //             &icp_corr_dist_sq[i]);
-                    
-        // }
-
-
-        // 2. Compute centroids using only valid correspondences
-        //    (distance < ICP_MAX_CORR_DIST)
-        // centroid_src.x  = 0;    centroid_src.y  = 0;
-        // centroid_tgt.x  = 0;    centroid_tgt.y  = 0;
-        // valid_count     = 0;
-
-        
-        // for (i = 0; i < icp_valid_range; i++) {
-
-        //     if (icp_corr_dist_sq[i] < ICP_MAX_CORR_DIST_SQ) {
-        //         centroid_src.x += icp_src_trans[i].x;
-        //         centroid_src.y += icp_src_trans[i].y;
-        //         centroid_tgt.x += target[icp_correspondences[i]].x;
-        //         centroid_tgt.y += target[icp_correspondences[i]].y;
-        //         valid_count++;
-        //     }
-
-        // }
-
-        // Need at least 3 valid correspondences to compute transformation
-//         if (valid_count < 3) {
-// #ifdef DEBUG_OUTPUT
-//             PRINTF("ICP iter %d: only %d valid correspondences, stopping\n",
-//                     iter,
-//                     valid_count);
-// #endif
-//             break;
-//         }
-
-        // centroid_src.x /= valid_count;
-        // centroid_src.y /= valid_count;
-        // centroid_tgt.x /= valid_count;
-        // centroid_tgt.y /= valid_count;
-
-
-        // 3. Compute cross-covariance matrix using only valid correspondences
-        // this derivces the optimal rotation matrix that minimizes the mean squared error between the source and target points
-        // float   S_xx = 0,   S_xy = 0,
-        //         S_yx = 0,   S_yy = 0;
-    
-        // for (i = 0; i < icp_valid_range; i++) {
-            
-        //     // early-continue away from pairs that are too far apart
-        //     if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ)
-        //         continue;
-            
-        //     float x_s   = icp_src_trans[i].x - centroid_src.x;
-        //     float y_s   = icp_src_trans[i].y - centroid_src.y;
-        //     float x_t   =   target[icp_correspondences[i]].x
-        //                   - centroid_tgt.x;
-        //     float y_t   =   target[icp_correspondences[i]].y
-        //                   - centroid_tgt.y;
-
-        //     S_xx   += x_s * x_t;
-        //     S_xy   += x_s * y_t; 
-        //     S_yx   += y_s * x_t;
-        //     S_yy   += y_s * y_t;
-        // }
-
-        
-        // 3. alternatively, the PLICP paper suggests that I accumulate the overdetermined system that solves the matrix `A x = b` firstly by accumulating these matrices incrementally as I find correspondences, 
-        float AT_A[TOTAL]   = {0};
-        float AT_b[DIMS]    = {0};
-
-        // here, we add in only the points from source that are within the stated `ICP_MAX_RANGE`, which uses the counter `icp_valid_range` to find the limit
-        accumulate_PL_ICP_contributions(&icp_src_trans[0], icp_valid_range,
-                                        target, target_size,
-
-                                        icp_correspondences,
-                                        AT_A, AT_b);
-
-        // also, this retrieves the `icp_correspondences` that is needed for further processing in step 7, so we can reuse this buffer for both purposes. hopefully the array from 0 to `icp_valid_range` is fully populated
-
-
-
-        // 4. Compute rotation (using SVD for 2x2)
-        // theta       = atan2f(S_xy - S_yx, S_xx + S_yy);
-        
-    #ifdef DEBUG_OUTPUT
-        // if (PRINT_CHECK) {
-        //     PRINTF("ICP iter %u: S_xx=%.2f S_xy=%.2f S_yx=%.2f S_yy=%.2f -> theta=%.3f rad (%.1f deg)\n",
-        //         iter,
-        //            S_xx, S_xy, S_yx, S_yy, theta, theta * 57.2958f);
-        // }
-    #endif
-        
-        // c   = cosf(theta);  s   = sinf(theta);
-
-        // R_iter[0][0]    =  c;   R_iter[0][1]    = -s;
-        // R_iter[1][0]    =  s;   R_iter[1][1]    =  c;
-
-
-        // 4. alternatively, we use the accumulated `A` and `b` matrices which comes up with the optimal solution `[dx, dy, dtheta]` that minimizes the mean squared error of the source and target.
-
-        float delta[DIMS];
-        solve_3x3_system(AT_A, AT_b, delta);
-
-
-        // // 5. Compute translation
-        // t_iter[0]   =   centroid_tgt.x
-        //               - (   R_iter[0][0]*centroid_src.x
-        //                   + R_iter[0][1]*centroid_src.y);
-
-        // t_iter[1]   =   centroid_tgt.y
-        //               - (   R_iter[1][0]*centroid_src.x
-        //                   + R_iter[1][1]*centroid_src.y);
-
-
-        // Update transformation (compose) before transforming points
-        // R_new = R_iter * R_old, t_new = R_iter * t_old + t_iter
-        // R_new[0][0] = R_iter[0][0]*R[0][0]  +  R_iter[0][1]*R[1][0];
-        // R_new[0][1] = R_iter[0][0]*R[0][1]  +  R_iter[0][1]*R[1][1];
-        // R_new[1][0] = R_iter[1][0]*R[0][0]  +  R_iter[1][1]*R[1][0];
-        // R_new[1][1] = R_iter[1][0]*R[0][1]  +  R_iter[1][1]*R[1][1];
-
-        // t_new[0]    = R_iter[0][0]*t[0]  +  R_iter[0][1]*t[1]  +  t_iter[0];
-        // t_new[1]    = R_iter[1][0]*t[0]  +  R_iter[1][1]*t[1]  +  t_iter[1];
-
-        // // update R, t with new values for next iteration        
-        // memcpy(R, R_new, sizeof(float)*4);
-        // memcpy(t, t_new, sizeof(float)*2);
-
-
-        // 5. alternatively, compute the incremental transformation R_iter, t_iter from the solution vector `delta`
-        theta       = delta[2];
-        c   = cosf(theta);  s   = sinf(theta);
-        R_iter[0][0]    =  c;   R_iter[0][1]    = -s;
-        R_iter[1][0]    =  s;   R_iter[1][1]    =  c;
-
-        t_iter[0]    = delta[0];
-        t_iter[1]    = delta[1];
-
-
-        // Update transformation (compose) before transforming points
-        // R_new = R_iter * R_old, t_new = R_iter * t_old + t_iter
-        R_new[0][0] = R_iter[0][0]*R[0][0]  +  R_iter[0][1]*R[1][0];
-        R_new[0][1] = R_iter[0][0]*R[0][1]  +  R_iter[0][1]*R[1][1];
-        R_new[1][0] = R_iter[1][0]*R[0][0]  +  R_iter[1][1]*R[1][0];
-        R_new[1][1] = R_iter[1][0]*R[0][1]  +  R_iter[1][1]*R[1][1];
-
-        t_new[0]    = R_iter[0][0]*t[0]  +  R_iter[0][1]*t[1]  +  t_iter[0];
-        t_new[1]    = R_iter[1][0]*t[0]  +  R_iter[1][1]*t[1]  +  t_iter[1];
-
-        // update R, t with new values for next iteration        
-        memcpy(R, R_new, sizeof(float)*4);
-        memcpy(t, t_new, sizeof(float)*2);
-
-
-        // 6. Transform source points using accumulated transformation R, t
-        for (i = 0; i < icp_valid_range; i++) {
-
-            float x = icp_src_trans[i].x;
-            float y = icp_src_trans[i].y;
-
-            icp_src_trans[i].x = R_iter[0][0]*x + R_iter[0][1]*y + t_iter[0];
-            icp_src_trans[i].y = R_iter[1][0]*x + R_iter[1][1]*y + t_iter[1];
-        }
-
-        #ifdef DEBUG_OUTPUT
-        char buf[80];
-        snprintf(buf, sizeof(buf), "    movement: t=(%.3f, %.3f)",
-                                   t_iter[0], t_iter[1]);
-        TEST_MESSAGE(buf);
-
-        #endif
-
-
-        // 7. Check error (only on valid correspondences)
-        mean_error  = 0.0f;
-        valid_count = 0;
-        for (i = 0; i < icp_valid_range; i++) {
-
-            // Skip pairs that are too far apart
-            if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ) 
-                continue;
-
-            float dx = icp_src_trans[i].x - target[icp_correspondences[i]].x;
-            float dy = icp_src_trans[i].y - target[icp_correspondences[i]].y;
-
-            // update two places to speed up work
-            icp_corr_dist_sq[i] = dx*dx + dy*dy;
-            mean_error         += icp_corr_dist_sq[i];
-
-            valid_count++;
-        }
-
-        // 
-        if (valid_count > 0) {
-            mean_error  = sqrtf(mean_error / valid_count);
-        }
-
-        // if tolerance threshold is met, consider it converged
-        if (fabsf(prev_error - mean_error) < tolerance) {
-            break;
-        }
-
-        prev_error = mean_error;
-
-        // 8. repeat 1. with new source positions and same target until we see convergence or max iterations
-    }
-
-
-    // 9. perform post-processing of far-range points with final R, t
-    int num_far   = (int)(source_size - icp_valid_range);
-    int far_start = (int)ICP_MAX_POINTS - num_far;
-    for (j = (int)ICP_MAX_POINTS - 1; j >= far_start; j--) {
-        
-        // first, perform an action on the far points with the final transformation
-        float x = icp_src_trans[j].x;
-        float y = icp_src_trans[j].y;
-
-        icp_src_trans[j].x  = R[0][0]*x + R[0][1]*y + t[0];
-        icp_src_trans[j].y  = R[1][0]*x + R[1][1]*y + t[1];
-
-        // then, find their correspondences for potential use in downstream
-        // processing (e.g. loop closure)
-        icp_correspondences[j] = Find_Closest_Point(
-                icp_src_trans[j],
-                target,
-                target_size,
-                &icp_corr_dist_sq[j]);
-    }
-
-
-    // 10. return final transformation R,t
-    out_R[0] = R[0][0]; out_R[1] = R[0][1];
-    out_R[2] = R[1][0]; out_R[3] = R[1][1];
-
-    out_t[0] = t[0];
-    out_t[1] = t[1];
-
-    *num_iter = iter;
-    
-
-#ifdef DEBUG_OUTPUT
-    PRINTF("ICP result: t=(%.3f, %.3f)  theta=%.4f rad (%.2f deg)\n",
-           t[0],
-           t[1],
-           atan2f(R[1][0], R[0][0]),
-           atan2f(R[1][0], R[0][0]) * 57.2958f);
-#endif
-
-}
-
-#else 
-
-
-
-// __attribute__ (( section(".fastrun") ))
-void ICP_2D_play(
-        Point2D* source, uint16_t source_size,
-        Point2D* target, uint16_t target_size,
-        uint16_t max_iteration,
-        float    tolerance,
-
-        uint8_t* num_iter,
-        float*  out_R,
-        float*  out_t)
-{   
-    // early-return to validate input size against static buffer limits
-    if (    (source_size > ICP_MAX_POINTS)
-         || (source_size <= 0))
-    {
-
-#ifdef DEBUG_OUTPUT
-        PRINTF("\tICP: source_size %d exceeds max %d\n",
-               source_size,
-               ICP_MAX_POINTS);
-#endif
-
-        // Assign default identity transform
-        // out_R   = (float[4]){1.f, 0.f,
-        //                      0.f, 1.f};
-
-        // out_t   = (float[2]){0.f, 0.f};
-
-        out_R[0] = 1.f; out_R[1] = 0.f;
-        out_R[2] = 0.f; out_R[3] = 1.f;
-
-        out_t[0] = 0.f; out_t[1] = 0.f;
-
-        return;
-    }
-
-    // counter variables
-    uint16_t    iter, i;
-    int         j;
-
-    // iterative error for convergence check
-    float prev_error;
-
-    // Initialize transformation matrices
-    float R[2][2]   = { {1, 0},
-                        {0, 1} };
-    float t[2]      =   {0, 0};
-
-
-    // reset cache variables for this ICP run
-    memset(&icp_src_trans[0],       0, sizeof(Point2D)*ICP_MAX_POINTS);
-    memset(&icp_correspondences[0], 0, sizeof(index_t)*ICP_MAX_POINTS);
-    memset(&icp_corr_dist_sq[0],    0,   sizeof(float)*ICP_MAX_POINTS);
-
-
-    // Copy source to static buffer while sorting this array such that near
-    // points are filled in downwards while far points are filled in from the
-    // end, upward.
-    {
-        icp_valid_range = 0;
-        Point2D* near   = icp_src_trans;
-        Point2D* far    = icp_src_trans + source_size - 1;
-        for (i = 0; i < source_size; i++) {
-
-            float range_sq  =   source[i].x*source[i].x \
-                              + source[i].y*source[i].y;
-
-            if (range_sq < (MAX_ICP_RANGE*MAX_ICP_RANGE)) {
-
-                *(near++)   = source[i];
-                icp_valid_range++;
-
-            } else {
-
-                *(far--)    = source[i];
-            }
-        }
-    }
-
-#ifdef DEBUG_OUTPUT
-    PRINTF("ICP_2D_i: `ICP_MAX_RANGE` filtered source from %u to %u points\n",
-          source_size,
-          icp_valid_range);
-
-    if (PRINT_CHECK) {
-        PRINTF("ICP tgts:    tgt[0]=(%.2f,%.2f)  tgt[1]=(%.2f,%.2f)\n",
-               target[0].x, target[0].y,
-               target[1].x, target[1].y);
-    }
-#endif
-    /**
-     * The goal is for the source points to converge to the target points
-     *  iteratively.
-     */
-    prev_error  = FLT_MAX;
-    for (iter = 0; iter < max_iteration; iter++)
-    {
-
-        Point2D centroid_src, centroid_tgt;
-        float theta, c, s;
-        float R_iter[2][2];
-        float t_iter[2];
-        float mean_error;
-        float R_new[2][2];
-        float t_new[2];
-
-        // number of correspondences within max distance
-        uint16_t valid_count;
-        
-
-        // print first few source and target points on first iteration
-#ifdef DEBUG_OUTPUT
-        // if (PRINT_CHECK) {
-        //     PRINTF("ICP iter %u:  src[0]=(%.2f,%.2f)  src[1]=(%.2f,%.2f)\n",
-        //            iter,
-        //            icp_src_trans[0].x, icp_src_trans[0].y,
-        //            icp_src_trans[1].x, icp_src_trans[1].y);
-        // }
-
-        PointCloud dummy_cloud;
-
-        for (i = 0; i < source_size; i++) {
-            dummy_cloud.points[i] = icp_src_trans[i];
-        }
-        dummy_cloud.num_pts = source_size;
-
-        C_format_print((state_se2_t){0,0,0},
-                       &dummy_cloud);
-#endif
-
-        // 1. Find correspondences between each source pt. and
-        //      all target points in the `target` array.
-        //      Also record the squared distance for filtering.
-        for (i = 0; i < icp_valid_range; i++) {
-            
-            icp_correspondences[i] = Find_Closest_Point(
-                    icp_src_trans[i],
-                    target,
-                    target_size,
-                    &icp_corr_dist_sq[i]);
-                    
-        }
-
-
-        // 2. Compute centroids using only valid correspondences
-        //    (distance < ICP_MAX_CORR_DIST)
-        centroid_src.x  = 0;    centroid_src.y  = 0;
-        centroid_tgt.x  = 0;    centroid_tgt.y  = 0;
-        valid_count     = 0;
-
-        
-        for (i = 0; i < icp_valid_range; i++) {
-
-            if (icp_corr_dist_sq[i] < ICP_MAX_CORR_DIST_SQ) {
-                centroid_src.x += icp_src_trans[i].x;
-                centroid_src.y += icp_src_trans[i].y;
-                centroid_tgt.x += target[icp_correspondences[i]].x;
-                centroid_tgt.y += target[icp_correspondences[i]].y;
-                valid_count++;
-            }
-
-        }
-
-        // Need at least 3 valid correspondences to compute transformation
-        if (valid_count < 3) {
-#ifdef DEBUG_OUTPUT
-            PRINTF("ICP iter %d: only %d valid correspondences, stopping\n",
-                    iter,
-                    valid_count);
-#endif
-            break;
-        }
-
-        centroid_src.x /= valid_count;
-        centroid_src.y /= valid_count;
-        centroid_tgt.x /= valid_count;
-        centroid_tgt.y /= valid_count;
-
-
-        // 3. Compute cross-covariance matrix using only valid correspondences
-        // this derivces the optimal rotation matrix that minimizes the mean squared error between the source and target points
-        float   S_xx = 0,   S_xy = 0,
-                S_yx = 0,   S_yy = 0;
-    
-        for (i = 0; i < icp_valid_range; i++) {
-            
-            // early-continue away from pairs that are too far apart
-            if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ)
-                continue;
-            
-            float x_s   = icp_src_trans[i].x - centroid_src.x;
-            float y_s   = icp_src_trans[i].y - centroid_src.y;
-            float x_t   =   target[icp_correspondences[i]].x
-                          - centroid_tgt.x;
-            float y_t   =   target[icp_correspondences[i]].y
-                          - centroid_tgt.y;
-
-            S_xx   += x_s * x_t;
-            S_xy   += x_s * y_t; 
-            S_yx   += y_s * x_t;
-            S_yy   += y_s * y_t;
-        }
-
-
-        // 4. Compute rotation (using SVD for 2x2)
-        theta       = atan2f(S_xy - S_yx, S_xx + S_yy);
-        
-    #ifdef DEBUG_OUTPUT
-        // if (PRINT_CHECK) {
-        //     PRINTF("ICP iter %u: S_xx=%.2f S_xy=%.2f S_yx=%.2f S_yy=%.2f -> theta=%.3f rad (%.1f deg)\n",
-        //         iter,
-        //            S_xx, S_xy, S_yx, S_yy, theta, theta * 57.2958f);
-        // }
-    #endif
-        
-        c   = cosf(theta);  s   = sinf(theta);
-
-        R_iter[0][0]    =  c;   R_iter[0][1]    = -s;
-        R_iter[1][0]    =  s;   R_iter[1][1]    =  c;
-
-
-        // 5. Compute translation
-        t_iter[0]   =   centroid_tgt.x
-                      - (   R_iter[0][0]*centroid_src.x
-                          + R_iter[0][1]*centroid_src.y);
-
-        t_iter[1]   =   centroid_tgt.y
-                      - (   R_iter[1][0]*centroid_src.x
-                          + R_iter[1][1]*centroid_src.y);
-
-
-        // Update transformation (compose) before transforming points
-        // R_new = R_iter * R_old, t_new = R_iter * t_old + t_iter
-        R_new[0][0] = R_iter[0][0]*R[0][0]  +  R_iter[0][1]*R[1][0];
-        R_new[0][1] = R_iter[0][0]*R[0][1]  +  R_iter[0][1]*R[1][1];
-        R_new[1][0] = R_iter[1][0]*R[0][0]  +  R_iter[1][1]*R[1][0];
-        R_new[1][1] = R_iter[1][0]*R[0][1]  +  R_iter[1][1]*R[1][1];
-
-        t_new[0]    = R_iter[0][0]*t[0]  +  R_iter[0][1]*t[1]  +  t_iter[0];
-        t_new[1]    = R_iter[1][0]*t[0]  +  R_iter[1][1]*t[1]  +  t_iter[1];
-
-        // update R, t with new values for next iteration        
-        memcpy(R, R_new, sizeof(float)*4);
-        memcpy(t, t_new, sizeof(float)*2);
-
-
-        // 6. Transform source points using accumulated transformation R, t
-        for (i = 0; i < icp_valid_range; i++) {
-
-            float x = icp_src_trans[i].x;
-            float y = icp_src_trans[i].y;
-
-            icp_src_trans[i].x = R_iter[0][0]*x + R_iter[0][1]*y + t_iter[0];
-            icp_src_trans[i].y = R_iter[1][0]*x + R_iter[1][1]*y + t_iter[1];
-        }
-
-        // #ifdef DEBUG_OUTPUT
-        char buf[80];
-        snprintf(buf, sizeof(buf), "    movement: t=(%.3f, %.3f)",
-                                   t_iter[0], t_iter[1]);
-        TEST_MESSAGE(buf);
-
-        // #endif
-
-
-        // 7. Check error (only on valid correspondences)
-        mean_error  = 0.0f;
-        valid_count = 0;
-        for (i = 0; i < icp_valid_range; i++) {
-
-            // Skip pairs that are too far apart
-            if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ) 
-                continue;
-
-            float dx = icp_src_trans[i].x - target[icp_correspondences[i]].x;
-            float dy = icp_src_trans[i].y - target[icp_correspondences[i]].y;
-
-            // update two places to speed up work
-            icp_corr_dist_sq[i] = dx*dx + dy*dy;
-            mean_error         += icp_corr_dist_sq[i];
-
-            valid_count++;
-        }
-
-        // 
-        if (valid_count > 0) {
-            mean_error  = sqrtf(mean_error / valid_count);
-        }
-
-        // if tolerance threshold is met, consider it converged
-        if (fabsf(prev_error - mean_error) < tolerance) {
-            break;
-        }
-
-        prev_error = mean_error;
-
-        // 8. repeat 1. with new source positions and same target until we see convergence or max iterations
-    }
-
-
-    // 9. perform post-processing of far-range points with final R, t
-    int num_far   = (int)(source_size - icp_valid_range);
-    int far_start = (int)ICP_MAX_POINTS - num_far;
-    for (j = (int)ICP_MAX_POINTS - 1; j >= far_start; j--) {
-        
-        // first, perform an action on the far points with the final transformation
-        float x = icp_src_trans[j].x;
-        float y = icp_src_trans[j].y;
-
-        icp_src_trans[j].x  = R[0][0]*x + R[0][1]*y + t[0];
-        icp_src_trans[j].y  = R[1][0]*x + R[1][1]*y + t[1];
-
-        // then, find their correspondences for potential use in downstream
-        // processing (e.g. loop closure)
-        icp_correspondences[j] = Find_Closest_Point(
-                icp_src_trans[j],
-                target,
-                target_size,
-                &icp_corr_dist_sq[j]);
-    }
-
-
-    // 10. return final transformation R,t
-    out_R[0] = R[0][0]; out_R[1] = R[0][1];
-    out_R[2] = R[1][0]; out_R[3] = R[1][1];
-
-    out_t[0] = t[0];
-    out_t[1] = t[1];
-
-    *num_iter = iter;
-    
-
-#ifdef DEBUG_OUTPUT
-    PRINTF("ICP result: t=(%.3f, %.3f)  theta=%.4f rad (%.2f deg)\n",
-           t[0],
-           t[1],
-           atan2f(R[1][0], R[0][0]),
-           atan2f(R[1][0], R[0][0]) * 57.2958f);
-#endif
-
-}
-
-void slam_perform_icp_play(
-        const PointCloud*   scan1,
-        const PointCloud*   scan2,
-        const Pose*         initial_guess,
-              ICPResult*    result)
-{
-
-    // output variables
-    float R[4];  // 2x2 rotation matrix (row-major)
-    float t[2];  // translation vector
-    
-    
-    // If initial guess is non-zero, pre-transform scan1 so ICP only has to
-    // find the small residual correction, then compose the two to recover
-    // the full transformation: z_ij = initial_guess + residual
-    if (    fabsf(initial_guess->x    ) > 1e-3f
-         || fabsf(initial_guess->y    ) > 1e-3f
-         || fabsf(initial_guess->theta) > 1e-3f)
-    {
-        
-        Pose icp_residual;
-        Pose full_transform;
-
-        // Pre-transform scan1 with the initial guess
-        PointCloud transformed_scan1;
-        transform_point_cloud(scan1, initial_guess, &transformed_scan1);
-        
-        // ICP finds the residual correction between scan1' and scan2
-        ICP_2D_play(transformed_scan1.points, transformed_scan1.num_pts,
-                 (Point2D*)scan2->points, scan2->num_pts,
-                 MAX_ICP_ITERATIONS,
-                 ICP_CONVERGENCE_TOLERANCE,
-                 &result->num_iterations,
-                 R, t);
-
-        // Compose initial_guess + icp_residual to get the full transformation.
-        // compose_poses(p2, p1, result) computes result = p1 + p2
-        icp_residual   = (Pose){t[0],
-                                t[1],
-                                atan2f(R[2], R[0]),
-                                0};
-        
-        compose_poses(&icp_residual, initial_guess, &full_transform);
-
-        result->dx      = full_transform.x;
-        result->dy      = full_transform.y;
-        result->dtheta  = full_transform.theta;
-    
-
-    // ICP finds the full transformation directly
-    } else {
-
-        ICP_2D_play(
-                (Point2D*)scan1->points, scan1->num_pts,
-                (Point2D*)scan2->points, scan2->num_pts,
-                MAX_ICP_ITERATIONS,
-                ICP_CONVERGENCE_TOLERANCE,
-                &result->num_iterations,
-                R, t);
-
-        result->dx      = t[0];
-        result->dy      = t[1];
-        result->dtheta  = atan2f(R[2], R[0]);
-    }
-
-    result->valid   = true;
-
-}
-
-#endif // PLAY_ICP_IMPLEMENTATION
-
-void slam_perform_icp_play(
-        const PointCloud*   scan1,
-        const PointCloud*   scan2,
-        const Pose*         initial_guess,
-              ICPResult*    result)
-{
-
-    // output variables
-    float R[4];  // 2x2 rotation matrix (row-major)
-    float t[2];  // translation vector
-    
-    
-    // If initial guess is non-zero, pre-transform scan1 so ICP only has to
-    // find the small residual correction, then compose the two to recover
-    // the full transformation: z_ij = initial_guess + residual
-    if (    fabsf(initial_guess->x    ) > 1e-3f
-         || fabsf(initial_guess->y    ) > 1e-3f
-         || fabsf(initial_guess->theta) > 1e-3f)
-    {
-        
-        Pose icp_residual;
-        Pose full_transform;
-
-        // Pre-transform scan1 with the initial guess
-        PointCloud transformed_scan1;
-        transform_point_cloud(scan1, initial_guess, &transformed_scan1);
-        
-        // ICP finds the residual correction between scan1' and scan2
-        ICP_2D_play(transformed_scan1.points, transformed_scan1.num_pts,
-                 (Point2D*)scan2->points, scan2->num_pts,
-                 MAX_ICP_ITERATIONS,
-                 ICP_CONVERGENCE_TOLERANCE,
-                 &result->num_iterations,
-                 R, t);
-
-        // Compose initial_guess + icp_residual to get the full transformation.
-        // compose_poses(p2, p1, result) computes result = p1 + p2
-        icp_residual   = (Pose){t[0],
-                                t[1],
-                                atan2f(R[2], R[0]),
-                                0};
-        
-        compose_poses(&icp_residual, initial_guess, &full_transform);
-
-        result->dx      = full_transform.x;
-        result->dy      = full_transform.y;
-        result->dtheta  = full_transform.theta;
-    
-
-    // ICP finds the full transformation directly
-    } else {
-
-        ICP_2D_play(
-                (Point2D*)scan1->points, scan1->num_pts,
-                (Point2D*)scan2->points, scan2->num_pts,
-                MAX_ICP_ITERATIONS,
-                ICP_CONVERGENCE_TOLERANCE,
-                &result->num_iterations,
-                R, t);
-
-        result->dx      = t[0];
-        result->dy      = t[1];
-        result->dtheta  = atan2f(R[2], R[0]);
-    }
-
-    result->valid   = true;
-
-}
 
 
 void test_icp_alignment_problem(void)
@@ -1568,25 +667,30 @@ void test_icp_alignment_problem(void)
     // }
     // relative_pose(&pose_src, &pose_tgt, &true_delta);
 
-    play_src   = scan_2;
-    play_tgt   = scan_3;
-    true_delta = pose_3; // already relative to pose_2 because of the code in 
-    // true_delta = (Pose){0,0,0,0}; // override to test zero initial guess
+    play_src   = scan_5;
+    play_tgt   = scan_6;
+    true_delta = pose_6; // already relative to pose_2 because of the code in test_data.h
 
 
-    // ── Instrument inputs with C_format_print ────────────────────────────────
+    // ── Instrument inputs with C_format_print ───────────────────────────────
+#ifdef PROCESSING4_OUTPUT
     C_format_print((state_se2_t){0.f, 0.f, 0.f},
                    &play_src);
     C_format_print((state_se2_t){true_delta.x,
                                  true_delta.y,
                                  true_delta.theta},
                    &play_tgt);
+#endif
 
 
-    // ── Initial guess: half-odometry warm start ─
-    init_guess.x         = 0.65 * true_delta.x;
-    init_guess.y         = 0.65 * true_delta.y;
-    init_guess.theta     = 1.0f * true_delta.theta;
+    // ── Initial guess: odometry warm start ─────────────────────────
+
+    // because we are expressing the delta in terms of target frame, the odometry guess is actually the inverse of the true delta estimate
+    // we are also playing it safe by scaling the guess to 50% of the true delta so the ICP doesn't overshoot
+    // @todo: will need to transplant this logic into the icp functions themselves so the underlying logic is abstracted away from the test cases and can be used in production code
+    init_guess.x         = -0.5f * true_delta.x;
+    init_guess.y         = -0.5f * true_delta.y;
+    init_guess.theta     = -1.f * true_delta.theta;
 
     // init_guess.x         = 0.f;
     // init_guess.y         = 0.f;
@@ -1595,58 +699,72 @@ void test_icp_alignment_problem(void)
     init_guess.timestamp = 0;
 
 
-    // ── Run ICP ──────────────────────────────────────────────────────────────
+    // ── Run ICP ─────────────────────────────────────────────────────────────
     slam_perform_icp_play(&play_src, &play_tgt, &init_guess, &icp_result);
 
 
     // ── Confidence from playground buffer (icp_corr_dist_sq[] local to this ─
     //    translation unit — NOT the stale ICP_get_cache() from production ICP)
+    float mean_error = 0.f;
     {
         float total = 0.0f;
-        for (i = 0; i < ICP_MAX_POINTS; i++)
+        float* icp_corr_dist_sq = ICP_get_cache();
+
+        for (i = 0; i < ICP_MAX_POINTS; i++) {
+            mean_error += sqrtf(icp_corr_dist_sq[i]);
             total += expf(-sqrtf(icp_corr_dist_sq[i]) / ERROR_CONFIDENCE_SCALE);
-        conf    = total / ICP_MAX_POINTS;
+        }
+        mean_error /= ICP_MAX_POINTS;
+        conf        = total / ICP_MAX_POINTS;
     }
 
 
     // ── Print recovered transform alongside target scan ─────────────────────
+#ifdef PROCESSING4_OUTPUT
     C_format_print((state_se2_t){icp_result.dx,
                                  icp_result.dy,
                                  icp_result.dtheta},
                    &play_tgt);
- 
+#endif
+
 
     // ── Diagnostics ──────────────────────────────────────────────────────────
     snprintf(buf, sizeof(buf), "true:  dx=%.2f  dy=%.2f  dth=%.4f",
              true_delta.x, true_delta.y, true_delta.theta);
     TEST_MESSAGE(buf);
 
+
     snprintf(buf, sizeof(buf), "icp:   dx=%.2f  dy=%.2f  dth=%.4f",
              icp_result.dx, icp_result.dy, icp_result.dtheta);
     TEST_MESSAGE(buf);
 
-    snprintf(buf, sizeof(buf), "conf: %.3f, iter: %d", conf, icp_result.num_iterations);
+
+    snprintf(buf, sizeof(buf), "mean_error: %.3f, conf: %.3f, iter: %d",
+             mean_error, conf, icp_result.num_iterations);
     TEST_MESSAGE(buf);
 
-    snprintf(buf, sizeof(buf), "err:   dx=%.2f  dy=%.2f  dth=%.4f",
-             fabsf(true_delta.x     - icp_result.dx),
-             fabsf(true_delta.y     - icp_result.dy),
-             fabsf(true_delta.theta - icp_result.dtheta));
 
+    snprintf(buf, sizeof(buf), "err:   dx=%.2f  dy=%.2f  dth=%.4f",
+             fabsf(true_delta.x     - icp_result.dx),             fabsf(true_delta.y     - icp_result.dy),
+             fabsf(true_delta.theta - icp_result.dtheta));
     TEST_MESSAGE(buf);
 
 
     // ── Assertions ───────────────────────────────────────────────────────────
     TEST_ASSERT_TRUE(icp_result.valid);
+
     TEST_ASSERT_FLOAT_WITHIN(POSITION_TOLERANCE_MM,
                              true_delta.x,
                              icp_result.dx);
+
     TEST_ASSERT_FLOAT_WITHIN(POSITION_TOLERANCE_MM,
                              true_delta.y,
                              icp_result.dy);
+
     TEST_ASSERT_FLOAT_WITHIN(ANGLE_TOLERANCE_RAD,
                              true_delta.theta,
                              icp_result.dtheta);
+
     // TEST_ASSERT_GREATER_OR_EQUAL_FLOAT(CONFIDENCE_FLOOR, conf);
 
     have_icp = true;

@@ -4,51 +4,20 @@
  * @brief port specialized for the Teensy 4.0
  * @version 0.1
  * @date 2026-03-01
- * 
  */
 
  #include "inEKF_se2.h"
 
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
 //
 //  LIE GROUP HELPER FUNCTIONS
 //
-// ----------------------------------------------------------------------------
-
-
-void wedge_se2(
-        state_se2_t*    tau,
-        float           tau_wedge[TOTAL])
-{
-    
-    tau_wedge[R_00]  =  0.f;
-    tau_wedge[R_01]  = -tau->theta;
-    tau_wedge[R_10]  =  tau->theta;
-    tau_wedge[R_11]  =  0.f;
-    
-    tau_wedge[T_x_]  =  tau->x;
-    tau_wedge[T_y_]  =  tau->y;
-
-    tau_wedge[Z_20]  =  0.f;
-    tau_wedge[Z_21]  =  0.f;
-    tau_wedge[I_22]  =  0.f;
-
-}
-
-
-void vee_se2(
-        float           tau_wedge[TOTAL],
-        state_se2_t*    tau)
-{
-    tau->x      = tau_wedge[T_x_];
-    tau->y      = tau_wedge[T_y_];
-    tau->theta  = tau_wedge[R_10];
-}
+// ————————————————————————————————————————————————————————————————————————————
 
 
 void exp_se2(
-        state_se2_t*    tau,
-        float           exp_tau[TOTAL])
+        const state_se2_t*  tau,
+              float         exp_tau[TOTAL])
 {
     // 
     float v_x   = tau->x;
@@ -105,8 +74,8 @@ void exp_se2(
 
 
 void log_se2(
-        float           exp_tau[TOTAL],
-        state_se2_t*    tau)
+        const float         exp_tau[TOTAL],
+              state_se2_t*  tau)
 {
     
     float omega = atan2f(exp_tau[R_10], exp_tau[R_00]);
@@ -148,36 +117,11 @@ void log_se2(
 }
 
 
-void adjoint_se2(
-        float   exp_tau[TOTAL],
-        float   adj_exp_tau[TOTAL])
-{
-    
-    // rotation matrix part of the adjoint map is the same as the rotation
-    // matrix part of the exponential map
-    adj_exp_tau[R_00]  =  exp_tau[R_00];
-    adj_exp_tau[R_01]  =  exp_tau[R_01];
-    adj_exp_tau[R_10]  =  exp_tau[R_10];
-    adj_exp_tau[R_11]  =  exp_tau[R_11];
-
-    // translation part of the adjoint map is given by the skew-symmetric matrix
-    // formed by the translation part of the exponential map
-    adj_exp_tau[T_x_]  = -exp_tau[T_y_];
-    adj_exp_tau[T_y_]  =  exp_tau[T_x_];
-
-    // pre-fill the adjoint map matrix with the common elements
-    adj_exp_tau[Z_20]  =  0.f;
-    adj_exp_tau[Z_21]  =  0.f;
-    adj_exp_tau[I_22]  =  1.f;
-
-}
-
-
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
 //
 //  INVARIANT EKF FUNCTIONS
 //
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
 
 
 void inEKF_SE2_init(
@@ -280,7 +224,7 @@ void inEKF_SE2_predict(
 
     float c, s; // cosine and sine of the angular increment for the exponential map
 
-    // control input ----------------------------------------------------------
+    // —— control input ———————————————————————————————————————————————————————
     // for the dynamics of a differential-drive robot:
     //  - linear velocity v is the average of the left and right wheel
     //      velocities
@@ -301,7 +245,7 @@ void inEKF_SE2_predict(
     exp_se2(&u, X_delta);
 
 
-    // state propagation ------------------------------------------------------
+    // —— state propagation ———————————————————————————————————————————————————
     /**
      * update the state estimate by composing the current state with the state
      *  increment
@@ -317,7 +261,7 @@ void inEKF_SE2_predict(
     filter->state.theta += u.theta; // directly added to the current heading since the angular increment is already in the local frame
 
 
-    // covariance propagation -------------------------------------------------
+    // —— covariance propagation ——————————————————————————————————————————————
     // first, compute the adjoint and adjoint-transpose of the state increment
     adjoint_se2(X_delta, Ad);
 
@@ -330,7 +274,6 @@ void inEKF_SE2_predict(
     matadd_3x3(filter->covariance,
                filter->process_noise,
                filter->covariance);
-
 }
 
 
@@ -351,7 +294,7 @@ uint8_t inEKF_SE2_update_mag(
     int i; // loop variable for later matrix operations
 
 
-    // innovation gate --------------------------------------------------------
+    // —— innovation gate —————————————————————————————————————————————————————
     // For outlier rejection based on the innovation / residual and its covariance. This is especially important for magnetometer measurements which can be very noisy and have outliers due to magnetic disturbances in the environment. By calculating the Mahalanobis distance of the innovation, we can reject measurements that are unlikely given our current state estimate and covariance.
 
     // kalman gain
@@ -402,7 +345,7 @@ uint8_t inEKF_SE2_update_mag(
 
 
 
-    // state update on the manifold -------------------------------------------
+    // —— state update on the manifold ————————————————————————————————————————
     // [K_00 K_01 K_02] * y
     {
         // current state estimate
@@ -428,12 +371,12 @@ uint8_t inEKF_SE2_update_mag(
     }
 
 
-    // covariance update ------------------------------------------------------
+    // —— covariance update ———————————————————————————————————————————————————
     // this will take the Joseph form of the covariance update
     {
 
         // variable declarations for the covariance update
-        float I[TOTAL]      = IDENTITY;
+        float I[TOTAL]      = I_3x3; // row-major identity matrix
     
         float H[DIMS]       = {-0.f, -0.f, -H_mag};
     
@@ -477,251 +420,23 @@ uint8_t inEKF_SE2_update_mag(
 
 
 /** ---------------------------------------------------------
- *  HELPER FUNCTIONS
+ *  HELPER FUNCTIONS - matrix operations
  */
-
-void matrix_to_state(
-        float           state_matrix[TOTAL],
-        state_se2_t*    state)
-{
-    state->x      = state_matrix[T_x_];
-    state->y      = state_matrix[T_y_];
-    state->theta  = atan2f(state_matrix[R_10],
-                           state_matrix[R_00]);
-}
-
-
-void compose_SE2(
-        state_se2_t     A,
-        state_se2_t     B,
-        state_se2_t*    state_out)
-{
-    float c = cosf(A.theta);
-    float s = sinf(A.theta);
-
-    state_out->x     =  c*B.x - s*B.y + A.x;
-    state_out->y     =  s*B.x + c*B.y + A.y;
-    state_out->theta = _wrap_angle(A.theta + B.theta);
-}
-
-
-void difference_SE2(
-        state_se2_t     B,
-        state_se2_t     A,
-        state_se2_t*    state_out)
-{
-    float c     = cosf(A.theta);
-    float s     = sinf(A.theta);
-    float dx    = B.x - A.x;
-    float dy    = B.y - A.y;
-
-    /**
-     * @note follow this formula, as this produces the opposing rotation
-     *  followed by the translation:
-     * 
-     * delta_x =   R^T_A @ (t_B - t_A)
-     * delta_x = { cos(theta_A) sin(theta_A)    {dx
-     *            -sin(theta_A) cos(theta_A) }   dy} 
-     */
-    state_out->x        =  c*dx + s*dy;
-    state_out->y        = -s*dx + c*dy;
-    state_out->theta    = _wrap_angle(B.theta - A.theta);
-}
-
-
-float euclidean_distance_SE2(
-        state_se2_t A,
-        state_se2_t B)
-{
-    float dx = B.x - A.x;
-    float dy = B.y - A.y;
-
-    return sqrtf(dx*dx + dy*dy);
-}
-
-
-/** ---------------------------------------------------------
- *  HELPER FUNCTIONS - lie group operations
- */
-
-void inverse_3x3(
-        float   A[TOTAL],
-        float   A_inv[TOTAL])
-{
-
-}
-
-
-void matmul_3x3(
-        float   A[TOTAL],
-        float   B[TOTAL],
-        float   AB[TOTAL])
-{
-    #define LOOP_UNROLLING 1
-
-    // M_00, M_01, M_02
-    // M_10, M_11, M_12
-    // M_20, M_21, M_22
-
-    #ifdef LOOP_UNROLLING
-
-    // definitions
-    float A_00 = A[M_00], A_01 = A[M_01], A_02 = A[M_02];
-    float A_10 = A[M_10], A_11 = A[M_11], A_12 = A[M_12];
-    float A_20 = A[M_20], A_21 = A[M_21], A_22 = A[M_22];
-
-
-    // row 1
-    AB[M_00] = A_00*B[M_00] + A_01*B[M_10] + A_02*B[M_20];
-    AB[M_01] = A_00*B[M_01] + A_01*B[M_11] + A_02*B[M_21];
-    AB[M_02] = A_00*B[M_02] + A_01*B[M_12] + A_02*B[M_22];
-
-    // row 2
-    AB[M_10] = A_10*B[M_00] + A_11*B[M_10] + A_12*B[M_20];
-    AB[M_11] = A_10*B[M_01] + A_11*B[M_11] + A_12*B[M_21];
-    AB[M_12] = A_10*B[M_02] + A_11*B[M_12] + A_12*B[M_22];
-
-    // row 3
-    AB[M_20] = A_20*B[M_00] + A_21*B[M_10] + A_22*B[M_20];
-    AB[M_21] = A_20*B[M_01] + A_21*B[M_11] + A_22*B[M_21];
-    AB[M_22] = A_20*B[M_02] + A_21*B[M_12] + A_22*B[M_22];
-
-    #else 
-
-    // single for loop method
-
-    int i;
-
-    // row X
-    for (i = 0; i < TOTAL; i += DIMS) {
-        float A_i0 = A[i + 0], A_i1 = A[i + 1], A_i2 = A[i + 2];
-
-        AB[i + 0] = A_i0*B[M_00] + A_i1*B[M_10] + A_i2*B[M_20];
-        AB[i + 1] = A_i0*B[M_01] + A_i1*B[M_11] + A_i2*B[M_21];
-        AB[i + 2] = A_i0*B[M_02] + A_i1*B[M_12] + A_i2*B[M_22];
-    }
-
-    #endif
-
-}
-
-
-void matmul_3_1x1_3(
-        float   A[DIMS],
-        float   B[DIMS],
-        float   AB[TOTAL])
-{
-    // [A_00
-    //  A_10  * [B_00, B_01, B_02]
-    //  A_20] 
-
-    AB[M_00] = A[0]*B[0];   AB[M_01] = A[0]*B[1];   AB[M_02] = A[0]*B[2];
-
-    AB[M_10] = A[1]*B[0];   AB[M_11] = A[1]*B[1];   AB[M_12] = A[1]*B[2];
-
-    AB[M_20] = A[2]*B[0];   AB[M_21] = A[2]*B[1];   AB[M_22] = A[2]*B[2];
-
-}
-
 
 void congruence_3x3(
         float   A[TOTAL],
         float   B[TOTAL],
-        float   ABA_T[TOTAL])
+        float   A_B_AT[TOTAL])
 {
 
-    float AB[TOTAL]     = {0};
-    float A_T[TOTAL]    = {0};
+    float AB[TOTAL]     = Z_3x3;
+    float A_T[TOTAL]    = Z_3x3;
 
     matmul_3x3(A, B, AB);
 
     transpose_3x3(A, A_T);
 
-    matmul_3x3(AB, A_T, ABA_T);
+    matmul_3x3(AB, A_T, A_B_AT);
 
 }
 
-
-void matadd_3x3(
-        float   A[TOTAL],
-        float   B[TOTAL],
-        float   AB[TOTAL])
-{
-    #ifdef LOOP_UNROLLING
-
-    AB[M_00] = A[M_00] + B[M_00];
-    AB[M_01] = A[M_01] + B[M_01];
-    AB[M_02] = A[M_02] + B[M_02];
-
-    AB[M_10] = A[M_10] + B[M_10];
-    AB[M_11] = A[M_11] + B[M_11];
-    AB[M_12] = A[M_12] + B[M_12];
-
-    AB[M_20] = A[M_20] + B[M_20];
-    AB[M_21] = A[M_21] + B[M_21];
-    AB[M_22] = A[M_22] + B[M_22];
-
-    #else
-
-    int i;
-
-    for (i = 0; i < TOTAL; i++) {
-        AB[i] = A[i] + B[i];
-    }
-
-    #endif
-}
-
-
-void transpose_3x3(
-        float   matrix_in[TOTAL],
-        float   matrix_out[TOTAL])
-{
-
-    // assigning lower triangular elements to upper
-    matrix_out[R_10] = matrix_in[R_01];
-    matrix_out[Z_20] = matrix_in[T_x_];
-    matrix_out[Z_21] = matrix_in[T_y_];
-    
-    // assigning upper triangular elements to lower
-    matrix_out[R_01] = matrix_in[R_10];
-    matrix_out[T_x_] = matrix_in[Z_20];
-    matrix_out[T_y_] = matrix_in[Z_21];
-
-    // keeping diagonal elements the same
-    matrix_out[R_00] = matrix_in[R_00];
-    matrix_out[R_11] = matrix_in[R_11];
-    matrix_out[I_22] = matrix_in[I_22];
-
-}
-
-
-void inEKF_SE2_get_state(
-        InEKF_SE2_t*    filter,
-        state_se2_t*    state_out)
-{
-    // state_out->x      = filter->state.x;
-    // state_out->y      = filter->state.y;
-    // state_out->theta  = filter->state.theta;
-
-    memcpy(state_out, &filter->state, sizeof(state_se2_t));
-}
-
-
-// void inEKF_SE2_get_covariance_trace(
-//         InEKF_SE2_t* filter,
-//         float trace);
-
-
-float _wrap_angle(
-        float theta)
-{
-    while (theta > M_PI_F) {
-        theta -= 2.0f * M_PI_F;
-    }
-    while (theta < -M_PI_F) {
-        theta += 2.0f * M_PI_F;
-    }
-    
-    return theta;
-}

@@ -28,11 +28,13 @@ static void slam_apply_constraint(
 
 float normalize_angle(float angle)
 {
-    while (angle > M_PI)
-        angle -= 2.0f * M_PI;
+    while (angle > M_PI_F)
+        angle -= 2.0f * M_PI_F;
 
-    while (angle < -M_PI)
-        angle += 2.0f * M_PI;
+    while (angle < -M_PI_F)
+        angle += 2.0f * M_PI_F;
+
+    // fmodf(angle, 2.0f*M_PI_F);
         
     return angle;
 }
@@ -766,7 +768,7 @@ static void slam_apply_constraint(
             for (k = 0; k < 3; k++) {
                 sum += A[k][i] * omega[k] * A[k][j];
             }
-            optimizer->H[i1 + i][i1 + j] += sum;
+            optimizer->H[(i1 + i)*STATE_SIZE + (i1 + j)] += sum;
         }
     }
     
@@ -777,7 +779,7 @@ static void slam_apply_constraint(
             for (k = 0; k < 3; k++) {
                 sum += B[k][i] * omega[k] * B[k][j];
             }
-            optimizer->H[i2 + i][i2 + j] += sum;
+            optimizer->H[(i2 + i)*STATE_SIZE + (i2 + j)] += sum;
         }
     }
     
@@ -788,7 +790,7 @@ static void slam_apply_constraint(
             for (k = 0; k < 3; k++) {
                 sum += A[k][i] * omega[k] * B[k][j];
             }
-            optimizer->H[i1 + i][i2 + j] += sum;
+            optimizer->H[(i1 + i)*STATE_SIZE + (i2 + j)] += sum;
         }
     }
     
@@ -799,9 +801,10 @@ static void slam_apply_constraint(
             for (k = 0; k < 3; k++) {
                 sum += B[k][i] * omega[k] * A[k][j];
             }
-            optimizer->H[i2 + i][i1 + j] += sum;
+            optimizer->H[(i2 + i)*STATE_SIZE + (i1 + j)] += sum;
         }
     }
+
 }
 
 void slam_add_icp_constraint(
@@ -972,16 +975,16 @@ void slam_optimize_gauss_newton(
 
     // Static buffers for Gauss-Newton optimization
     // Size: STATE_SIZE = 3 * MAX_POSES = 45
-    static float H_dense[STATE_SIZE * STATE_SIZE];
     static float L[STATE_SIZE * STATE_SIZE];
     static float y[STATE_SIZE];
     static float dx[STATE_SIZE];
     
-    state_size  = optimizer->buffer_size * 3;
     
     // Gauss-Newton iteration loop
-    // Each iteration: rebuild H/b from constraints using current state,
-    // solve for update dx, apply update to state
+    // Each iteration: rebuild H/b from constraints using current state, solve
+    // for update dx, apply update to state
+
+    state_size  = optimizer->buffer_size * 3;
     for (iter = 0; iter < max_iterations; iter++) {
 
 #ifdef DEBUG_OUTPUTS
@@ -1016,30 +1019,32 @@ void slam_optimize_gauss_newton(
                                   con->confidence);
         }
         
-        // Clear the static buffers
-        memset(H_dense, 0, STATE_SIZE * STATE_SIZE * sizeof(float));
-        memset(L, 0, STATE_SIZE * STATE_SIZE * sizeof(float));
-        
-        // Copy H from 2D array to flattened 1D array for Cholesky
-        for (i = 0; i < state_size; i++) {
-            for (j = 0; j < state_size; j++) {
-                H_dense[i * state_size + j] = optimizer->H[i][j];
-            }
-        }
-        
-        // Fix the first pose (anchor) to prevent drift
-        // Add large values to diagonal of first pose's block
-        // This effectively pins pose 0 at its current location
-        #define ANCHOR_WEIGHT 1000.0f
-        H_dense[0 * state_size + 0] += ANCHOR_WEIGHT;  // x0
-        H_dense[1 * state_size + 1] += ANCHOR_WEIGHT;  // y0
-        H_dense[2 * state_size + 2] += ANCHOR_WEIGHT;  // theta0
+        // Clear L buffer
+        memset(L, 0, STATE_SIZE*STATE_SIZE * sizeof(float));
 
-        // Cholesky decomposition
-        result = cholesky_decompose(H_dense, L, state_size);
+        // Fix the first pose (anchor) to prevent drift by adding large values
+        // to diagonal of first pose's block. This effectively pins pose 0 at
+        // its current location         
+        optimizer->H[0*STATE_SIZE + 0] += ANCHOR_WEIGHT;    // x_0
+        optimizer->H[1*STATE_SIZE + 1] += ANCHOR_WEIGHT;    // y_0
+        optimizer->H[2*STATE_SIZE + 2] += ANCHOR_WEIGHT;    // theta_0
+
+
+        /**
+         * @note perform Cholesky decomposition of H to solve for dx:
+         *   H = L * L^T
+         * Then solve L * y = b (forward substitution)
+         * Then solve L^T * dx = y (backward substitution)
+         */
+        result = Cholesky_Decompose(
+                STATE_SIZE,
+                state_size, 
+                optimizer->H, 
+                L);
         
+        // Matrix not positive definite, thus optimization cannot proceed
         if (result != 0) {
-            // Matrix not positive definite
+            
 #ifdef DEBUG_OUTPUTS
             printf("Cholesky failed at iteration %d\n", iter);
 #endif
@@ -1052,10 +1057,20 @@ void slam_optimize_gauss_newton(
         // Which is the correct Newton descent direction
         
         // Forward substitution: L * y = b
-        forward_substitution(L, optimizer->b, y, state_size);
+        Cholesky_Forward_Substitution(
+                STATE_SIZE,
+                state_size, 
+                L, 
+                optimizer->b, 
+                y);
         
         // Backward substitution: L^T * dx = y
-        backward_substitution(L, y, dx, state_size);
+        Cholesky_Backward_Substitution(
+                STATE_SIZE,
+                state_size, 
+                L, 
+                y, 
+                dx);
         
         // Check convergence
         dx_norm = 0.0f;
@@ -1071,17 +1086,20 @@ void slam_optimize_gauss_newton(
         
         // Normalize all theta values to [-pi, pi]
         for (p = 0; p < optimizer->buffer_size; p++) {
-            optimizer->state[p * 3 + 2] = normalize_angle(optimizer->state[p * 3 + 2]);
+            optimizer->state[p*3 + 2] = \
+                    normalize_angle(optimizer->state[p*3 + 2]);
         }
         
-        // NOTE: Do NOT write state back to pose_pool!
-        // pose_pool contains raw input poses for error calculation.
+        // NOTE: Do NOT write state back to `pose_pool`!
+        // `pose_pool` contains raw input poses for error calculation.
         // state contains optimized poses for output.
-        // Use slam_get_optimized_pose() to retrieve corrected poses.
+        // Use `slam_get_optimized_pose()` to retrieve corrected poses.
         
         if (dx_norm < CONVERGENCE_TOLERANCE) {
 #ifdef DEBUG_OUTPUTS
-            printf("Gauss-Newton converged at iteration %d, dx_norm=%.6f\n", iter, dx_norm);
+            printf("Gauss-Newton converged at iteration %d, dx_norm=%.6f\n",
+                   iter,
+                   dx_norm);
 #endif
             break;
         }
@@ -1143,8 +1161,9 @@ uint8_t slam_get_scan(
         int                 pose_id,
         PointCloud          *out_scan)
 {
-    if (pose_id < 0 || pose_id >= optimizer->buffer_size) {
-        return 0;
+    if (    (pose_id < 0)
+         || (pose_id >= optimizer->buffer_size)) {
+        return SLAM_FAILURE;
     }
     
     // Direct array access - no circular buffer

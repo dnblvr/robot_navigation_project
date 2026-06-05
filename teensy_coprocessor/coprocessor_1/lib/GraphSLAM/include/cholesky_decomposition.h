@@ -6,11 +6,10 @@
  * 
  */
 
-#ifndef __INC_CHOLESKY_DECOMPOSITION_H__
-#define __INC_CHOLESKY_DECOMPOSITION_H__
+#ifndef __CHOLESKY_DECOMPOSITION_H__
+#define __CHOLESKY_DECOMPOSITION_H__
 
 #include <math.h>
-#include <stdio.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -18,23 +17,30 @@ extern "C" {
 #endif
 
 /**
- * @brief Perform Cholesky decomposition of a symmetric positive definite matrix A.
- * @details This function decomposes the matrix A into the product of a lower triangular 
- *          matrix L and its transpose.
- *        A = L * L^T, where L is lower triangular.
- *        Returns 0 on success, -1 if the matrix is not positive definite.
- *        Only the lower triangle of L is filled.
+ * @brief Perform Cholesky decomposition of a symmetric positive definite
+ *  matrix A.
  * 
- * @param A     1D array representing the input matrix A (size n x n)
- * @param L     1D array representing the output lower triangular matrix L
- *                      (size n x n)
- * @param n     number of rows and columns in A and L
- * @return int8_t  returns 0 on success, but -1 if the matrix is not positive definite.
+ * @details This function decomposes the matrix A into the product of a lower
+ *  triangular matrix L and its transpose.
+ * 
+ *      - `A = L * L^T`, where L is lower triangular.
+ *      - Returns `0` on success, `-1` if the matrix is not positive definite.
+ *      - Only the lower triangle of L is filled.
+ * 
+ * @param[in] stride set location of the largest possible element in each row of the statically-allocated square matrix.
+ * @param[in] n number of `rows` and `cols` in matrices `A` and `L`
+ * @param[in] A input square matrix
+ * 
+ * @param[out] L output lower triangular matrix
+ * @return `int8_t`
+ * @retval `0` on success
+ * @retval `-1` if the matrix is not positive definite
  */
-int8_t cholesky_decompose(
+int8_t Cholesky_Decompose(
+        int     stride,
+        int     n,
         float*  A,
-        float*  L,
-        int     n);
+        float*  L);
 
 
 // ----------------------------------------------------------------------------
@@ -44,38 +50,51 @@ int8_t cholesky_decompose(
 // ----------------------------------------------------------------------------
 
 /**
- * @brief this function solves `L @ y = b` for y (forward substitution), where L is lower triangular.
+ * @brief this function solves solves `y` in equation `L @ y = b` f via forward
+ *  substitution, where `L` is lower triangular.
  * 
- * @param L Lower triangular matrix from Cholesky decomposition
- * @param b Right-hand side vector
- * @param y Solution vector
- * @param n number of rows and columns in A and L
+ * @details `Cholesky_Decompose()` must be called first to compute `L` before
+ * 
+ * @param[in] stride set location of the largest possible element in each row of the statically-allocated square matrix
+ * @param[in] n number of rows and columns in matrices `L`, `b`, and `y`
+ * @param[in] L Lower triangular matrix from Cholesky decomposition
+ * @param[in] b Right-hand side vector
+ * 
+ * @param[out] y Solution vector
  */
-void forward_substitution(
+void Cholesky_Forward_Substitution(
+        int     stride,
+        int     n,
         float*  L,
         float*  b,
-        float*  y,
-        int     n);
+        float*  y);
 
 
 /**
- * @brief this function solves `L^T @ x = y` for x (backward substitution), where L is lower triangular.
+ * @brief This function solves `x` in equation `L^T @ x = y` via backward
+ *  substitution, where `L` is lower triangular.
  * 
- * @param L Lower triangular matrix from Cholesky decomposition
- * @param y y vector from forward substitution
- * @param x x vector to be solved
- * @param n number of rows and columns in L (and y, x)
+ * @param[in] stride set location of the largest possible element in each row of the statically-allocated square matrix
+ * @param[in] n number of rows and columns in matrices `L`, `y`, and `x`
+ * @param[in] L Lower triangular matrix from Cholesky decomposition
+ * @param[in] y vector from forward substitution
+ * 
+ * @param[out] x Solution vector
+ * 
+ * @note `Cholesky_Forward_Substitution()` must be called first to compute `y`
+ *  before calling this function to compute `x`.
+ * 
+ * @see `Cholesky_Forward_Substitution()` for forward substitution portion
  */
-void backward_substitution(
+void Cholesky_Backward_Substitution(
+        int     stride,
+        int     n,
         float*  L,
         float*  y,
-        float*  x,
-        int     n);
+        float*  x);
 
 #ifdef __cplusplus
 }
 #endif
 
-
-
-#endif /* __INC_CHOLESKY_DECOMPOSITION_H__ */
+#endif /* __CHOLESKY_DECOMPOSITION_H__ */

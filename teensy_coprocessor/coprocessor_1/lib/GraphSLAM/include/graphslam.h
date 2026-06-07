@@ -15,6 +15,7 @@
 
 #include <ICP_2D.h>
 #include <cholesky_decomposition.h>
+#include <state_se2.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -150,88 +151,6 @@ typedef struct {
 } SLAMOptimizer;
 
 
-
-// ----------------------------------------------------------------------------
-//
-//  HELPER FUNCTIONS
-//
-// ----------------------------------------------------------------------------
-
-/**
- * @brief Normalize angle to [-pi, pi]
- * 
- * @param[in] angle Input angle in radians
- * 
- * @return `float`
- * @retval Normalized angle
- */
-float normalize_angle(float angle);
-
-
-/**
- * @brief Compute Euclidean distance between two poses
- * 
- * @param[in] pose1 First pose
- * @param[in] pose2 Second pose
- * 
- * @return `float`
- * @return Distance in meters
- */
-float pose_distance(
-        const Pose *pose1,
-        const Pose *pose2);
-
-
-/**
- * @brief Transform a point cloud by a pose
- * 
- * @param[in] scan Input point cloud
- * @param[in] pose Transformation pose
- * @param[out] out_scan Output transformed point cloud
- */
-void transform_point_cloud(
-        const PointCloud   *scan,
-        const Pose         *pose,
-              PointCloud   *out_scan);
-
-
-/**
- * @brief Compose two poses (`p1` + `p2`)
- * 
- * @param[in] p1 First pose
- * @param[in] p2 Second pose (relative to `p1`)
- * @param[out] result Output composed pose
- */
-void compose_poses(
-        const Pose  *p1,
-        const Pose  *p2,
-              Pose  *result);
-
-
-/**
- * @brief Compute relative pose from `p1` to `p2`
- * 
- * @param[in] p1 First pose
- * @param[in] p2 Second pose
- * @param[out] relative Output relative pose
- */
-void relative_pose(
-        const Pose  *p1,
-        const Pose  *p2,
-              Pose  *relative);
-
-
-/**
- * @brief `T_inv` of pose `p` = (x,y,θ): rotation −θ, translation −R(−θ)·(x,y)
- * 
- * @param[in] p Input pose
- * @param[out] inv Output inverted pose
- */
-void invert_pose(
-        const Pose* p, 
-              Pose* inv);
-
-
 // ----------------------------------------------------------------------------
 //
 //  ICP INTEGRATION FUNCTIONS
@@ -257,7 +176,7 @@ void slam_perform_icp(
         const PointCloud*   scan1,
         const PointCloud*   scan2,
         const Pose*         initial_guess,
-        ICPResult*          result);
+              ICPResult*    result);
 
 
 /**
@@ -274,7 +193,7 @@ void slam_perform_icp_i(
         const PointCloud*   scan1,
         const PointCloud*   scan2,
         const Pose*         initial_guess,
-        ICPResult*          result);
+              ICPResult*    result);
 
 
 /**
@@ -306,43 +225,6 @@ float slam_compute_icp_confidence(
  */
 float slam_compute_icp_confidence_i();
 
-
-// -----------------------------------------------------------------------------
-//
-//  ERROR & JACOBIAN FUNCTIONS
-//
-// -----------------------------------------------------------------------------
-
-/**
- * @brief Evaluate pose-pose error
- * 
- * @param[in] x_i First pose
- * @param[in] x_j Second pose
- * 
- * @param[out] z_ij Observed relative pose [`dx`, `dy`, `dtheta`]
- * @param[out] error Output error vector [3]
- */
-void evaluate_error_pose_pose(
-        const Pose* x_i,
-        const Pose* x_j,
-        const float z_ij[3],
-              float error[3]);
-
-
-/**
- * @brief Compute Jacobian of pose-pose error
- * 
- * @param[in] x_i First pose
- * @param[in] x_j Second pose
- * 
- * @param[out] A Output Jacobian w.r.t. `x_i` [3x3]
- * @param[out] B Output Jacobian w.r.t. `x_j` [3x3]
- */
-void compute_jacobian_pose_pose(
-        const Pose* x_i,
-        const Pose* x_j,
-        float       A[3][3],
-        float       B[3][3]);
 
 // ----------------------------------------------------------------------------
 //

@@ -19,250 +19,7 @@ static void slam_apply_constraint(
         float   dtheta,
         float   confidence);
 
-
-// ----------------------------------------------------------------------------
-//
-//  HELPER FUNCTIONS
-//
-// ----------------------------------------------------------------------------
-
-float normalize_angle(float angle)
-{
-    while (angle > M_PI_F)
-        angle -= 2.0f * M_PI_F;
-
-    while (angle < -M_PI_F)
-        angle += 2.0f * M_PI_F;
-
-    // fmodf(angle, 2.0f*M_PI_F);
         
-    return angle;
-}
-
-
-float pose_distance(
-        const Pose* pose1,
-        const Pose* pose2)
-{
-    float dx, dy;
-
-    dx  = pose2->x - pose1->x;
-    dy  = pose2->y - pose1->y;
-
-    return sqrtf(dx*dx + dy*dy);
-}
-
-
-void transform_point_cloud(
-        const PointCloud*   scan,
-        const Pose*         pose,
-              PointCloud*   out_scan)
-{
-    // counter
-    uint32_t i;
-
-    // If rotation is negligible, skip it for efficiency
-    if (fabsf(pose->theta) < 1e-3f) {
-
-        for (i = 0; i < scan->num_pts; i++) {
-            out_scan->points[i].x   = scan->points[i].x + pose->x;
-            out_scan->points[i].y   = scan->points[i].y + pose->y;
-        }
-
-        out_scan->num_pts   = scan->num_pts;
-        return;
-    }
-
-    // Pre-compute cosine and sine of rotation angle
-    float c = cosf(pose->theta);
-    float s = sinf(pose->theta);
-    
-    // Apply rotation and translation to each point
-    for (i = 0; i < scan->num_pts; i++) {
-
-        float x = scan->points[i].x;
-        float y = scan->points[i].y;
-        
-        out_scan->points[i].x   = c*x - s*y + pose->x;
-        out_scan->points[i].y   = s*x + c*y + pose->y;
-    }
-
-    out_scan->num_pts   = scan->num_pts;
-}
-
-
-void compose_poses(
-        const Pose*	p2,
-        const Pose*	p1,
-              Pose* result)
-{
-
-    float c = cosf(p1->theta);
-    float s = sinf(p1->theta);
-    
-    result->x       = p1->x  +  c*p2->x  -  s*p2->y;
-    result->y       = p1->y  +  s*p2->x  +  c*p2->y;
-    result->theta   = normalize_angle(p1->theta + p2->theta);
-
-}
-
-
-void relative_pose(
-        const Pose* p1,
-        const Pose* p2,
-              Pose* relative)
-{
-
-    float   dx  = p2->x - p1->x;
-    float   dy  = p2->y - p1->y;
-    float   c   = cosf( -p1->theta );
-    float   s   = sinf( -p1->theta );
-    
-    relative->x     = c*dx - s*dy;
-    relative->y     = s*dx + c*dy;
-    relative->theta = normalize_angle(p2->theta - p1->theta);
-
-}
-
-
-void invert_pose(
-        const Pose* p, 
-              Pose* inv)
-{
-    float c = cosf(p->theta), s = sinf(p->theta);
-
-    inv->x     = -( c*p->x + s*p->y );
-    inv->y     =  ( s*p->x - c*p->y );
-    inv->theta = normalize_angle( -p->theta );
-}
-
-
-// ----------------------------------------------------------------------------
-//
-//  Error and Jacobian Functions
-//
-// ----------------------------------------------------------------------------
-
-void evaluate_error_pose_pose(
-        const Pose* x_i,
-        const Pose* x_j,
-        const float z_ij[3],
-              float error[3])
-{
-    
-    float rel_x, rel_y, rel_theta;
-    
-    {
-        float dx, dy, dtheta;
-        float ci, si;
-        
-        // Compute the relative pose from i to j according to current estimate
-        dx      = x_j->x     - x_i->x;
-        dy      = x_j->y     - x_i->y;
-        dtheta  = x_j->theta - x_i->theta;
-        
-        ci  = cosf( -x_i->theta );
-        si  = sinf( -x_i->theta );
-        
-        // Transform difference into frame of x_i
-        rel_x       =  ci*dx - si*dy;
-        rel_y       =  si*dx + ci*dy;
-        rel_theta   =  dtheta;
-    }
-
-    // Error is difference between predicted and observed
-    error[0]    =  rel_x   -   z_ij[0];
-    error[1]    =  rel_y   -   z_ij[1];
-    error[2]    =  rel_theta - z_ij[2];
-    
-    // Normalize angle error
-    error[2]    =  normalize_angle(error[2]);
-}
-
-
-void compute_jacobian_pose_pose(
-        const Pose* x_i,
-        const Pose* x_j,
-              float A[3][3],
-              float B[3][3])
-{
-
-    // helper variables
-    float si, ci, dx, dy;
-
-    si  = sinf(x_i->theta);
-    ci  = cosf(x_i->theta);
-    
-    dx  = x_j->x - x_i->x;
-    dy  = x_j->y - x_i->y;
-
-    /**
-     * Jacobian w.r.t. x_i (A)
-     * e_x =  cos(θ_i)*dx + sin(θ_i)*dy - z_x
-     * e_y = -sin(θ_i)*dx + cos(θ_i)*dy - z_y
-     * e_θ =  dtheta - z_theta
-     * 
-     * row 1: derivatives of e_x
-     *      - del e_x / del x_i = -cos(θ_i),
-     *      - del e_x / del y_i = -sin(θ_i),
-     *      - del e_x / del θ_i = -sin(θ_i)*dx + cos(θ_i)*dy
-     * row 2: derivatives of e_y
-     *      - del e_y / del x_i =  sin(θ_i),
-     *      - del e_y / del y_i = -cos(θ_i),
-     *      - del e_y / del θ_i = -cos(θ_i)*dx - sin(θ_i)*dy
-     * row 3: derivatives of e_θ
-     *      - del e_θ / del x_i =  0,
-     *      - del e_θ / del y_i =  0,
-     *      - del e_θ / del θ_i = -1
-     */
-
-    A[0][0] = -ci;
-    A[0][1] = -si;
-    A[1][0] =  si;
-    A[1][1] = -ci;
-    
-    A[0][2] = -si*dx + ci*dy;
-    A[1][2] = -ci*dx - si*dy;
-    
-    A[2][0] =  0.f;
-    A[2][1] =  0.f;
-    A[2][2] = -1.f;
-    
-
-    /**
-     * Jacobian w.r.t. x_j (B)
-     * 
-     * e_x =  cos(θ_i)*dx + sin(θ_i)*dy - z_x
-     * e_y = -sin(θ_i)*dx + cos(θ_i)*dy - z_y
-     * e_θ =  dtheta - z_theta
-     * 
-     * row 1: derivatives of e_x
-     *     - del e_x / del x_j =  cos(θ_i),
-     *     - del e_x / del y_j =  sin(θ_i),
-     *     - del e_x / del θ_j =  0
-     * row 2: derivatives of e_y
-     *     - del e_y / del x_j = -sin(θ_i),
-     *     - del e_y / del y_j =  cos(θ_i),
-     *     - del e_y / del θ_j =  0
-     * row 3: derivatives of e_θ
-     *     - del e_θ / del x_j =  0,
-     *     - del e_θ / del y_j =  0,
-     *     - del e_θ / del θ_j =  1
-     */
-    B[0][0] =  ci;
-    B[0][1] =  si;
-    B[1][0] = -si;
-    B[1][1] =  ci;
-    
-    B[0][2] =  0.f;
-    B[1][2] =  0.f;
-    
-    B[2][0] =  0.f;
-    B[2][1] =  0.f;
-    B[2][2] =  1.f;
-}
-
-
 // ----------------------------------------------------------------------------
 //
 //  ICP INTEGRATION
@@ -277,8 +34,7 @@ void slam_perform_icp(
 {
 
     // output variables
-    float R[4];  // 2x2 rotation matrix (row-major)
-    float t[2];  // translation vector
+    float R_t[TOTAL];  // translation vector
     
     
     // If initial guess is non-zero, pre-transform scan1 so ICP only has to
@@ -301,13 +57,14 @@ void slam_perform_icp(
                (Point2D*)scan2->points, scan2->num_pts,
                MAX_ICP_ITERATIONS,
                ICP_CONVERGENCE_TOLERANCE,
-               R, t);
+               &result->num_iterations,
+               R_t);
 
         // Compose initial_guess + icp_residual to get the full transformation.
         // compose_poses(p2, p1, result) computes result = p1 + p2
-        icp_residual   = (Pose){t[0],
-                                t[1],
-                                atan2f(R[2], R[0]),
+        icp_residual   = (Pose){R_t[T_x_],
+                                R_t[T_y_],
+                                atan2f(R_t[R_10], R_t[R_00]),
                                 0};
         
         compose_poses(&icp_residual, initial_guess, &full_transform);
@@ -324,11 +81,12 @@ void slam_perform_icp(
                (Point2D*)scan2->points, scan2->num_pts,
                MAX_ICP_ITERATIONS,
                ICP_CONVERGENCE_TOLERANCE,
-               R, t);
+               &result->num_iterations,
+               R_t);
 
-        result->dx      = t[0];
-        result->dy      = t[1];
-        result->dtheta  = atan2f(R[2], R[0]);
+        result->dx      = R_t[T_x_];
+        result->dy      = R_t[T_y_];
+        result->dtheta  = atan2f(R_t[R_10], R_t[R_00]);
     }
 
     result->valid   = true;
@@ -421,8 +179,7 @@ void slam_perform_icp_i(
               ICPResult*    result)
 {
     // output variables
-    float R[4];  // 2x2 rotation matrix (row-major)
-    float t[2];  // translation vector
+    float R_t[TOTAL];  // 2x2 rotation matrix (row-major) + translation vector
 
 #ifdef DEBUG_OUTPUT     
     PRINTF("MAX_ICP_RANGE: %.2f\n", MAX_ICP_RANGE);
@@ -449,13 +206,13 @@ void slam_perform_icp_i(
                  MAX_ICP_ITERATIONS,
                  ICP_CONVERGENCE_TOLERANCE,
                  &result->num_iterations,
-                 R, t);
+                 R_t);
 
         // Compose initial_guess + icp_residual to get the full transformation.
         // compose_poses(p2, p1, result) computes result = p1 + p2
-        icp_residual   = (Pose){t[0],
-                                t[1],
-                                atan2f(R[2], R[0]),
+        icp_residual   = (Pose){R_t[T_x_],
+                                R_t[T_y_],
+                                atan2f(R_t[R_10], R_t[R_00]),
                                 0};
         
         compose_poses(&icp_residual, initial_guess, &full_transform);
@@ -471,24 +228,24 @@ void slam_perform_icp_i(
         ICP_2D_i((Point2D*)scan1->points, scan1->num_pts,
                  (Point2D*)scan2->points, scan2->num_pts,
                  MAX_ICP_ITERATIONS,
-                 ICP_CONVERGENCE_TOLERANCE,
-                 &result->num_iterations,
-                 R, t);
+                 ICP_CONVERGENCE_TOLERANCE, 
 
-        result->dx      = t[0];
-        result->dy      = t[1];
-        result->dtheta  = atan2f(R[2], R[0]);
+                 &result->num_iterations, R_t);
+
+        result->dx      = R_t[T_x_];
+        result->dy      = R_t[T_y_];
+        result->dtheta  = atan2f(R_t[R_10], R_t[R_00]);
     }
 
     result->valid   = true;
 
 }
 
-float slam_compute_icp_confidence_i() {
-
+float slam_compute_icp_confidence_i()
+{
     int     i;
     float   min_dist;
-    float   total_error, confidence;
+    float   total_error;
 
     float*  cache   = ICP_get_cache();
 
@@ -500,11 +257,8 @@ float slam_compute_icp_confidence_i() {
         min_dist        = sqrtf( cache[i] );
         total_error    += expf( -min_dist / ERROR_CONFIDENCE_SCALE );
     }
-
-    confidence  = total_error / ICP_MAX_POINTS;
     
-    return confidence;
-
+    return total_error / ICP_MAX_POINTS;
 }
 
 
@@ -1120,8 +874,8 @@ void slam_optimize_gauss_newton(
 // ----------------------------------------------------------------------------
 
 void slam_get_current_pose(
-        const SLAMOptimizer *optimizer,
-        Pose                *out_pose)
+        const SLAMOptimizer*    optimizer,
+              Pose*             out_pose)
 {
 
     if (optimizer->buffer_size > 0) {
@@ -1203,8 +957,7 @@ void slam_perform_icp_play(
 {
 
     // output variables
-    float R[4];  // 2x2 rotation matrix (row-major)
-    float t[2];  // translation vector
+    float R_t[TOTAL];  // 2x2 rotation matrix (row-major)
 
 #ifdef DEBUG_OUTPUT     
     PRINTF("MAX_ICP_RANGE: %.2f\n", MAX_ICP_RANGE);
@@ -1219,7 +972,7 @@ void slam_perform_icp_play(
     
     // If initial guess is non-zero, pre-transform scan1 so ICP only has to
     // find the small residual correction, then compose the two to recover
-    // the full transformation: z_ij = initial_guess + residual
+    // the full transformation: `z_ij` = initial_guess + residual
     if (    (fabsf(init_guess_aligned.x    ) > 1e-3f)
          || (fabsf(init_guess_aligned.y    ) > 1e-3f)
          || (fabsf(init_guess_aligned.theta) > 1e-3f))
@@ -1227,9 +980,9 @@ void slam_perform_icp_play(
         Pose icp_residual;
         Pose full_transform;
         
-        // tune the initial guess for better convergence, less overshoot, and, within limiting factors, the lowest amount of iterations required for convergence. increasing this ratio doesn't lessen iteration
-        init_guess_aligned.x       *=  0.5f;
-        init_guess_aligned.y       *=  0.5f;
+        // tune the initial guess for better convergence, less overshoot, and, within limiting factors, the lowest amount of iterations required for convergence. increasing this ratio doesn't necessarily lessen iterations
+        init_guess_aligned.x       *=  0.8f;
+        init_guess_aligned.y       *=  0.8f;
         init_guess_aligned.theta   *=  1.f;
         
         // Pre-transform scan1 with the initial guess
@@ -1239,17 +992,18 @@ void slam_perform_icp_play(
         
         // ICP finds the residual correction between scan1' and scan2
         ICP_2D_play(transformed_scan1.points, transformed_scan1.num_pts,
-                 (Point2D*)scan2->points, scan2->num_pts,
-                 MAX_ICP_ITERATIONS,
-                 ICP_CONVERGENCE_TOLERANCE,
-                 &result->num_iterations,
-                 R, t);
+                    (Point2D*)scan2->points, scan2->num_pts,
+                    MAX_ICP_ITERATIONS,
+                    ICP_CONVERGENCE_TOLERANCE,
+                    
+                    &result->num_iterations,
+                    R_t);
 
         // Compose initial_guess + icp_residual to get the full transformation.
         // compose_poses(p2, p1, result) computes result = p1 + p2
-        icp_residual   = (Pose){t[0],
-                                t[1],
-                                atan2f(R[2], R[0]),
+        icp_residual   = (Pose){R_t[T_x_],
+                                R_t[T_y_],
+                                atan2f(R_t[R_10], R_t[R_00]),
                                 0};
         
         compose_poses(&icp_residual, &init_guess_aligned, &full_transform);
@@ -1260,18 +1014,18 @@ void slam_perform_icp_play(
     // ICP finds the full transformation directly
     } else {
 
-        ICP_2D_play(
-                (Point2D*)scan1->points, scan1->num_pts,
-                (Point2D*)scan2->points, scan2->num_pts,
-                MAX_ICP_ITERATIONS,
-                ICP_CONVERGENCE_TOLERANCE,
-                &result->num_iterations,
-                R, t);
+        ICP_2D_play((Point2D*)scan1->points, scan1->num_pts,
+                    (Point2D*)scan2->points, scan2->num_pts,
+                    MAX_ICP_ITERATIONS,
+                    ICP_CONVERGENCE_TOLERANCE,
+    
+                    &result->num_iterations,
+                    R_t);
 
-        Pose uninverted_guess = {t[0],
-                                t[1],
-                                atan2f(R[2], R[0]),
-                                0};
+        Pose uninverted_guess = {R_t[T_x_],
+                                 R_t[T_y_],
+                                 atan2f(R_t[R_10], R_t[R_00]),
+                                 0};
 
         invert_pose(&uninverted_guess, &display_guess);
     }

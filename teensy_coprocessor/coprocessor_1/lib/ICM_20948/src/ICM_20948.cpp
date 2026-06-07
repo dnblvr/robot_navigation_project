@@ -504,7 +504,7 @@ uint8_t ak09916_record_data(
     #define AK09916_FAILED 0x02
 
     // get offsets
-    ak_data_t* local_offsets    = (ak_data_t*)ak_config->offset_instance;
+    // ak_data_t* local_offsets    = (ak_data_t*)ak_config->offset_instance;
     // vector_int_t* mag_offset    = &(local_offsets->mag);
 
     uint8_t reg[7];

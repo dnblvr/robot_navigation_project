@@ -58,6 +58,9 @@ void Handle_UART_Communications(volatile char UART_Buffer[]) {
 
         comms_state    |=  ECHO_REQUEST_FLAG;
 
+    } else if (Check_UART_Data(UART_Buffer, "!H")) {
+
+        comms_state    |=  HALT_REQUEST_FLAG;
 
     // state command was received. This accumulates the pose and defers
     } else if (Check_UART_Data(UART_Buffer, "#S")) {
@@ -82,9 +85,7 @@ void Handle_UART_Communications(volatile char UART_Buffer[]) {
 
 
         // Clear the buffer after processing the message to prevent stale data from being misinterpreted in future messages. 
-        memset((void*)UART_Buffer,
-               0,
-               UART8_BUFFER_SIZE);
+        memset((void*)UART_Buffer, 0, UART8_BUFFER_SIZE);
 
     }
 

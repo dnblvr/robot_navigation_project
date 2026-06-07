@@ -16,9 +16,9 @@
 #define __INC_RPLIDAR_C1_H__
 
 
-#include "RPLiDAR_Config.h"
-#include "RPLiDAR_UART.h"
-#include "data_structures.h"
+#include <RPLiDAR_Config.h>
+#include <RPLiDAR_UART.h>
+#include <data_structures.h>
 #include <inEKF_se2.h>
 
 #include <stdint.h>
@@ -49,7 +49,6 @@ typedef struct {
     uint16_t time;
 } No_Response;
 
-
 /**
  * @brief Descriptor for a Single-Request, Single/Multiple-Response command.
  *
@@ -61,12 +60,23 @@ typedef struct {
     uint8_t byte_length;
 } Single_Response;
 
+/**
+ * @brief command description to stop the RPLiDAR C1.
+ */
+const No_Response   STOP    = {0x25, 0,  10u};
+
+/**
+ * @brief command description to reset the RPLiDAR C1.
+ */
+const No_Response   RESET   = {0x40, 0, 500u};
+
 
 // ----------------------------------------------------------------------------
 //
-//  INITIALISATION
+//  INITIALIZATION
 //
 // ----------------------------------------------------------------------------
+
 
 /**
  * @brief Initialize the RPLiDAR C1 using the basic configuration.
@@ -86,7 +96,7 @@ typedef struct {
  * @param config  Caller-allocated C1_States instance; declared outside the
  *  driver.
  */
-void Initialize_RPLiDAR_C1(const C1_States* config);
+void Initialize_RPLiDAR_C1(C1_States* config);
 
 
 /**
@@ -103,8 +113,8 @@ void Initialize_RPLiDAR_C1(const C1_States* config);
  *                     the number of valid points written.
  */
 void Process_RPLiDAR_Data(
-        const state_se2_t*  pose, 
-        PointCloud*         output);
+        const state_se2_t   pose, 
+              PointCloud*   output);
 
 
 // ----------------------------------------------------------------------------
@@ -118,7 +128,7 @@ void Process_RPLiDAR_Data(
  *
  * @param cmd   Pointer to No_Response descriptor.
  */
-void Single_Request_No_Response(const No_Response* cmd);
+void Single_Request_No_Response(const No_Response cmd);
 
 
 /**
@@ -129,7 +139,7 @@ void Single_Request_No_Response(const No_Response* cmd);
  * @return 1 on success (correct 0xA5 0x5A prefix seen), 0 on failure.
  */
 uint8_t Single_Request_Multiple_Response(
-        const Single_Response*  cmd,
+        const Single_Response   cmd,
               uint8_t           RX_DATA_BUFFER[]);
 
 

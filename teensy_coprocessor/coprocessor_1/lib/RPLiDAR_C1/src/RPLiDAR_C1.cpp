@@ -18,12 +18,9 @@
 //
 // ----------------------------------------------------------------------------
 
-void Initialize_RPLiDAR_C1(const C1_States* config_in)
+void Initialize_RPLiDAR_C1(C1_States* config_in)
 {
     // ---- Command descriptors ---------------
-
-    const No_Response       STOP        = {0x25, 0,  10u};
-    const No_Response       RESET       = {0x40, 0, 500u};
 
     const Single_Response   GET_HEALTH  = {0x52, 8};
     const Single_Response   SCAN        = {0x20, 5};
@@ -35,13 +32,13 @@ void Initialize_RPLiDAR_C1(const C1_States* config_in)
     RPLiDAR_UART_Init();
 
     // ---- Protocol sequence ------------------------------------------------
-    Single_Request_No_Response(&STOP);
+    Single_Request_No_Response(STOP);
 
-    Single_Request_No_Response(&RESET);
+    Single_Request_No_Response(RESET);
 
-    Single_Request_Multiple_Response(&GET_HEALTH, RX_POINTER);
+    Single_Request_Multiple_Response(GET_HEALTH, RX_POINTER);
 
-    Single_Request_Multiple_Response(&SCAN, RX_POINTER);
+    Single_Request_Multiple_Response(SCAN, RX_POINTER);
     delay(200);
 }
 
@@ -53,8 +50,8 @@ void Initialize_RPLiDAR_C1(const C1_States* config_in)
 // ============================================================================
 
 void Process_RPLiDAR_Data(
-    const state_se2_t*  pose,
-          PointCloud*   output)
+        const state_se2_t   pose,
+              PointCloud*   output)
 {
 #define STATEMENT (j == 2 || j == 4)
 
@@ -64,22 +61,11 @@ void Process_RPLiDAR_Data(
     uint32_t i, k;
     uint32_t limits = config->interm_buffer_counter - 1;
 
-    //
-
-    float T[TOTAL] = IDENTITY;
-
-    // Fill in rotation and translation
-    T[R_00] =  cosf(pose->theta);
-    T[R_01] = -sinf(pose->theta);
-    T[T_x_] =  pose->x;    // tx
-
-    T[R_10] =  sinf(pose->theta);
-    T[R_11] =  cosf(pose->theta);
-    T[T_y_] =  pose->y;    // ty
-
-    T[Z_20] = 0.f;
-    T[Z_21] = 0.f;
-    T[I_22] = 1.f;
+    // Pre-compute the SE(2) transformation matrix for the current `action`
+    float T[TOTAL] = {
+            cosf(pose.theta), -sinf(pose.theta), pose.x,
+            sinf(pose.theta),  cosf(pose.theta), pose.y,
+            0.f,               0.f,              1.f};
 
 
 #ifdef DEBUG_OUTPUT
@@ -105,9 +91,6 @@ void Process_RPLiDAR_Data(
          *  `pointcloud_visualizer`. Undo the negation if the scanner is mounted
          *  upside-down.
          */
-        // output->points[k].x = distance *  cosf(angle_r);
-        // output->points[k].y = distance * -sinf(angle_r);
-
         float x = distance *  cosf(angle_r);
         float y = distance * -sinf(angle_r);
 
@@ -116,12 +99,22 @@ void Process_RPLiDAR_Data(
         output->points[k].x = T[R_00]*x + T[R_01]*y + T[T_x_]*1.f;
         output->points[k].y = T[R_10]*x + T[R_11]*y + T[T_y_]*1.f;
 
+    #ifdef DEBUG_OUTPUT
+        // print all angles
+        Serial.printf("\t%u\n", (uint32_t)((INTERM_POINTER[i] >> 22)));
+    #endif
+
         k++;
     }
 
     output->num_pts = k;
 
     j++;
+
+#ifdef DEBUG_OUTPUT
+    Serial.printf("\n");
+#endif
+
 }
 
 
@@ -131,24 +124,24 @@ void Process_RPLiDAR_Data(
 //
 // ============================================================================
 
-void Single_Request_No_Response(const No_Response* cmd)
+void Single_Request_No_Response(const No_Response cmd)
 {
     RPLiDAR_UART_OutChar(0xA5);
-    RPLiDAR_UART_OutChar(cmd->command);
+    RPLiDAR_UART_OutChar(cmd.command);
 
-    delay(cmd->time);
+    delay(cmd.time);
 }
 
 
 uint8_t Single_Request_Multiple_Response(
-        const Single_Response*  cmd,
+        const Single_Response   cmd,
               uint8_t           RX_DATA_BUFFER[])
 {
     uint8_t start_flag_1, start_flag_2;
 
     // Send command
     RPLiDAR_UART_OutChar(0xA5);
-    RPLiDAR_UART_OutChar(cmd->command);
+    RPLiDAR_UART_OutChar(cmd.command);
 
     // Read response descriptor
     start_flag_1 = RPLiDAR_UART_InChar();

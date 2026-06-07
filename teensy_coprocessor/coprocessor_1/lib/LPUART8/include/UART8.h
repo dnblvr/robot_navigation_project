@@ -29,7 +29,12 @@
 /**
  * @brief 
  */
-#define STATE_REQUEST_FLAG   FLAG_MASK(1)
+#define HALT_REQUEST_FLAG   FLAG_MASK(2)
+
+/**
+ * @brief 
+ */
+#define STATE_REQUEST_FLAG  FLAG_MASK(1)
 
 
 // ----------------------------------------------------------------------------

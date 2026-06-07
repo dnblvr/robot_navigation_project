@@ -1,59 +1,70 @@
 /**
- * @file        ICP_2D.h
- * @brief  
+ * @file ICP_2D.h
+ * @author Gian Fajardo (gianfajardo.prim@gmail.com)
+ * @brief 
+ * @version 0.1
+ * 
  */
 
 #ifndef __ICP_2D_H__
 #define __ICP_2D_H__
 
 
-#include "data_structures.h"
+#include <inEKF_se2.h>
+#include <data_structures.h>
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <math.h>
 #include <float.h>
 #include <string.h>
 #include <assert.h>
+
+
+#ifdef __IMXRT1062__
+  #include <Arduino.h>
+  #include <arm_math.h>
+
+  #define PRINTF (Serial.printf)
+
+#else
+  #include <math.h>
+
+  #define PRINTF (printf)
+
+#endif
+
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // 
 //  CONSTANTS
 // 
-// ----------------------------------------------------------------------------
-
-
-// #define PRINTF (Serial.printf)
-// #include <Arduino.h>
-#define PRINTF (printf)
-
+// ────────────────────────────────────────────────────────────────────────────
 
 
 // check condition
 #ifdef DEBUG_OUTPUT
-  #define PRINT_CHECK (iter >= 0)
+  #define PRINT_CHECK (iter >= 15)
 #endif
 
-
 /**
- * @brief // Maximum number of points ICP should handle
+ * @brief Maximum number of points that ICP should handle
  */
 #define ICP_MAX_POINTS  OUTPUT_BUFFER
 
 /**
- * @brief max unsigned integer value of an index in the `icp_correspondences` buffer, which is statically allocated with type `index_t`. This is used to check that the type can hold all possible indices for the target cloud.
+ * @brief Maximum range for points to be included in ICP convergence processing
  */
-#define CORRESPONDENCE_MAX_INDEX ((1ULL << (8*sizeof(index_t))) - 1)
+#define MAX_ICP_RANGE   2500.f
 
 /**
- * @brief Maximum correspondence quality expressed in distance (mm) - pairs
- *  further than this are rejected
+ * @brief Maximum correspondence quality expressed in distance (mm)
  */
-#define ICP_MAX_CORR_DIST       200.0f
+#define ICP_MAX_CORR_DIST       500.f
+
 
 /**
  * @brief Maximum correspondence quality expressed in distance squared (mm^2)
@@ -99,7 +110,7 @@ static_assert(
  * 
  * @note `ICP_2D_i()` must be able to run first before retrieving the latest cache of correspondence distances, as it is the function which does post-processing of far-range points
  * 
- * @return float* 
+ * @return `float` array to the `icp_corr_dist_sq` buffer
  */
 float* ICP_get_cache();
 
@@ -144,22 +155,6 @@ void Compute_Centroid(
 // 
 // ────────────────────────────────────────────────────────────────────────────
 
-
-/**
- * @brief calculates dot product of two 3D vectors represented as 1D arrays
- * 
- * @param[in] A 
- * @param[in] B 
- * 
- * @return `float` 
- */
-inline float dot_product_3(
-        const float A[DIMS],
-        const float B[DIMS])
-{
-    return  A[0]*B[0]  +  A[1]*B[1]  +  A[2]*B[2];
-}
-
 /**
  * @brief helper function that finds the index of the closest point in target 
  *  given a source point.
@@ -186,41 +181,48 @@ void Find_Closest_Points(
 
 
 /**
- * @brief helper function to compute the determinant of a 3x3 matrix.
+ * @brief Copies source to static buffer while sorting this array such that near
+ * points are filled in downwards while far points are filled in from the
+ * end, upward.
  * 
- * @note this is unrolled with the keyword `inline` for speed
- * 
- * @param[in] A 3x3 row-major matrix
- * @return `float` determinant of the matrix
- * 
- * @see `TOTAL` macro for the aggregate size of the 3x3 matrix
+ * @param source 
+ * @param source_size 
+ * @param icp_src_trans 
+ * @param valid_range_limit 
  */
-inline float determinant_3x3(const float A[TOTAL])
-{
-    return (    A[M_00] * (A[M_11]*A[M_22]  -  A[M_12]*A[M_21])
-             -  A[M_01] * (A[M_10]*A[M_22]  -  A[M_12]*A[M_20])
-             +  A[M_02] * (A[M_10]*A[M_21]  -  A[M_11]*A[M_20]) );
-}
+void range_sort(
+              Point2D*  source, 
+        const uint16_t  source_size, 
+              Point2D*  icp_src_trans,
+              uint16_t* valid_range_limit);
 
 
 /**
- * @brief uses Cramer's rule to solve the linear system `Ax = b`
+ * @brief computes the available match distance for a given iteration
  * 
- * @note - in the current PL-ICP implementation, this is used to solve for the overdetermined system `A^T A @ x = A^T b` for the optimal transformation `x`
+ * @param iteration current iteration of the ICP algorithm
+ * @return `float` available match distance squared
  * 
- * @note - `determinant_3x3()` is used for computing the determinant of the matrix `A`
- * 
- * @note - if needed, swap `x` float system with one for `state_se2_t` if need be 
- * 
- * @param[in]  A 3x3 matrix represented as a 1D array in row-major order
- * @param[in]  b 3x1 vector represented as a 1D array
- * 
- * @param[out] x 3x1 vector represented as a 1D array, output solution
+ * @note - the `DECAYING_MATCH_DISTANCE` setting determines whether the match
+ *  difference threshold will decay with each iteration
  */
-void solve_3x3_system(
-        const float A[TOTAL], 
-        const float b[DIMS], 
-              float x[DIMS]);
+inline float icp_match_distance_sq(uint8_t iteration)
+{
+    // #define DECAYING_MATCH_DISTANCE 1
+
+#if defined(DECAYING_MATCH_DISTANCE) // ───────────────────────────────────────
+
+    float range = ICP_MAX_CORR_DIST - 15.f*iteration;
+    range   = fmaxf(range, 100.f);   // clamp to a minimum range
+
+    return range*range;
+
+#else // ──────────────────────────────────────────────────────────────────────
+
+    return ICP_MAX_CORR_DIST_SQ;
+
+#endif
+}
 
 
 /**
@@ -230,8 +232,8 @@ void solve_3x3_system(
  * 
  * @note - here, I will modify the original implementation so it will only perform the accumulation of `A^T A` and `A^T b` using centered source coordinates, hopefully in order to avoid wildly divergent rotation transformations
  * 
- * @note - for the accumulation of AT_A, I will use `matmul_3x1_1x3()`
- * @note - for the accumulation of AT_b, I will use `matmul_3x1_1x3()`
+ * @note - for the accumulation of `AT_A`, I will use `matmul_3x1_1x3()`
+ * @note - for the accumulation of `AT_b`, I will use `matmul_3x1_1x3()`
  * 
  * @param[in] src 
  * @param[in] src_centroid 
@@ -286,18 +288,17 @@ void denormalize_delta(
  * @param[in] tolerance     tolerance amount that considers that convergence
  *  has been reached
  * 
- * @param[out] out_R    2x2 rotation matrix (row-major)
- * @param[out] out_t    2x1 translation vector
+ * @param[out] out_R_t    2x2 rotation matrix (row-major) and 2x1 translation vector
  */
 __attribute__(( section(".fastrun") ))
 void ICP_2D(
         Point2D* source, uint16_t source_size,
         Point2D* target, uint16_t target_size,
-        uint16_t  max_iteration,
-        float   tolerance,
-        
-        float*  out_R,  // 2x2 rotation matrix (row-major)
-        float*  out_t); // 2x1 translation vector
+        uint16_t max_iteration,
+        float    tolerance,
+
+        uint8_t* num_iter,
+        float    out_R_t[TOTAL]);
 
 
 /**
@@ -317,19 +318,17 @@ void ICP_2D(
  * @param[in] tolerance     convergence tolerance
  * 
  * @param[out] num_iter     output: number of iterations until convergence
- * @param[out] out_R    2x2 rotation matrix (row-major)
- * @param[out] out_t    2x1 translation vector
+ * @param[out] out_R_t    2x2 rotation matrix (row-major) and 2x1 translation vector
  */
 __attribute__ (( section(".fastrun") ))
 void ICP_2D_i(
         Point2D* source, uint16_t source_size,
         Point2D* target, uint16_t target_size,
-        uint16_t  max_iteration,
-        float   tolerance,
-        
+        uint16_t max_iteration,
+        float    tolerance,
+
         uint8_t* num_iter,
-        float*  out_R, 
-        float*  out_t);
+        float    out_R_t[TOTAL]);
 
 
 
@@ -349,30 +348,7 @@ void ICP_2D_i(
 
 
 
-/**
- * @brief computes the available match distance for a given iteration
- * 
- * @param iteration current iteration of the ICP algorithm
- * @return `float` available match distance squared
- */
-inline float icp_match_distance_sq(uint8_t iteration)
-{
-    // #define DECAYING_MATCH_DISTANCE 1
 
-#if defined(DECAYING_MATCH_DISTANCE)
-
-    float range = ICP_MAX_CORR_DIST - 2.f*iteration;
-
-    range = fmaxf(range, 100.f);   // clamp to a minimum range
-
-    return range*range;
-
-#else
-
-    return ICP_MAX_CORR_DIST_SQ;
-
-#endif
-}
 
 
 void ICP_2D_play(
@@ -382,8 +358,7 @@ void ICP_2D_play(
         float    tolerance,
 
         uint8_t* num_iter,
-        float*   out_R,
-        float*   out_t);
+        float    out_R_t[TOTAL]);
 
 
 #ifdef __cplusplus

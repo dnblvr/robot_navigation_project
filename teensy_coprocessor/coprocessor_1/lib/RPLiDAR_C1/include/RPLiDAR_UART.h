@@ -59,14 +59,16 @@ uint8_t Scan_All(uint32_t data);
 
 /**
  * @brief Top-level RPLiDAR operational state.
+ * 
  * @details Hierarchical outer layer; the inner FSM (Record_States) only runs
  *          when this is RECORDING.
  */
 typedef enum {
     IDLING      = 0,
-    READY,          ///< Start_RPLiDAR_C1_Record() has been called; waiting for WAIT_INDEX
-    RECORDING,      ///< Actively collecting scan bytes
-    PROCESSING      ///< Scan frame complete; ready for Process_RPLiDAR_Data()
+    READY,          // `Start_RPLiDAR_C1_Record()` has been called; waiting for
+                    //  `WAIT_INDEX`
+    RECORDING,      // Actively collecting scan bytes
+    PROCESSING      // Scan frame complete; ready for `Process_RPLiDAR_Data()`
 } RPLiDAR_States;
 
 
@@ -74,11 +76,11 @@ typedef enum {
  * @brief Inner byte-level FSM states for the scan acquisition pipeline.
  */
 typedef enum {
-    HOLD            = 0,    ///< waiting for WAIT_INDEX bytes before searching
-    FIND_PATTERN,           ///< aligning to the 5-byte packet boundary
-    ADD_OFFSET,             ///< correcting misalignment by discarding N bytes
-    SKIP,                   ///< decimation skip phase
-    RECORD                  ///< recording MSG_LENGTH bytes into the buffer
+    HOLD            = 0,    // waiting for `WAIT_INDEX` bytes before searching
+    FIND_PATTERN,           // aligning to the 5-byte packet boundary
+    ADD_OFFSET,             // correcting misalignment by discarding N bytes
+    SKIP,                   // decimation skip phase
+    RECORD                  // recording `MSG_LENGTH` bytes into the buffer
 } Record_States;
 
 

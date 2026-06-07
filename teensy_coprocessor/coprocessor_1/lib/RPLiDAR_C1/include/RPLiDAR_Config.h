@@ -50,43 +50,43 @@
 #define SKIP_FACTOR     1
 
 
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
 //
 //  BUFFER GEOMETRY
 //
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
 
 /**
  * @brief   Raw 5-byte RPLiDAR message length
  */
-#define MSG_LENGTH              5
+#define MSG_LENGTH          5
 
 /**
  * @brief   Number of bytes consumed during the pattern-search phase  
  */
-#define FIND_INDEX              (MSG_LENGTH * 4)
+#define FIND_INDEX          (MSG_LENGTH * 4)
 
 /**
  * @brief   Number of bytes skipped per decimation cycle
  */
-#define SKIP_INDEX              (MSG_LENGTH * (DECIMATION_FACTOR - 1))
+#define SKIP_INDEX          (MSG_LENGTH * (DECIMATION_FACTOR - 1))
 
 /**
  * @brief   Number of bytes consumed during the initial hold phase
  */
-#define WAIT_INDEX              (MSG_LENGTH * 8)
+#define WAIT_INDEX          (MSG_LENGTH * 8)
 
 /**
  * @brief   Intermediary (angle-distance) buffer size
  */
-#define PROCESS_BUFFER_SIZE     (SKIP_FACTOR * OUTPUT_BUFFER)
+#define PROCESS_BUFFER_SIZE (SKIP_FACTOR * OUTPUT_BUFFER)
 
 
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
 //
 //  DEBUG
 //
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
 
 #if defined(PROCESSING4_OUTPUT) && defined(DEBUG_OUTPUT)
 #error "PROCESSING4_OUTPUT and DEBUG_OUTPUT cannot be active at the same time."

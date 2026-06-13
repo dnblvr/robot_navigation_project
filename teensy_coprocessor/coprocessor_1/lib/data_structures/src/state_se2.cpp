@@ -15,7 +15,7 @@
 
 
 void exp_se2(
-        const state_se2_t*  tau,
+        const se2_t*  tau,
               float         exp_tau[TOTAL])
 {
     // 
@@ -74,7 +74,7 @@ void exp_se2(
 
 void log_se2(
         const float         exp_tau[TOTAL],
-              state_se2_t*  tau)
+              se2_t*  tau)
 {
     
     float omega = atan2f(exp_tau[R_10], exp_tau[R_00]);
@@ -134,8 +134,8 @@ float normalize_angle(float angle)
 
 
 float pose_distance(
-        const Pose* pose1,
-        const Pose* pose2)
+        const se2_t* pose1,
+        const se2_t* pose2)
 {
     float dx, dy;
 
@@ -148,7 +148,7 @@ float pose_distance(
 
 void transform_point_cloud(
         const PointCloud*   scan,
-        const Pose*         pose,
+        const se2_t*        pose,
               PointCloud*   out_scan)
 {
     // counter
@@ -185,9 +185,9 @@ void transform_point_cloud(
 
 
 void compose_poses(
-        const Pose*	p2,
-        const Pose*	p1,
-              Pose* result)
+        const se2_t*	p2,
+        const se2_t*	p1,
+              se2_t* result)
 {
 
     float c = cosf(p1->theta);
@@ -201,9 +201,9 @@ void compose_poses(
 
 
 void relative_pose(
-        const Pose* p1,
-        const Pose* p2,
-              Pose* relative)
+        const se2_t* p1,
+        const se2_t* p2,
+              se2_t* relative)
 {
 
     float   dx  = p2->x - p1->x;
@@ -219,8 +219,8 @@ void relative_pose(
 
 
 void invert_pose(
-        const Pose* p, 
-              Pose* inv)
+        const se2_t* p, 
+              se2_t* inv)
 {
     float c = cosf(p->theta), s = sinf(p->theta);
 
@@ -237,8 +237,8 @@ void invert_pose(
 // ────────────────────────────────────────────────────────────────────────────
 
 void evaluate_error_pose_pose(
-        const Pose* x_i,
-        const Pose* x_j,
+        const se2_t* x_i,
+        const se2_t* x_j,
         const float z_ij[3],
               float error[3])
 {
@@ -274,20 +274,17 @@ void evaluate_error_pose_pose(
 
 
 void compute_jacobian_pose_pose(
-        const Pose* x_i,
-        const Pose* x_j,
+        const se2_t* x_i,
+        const se2_t* x_j,
               float A[3][3],
               float B[3][3])
 {
-
-    // helper variables
-    float si, ci, dx, dy;
-
-    si  = sinf(x_i->theta);
-    ci  = cosf(x_i->theta);
     
-    dx  = x_j->x - x_i->x;
-    dy  = x_j->y - x_i->y;
+    float si    = sinf(x_i->theta);
+    float ci    = cosf(x_i->theta);
+    
+    float dx    = x_j->x - x_i->x;
+    float dy    = x_j->y - x_i->y;
 
     /**
      * Jacobian w.r.t. x_i (A)
@@ -308,18 +305,10 @@ void compute_jacobian_pose_pose(
      *      - del e_θ / del y_i =  0,
      *      - del e_θ / del θ_i = -1
      */
-
-    A[0][0] = -ci;
-    A[0][1] = -si;
-    A[1][0] =  si;
-    A[1][1] = -ci;
+    A[0][0] = -ci;   A[0][1] = -si;    A[0][2] = -si*dx + ci*dy;
+    A[1][0] =  si;   A[1][1] = -ci;    A[1][2] = -ci*dx - si*dy;
     
-    A[0][2] = -si*dx + ci*dy;
-    A[1][2] = -ci*dx - si*dy;
-    
-    A[2][0] =  0.f;
-    A[2][1] =  0.f;
-    A[2][2] = -1.f;
+    A[2][0] =  0.f;  A[2][1] =  0.f;   A[2][2] = -1.f;
     
 
     /**
@@ -342,17 +331,10 @@ void compute_jacobian_pose_pose(
      *     - del e_θ / del y_j =  0,
      *     - del e_θ / del θ_j =  1
      */
-    B[0][0] =  ci;
-    B[0][1] =  si;
-    B[1][0] = -si;
-    B[1][1] =  ci;
+    B[0][0] =  ci;   B[0][1] =  si;    B[0][2] =  0.f;
+    B[1][0] = -si;   B[1][1] =  ci;    B[1][2] =  0.f;
     
-    B[0][2] =  0.f;
-    B[1][2] =  0.f;
-    
-    B[2][0] =  0.f;
-    B[2][1] =  0.f;
-    B[2][2] =  1.f;
+    B[2][0] =  0.f;  B[2][1] =  0.f;   B[2][2] =  1.f;
 }
 
 
@@ -366,20 +348,17 @@ void compute_jacobian_pose_pose(
 
 
 void congruence_3x3(
-        float   A[TOTAL],
-        float   B[TOTAL],
-        float   A_B_AT[TOTAL])
+        const float A[TOTAL],
+        const float B[TOTAL],
+              float A_B_AT[TOTAL])
 {
 
     float AB[TOTAL]     = Z_3x3;
     float A_T[TOTAL]    = Z_3x3;
 
     matmul_3x3(A, B, AB);
-
     transpose_3x3(A, A_T);
-
     matmul_3x3(AB, A_T, A_B_AT);
-
 }
 
 void solve_3x3_system(

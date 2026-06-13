@@ -21,7 +21,7 @@ void inEKF_SE2_init(
 
         float           dt,
         float           L,
-        state_se2_t*    process_noise,
+        se2_t*    process_noise,
         float           mag_noise,
         float           chi2_threshold)
 {
@@ -106,7 +106,7 @@ void inEKF_SE2_predict(
 
 
     // control input u
-    state_se2_t u = {0};
+    se2_t u = {0};
 
     
     float X_delta[TOTAL] = {0}; // state increment in the Lie algebra se(2)
@@ -241,9 +241,9 @@ uint8_t inEKF_SE2_update_mag(
     // [K_00 K_01 K_02] * y
     {
         // current state estimate
-        state_se2_t* X_ = &(filter->state);
+        se2_t* X_ = &(filter->state);
 
-        state_se2_t delta_xi_struct = {
+        se2_t delta_xi_struct = {
                 .x      = K[0] * y,
                 .y      = K[1] * y,
                 .theta  = K[2] * y};
@@ -254,7 +254,7 @@ uint8_t inEKF_SE2_update_mag(
         // map the state increment from the tangent space to the manifold
         exp_se2(&delta_xi_struct, delta_xi_exp); 
     
-        // convert the state increment from the matrix representation to the state_se2_t struct for easier composition with the current state estimate
+        // convert the state increment from the matrix representation to the se2_t struct for easier composition with the current state estimate
         matrix_to_state(delta_xi_exp, &delta_xi_struct); 
     
         // compose the state increment with the current state estimate to get the updated state estimate

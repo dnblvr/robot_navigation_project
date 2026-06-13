@@ -24,6 +24,13 @@ extern "C" {
 // 
 // ────────────────────────────────────────────────────────────────────────────
 
+
+/**
+ * @brief  switch to fast math for the exponential, adjoint map computations,
+ *  and other helper functions for `SE(2)` Lie group operations
+ */
+#define __FAST_MATH__ 1
+
 /**
  * @brief alternate representation of pi, if not declared by the system
  */
@@ -134,12 +141,12 @@ extern "C" {
  * 
  * @note `tau_wedge` is a 3x3 skew-symmetric matrix in the Lie group `SE(2)`
  * 
- * @param[in] tau       `state_se2_t` tangent space (Lie algebra `se(2)`) vector
+ * @param[in] tau       `se2_t` tangent space (Lie algebra `se(2)`) vector
  * @param[out] tau_wedge 3x3 matrix in the Lie group `SE(2)`
  */
 inline void wedge_se2(
-        const state_se2_t*  tau,
-              float         tau_wedge[TOTAL])
+        const se2_t*    tau,
+              float     tau_wedge[TOTAL])
 {
     tau_wedge[R_00]  =  0.f;
     tau_wedge[R_01]  = -tau->theta;
@@ -161,13 +168,29 @@ inline void wedge_se2(
  * @details maps a matrix in the Lie group `SE(2)` to a vector in the tangent
  *  space, i.e. the Lie algebra `se(2)`
  * 
+ * @note
+ * 
+ * $$ \begin{aligned}
+ * \big( \zeta^{\wedge} \big) ^ {\vee}
+ *     = \begin{pmatrix}
+ *         0 & -\omega & v_x \\
+ *         \omega & 0 & v_y \\
+ *         0 & 0 & 0
+ *     \end{pmatrix} ^ {\vee}
+ *     = \begin{pmatrix}
+ *         v_x \\
+ *         v_y \\
+ *         \omega
+ *     \end{pmatrix}
+ * \end{aligned} $$
+ * 
  * @param[in]  tau_wedge 3x3 matrix in the Lie group `SE(2)`
- * @param[out] tau `state_se2_t` vector in the tangent space, aka the Lie
+ * @param[out] tau `se2_t` vector in the tangent space, aka the Lie
  *  algebra `se(2)`
  */
 inline void vee_se2(
-        const float         tau_wedge[TOTAL],
-              state_se2_t*  tau)
+        const float     tau_wedge[TOTAL],
+              se2_t*    tau)
 {
     tau->x      =  tau_wedge[T_x_];
     tau->y      =  tau_wedge[T_y_];
@@ -181,13 +204,13 @@ inline void vee_se2(
  * @details maps a vector in the tangent space, i.e. the Lie algebra `se(2)`, to
  *  a matrix in the Lie group `SE(2)`
  * 
- * @param[in]  tau     state_se2_t vector in the tangent space, aka the Lie
+ * @param[in]  tau     se2_t vector in the tangent space, aka the Lie
  *  algebra `se(2)`
  * @param[out] exp_tau 3x3 matrix in the Lie group `SE(2)`
  */
 void exp_se2(
-        const state_se2_t*  tau,
-              float         exp_tau[TOTAL]);
+        const se2_t*    tau,
+              float     exp_tau[TOTAL]);
 
 
 /**
@@ -197,12 +220,12 @@ void exp_se2(
  *  space, i.e. the Lie algebra `se(2)`
  * 
  * @param[in] exp_tau 3x3 matrix in the Lie group `SE(2)`
- * @param[out] tau `state_se2_t` vector in the tangent space, aka the Lie
+ * @param[out] tau `se2_t` vector in the tangent space, aka the Lie
  *  algebra `se(2)`
  */
 void log_se2(
-        const float         exp_tau[TOTAL],
-              state_se2_t*  tau);
+        const float     exp_tau[TOTAL],
+              se2_t*    tau);
 
 
 /**
@@ -216,8 +239,8 @@ void log_se2(
  *  Lie algebra 
  */
 inline void adjoint_se2(
-        float   exp_tau[TOTAL],
-        float   adj_exp_tau[TOTAL])
+        const float exp_tau[TOTAL],
+              float adj_exp_tau[TOTAL])
 {
     // rotation matrix part of the adjoint map is the same as the rotation
     // matrix part of the exponential map
@@ -265,8 +288,8 @@ float normalize_angle(float angle);
  * @return Distance in meters
  */
 float pose_distance(
-        const Pose* pose1,
-        const Pose* pose2);
+        const se2_t* pose1,
+        const se2_t* pose2);
 
 
 /**
@@ -278,7 +301,7 @@ float pose_distance(
  */
 void transform_point_cloud(
         const PointCloud*   scan,
-        const Pose*         pose,
+        const se2_t*         pose,
               PointCloud*   out_scan);
 
 
@@ -290,33 +313,33 @@ void transform_point_cloud(
  * @param[out] result Output composed pose
  */
 void compose_poses(
-        const Pose* p1,
-        const Pose* p2,
-              Pose* result);
+        const se2_t* p1,
+        const se2_t* p2,
+              se2_t* result);
 
 
 /**
  * @brief Compute relative pose from `p1` to `p2`
  * 
- * @param[in] p1 First pose
- * @param[in] p2 Second pose
+ * @param[in]  p1 First pose
+ * @param[in]  p2 Second pose
  * @param[out] relative Output relative pose
  */
 void relative_pose(
-        const Pose* p1,
-        const Pose* p2,
-              Pose* relative);
+        const se2_t* p1,
+        const se2_t* p2,
+              se2_t* relative);
 
 
 /**
  * @brief `T_inv` of pose `p` = (x,y,θ): rotation −θ, translation −R(−θ)·(x,y)
  * 
- * @param[in] p Input pose
+ * @param[in]  p   Input pose
  * @param[out] inv Output inverted pose
  */
 void invert_pose(
-        const Pose* p, 
-              Pose* inv);
+        const se2_t* p, 
+              se2_t* inv);
 
 
 
@@ -353,16 +376,16 @@ inline float _wrap_angle(float theta)
 
 /**
  * @brief helper function to convert a 3x3 matrix in row-major order to a
- *  `state_se2_t` struct, by extracting the translation and rotation components
+ *  `se2_t` struct, by extracting the translation and rotation components
  *  of the matrix
  * 
  * @param state_matrix 3x3 matrix in row-major order representing an `SE(2)`
  *  pose
- * @param state pointer to `state_se2_t` struct to store the converted state
+ * @param state pointer to `se2_t` struct to store the converted state
  */
 inline void matrix_to_state(
         const float         state_matrix[TOTAL],
-              state_se2_t*  state)
+              se2_t*  state)
 {
     state->x        = state_matrix[T_x_];
     state->y        = state_matrix[T_y_];
@@ -378,9 +401,9 @@ inline void matrix_to_state(
  * @param state_out 
  */
 inline void compose_SE2(
-        state_se2_t     A,
-        state_se2_t     B,
-        state_se2_t*    state_out)
+        se2_t     A,
+        se2_t     B,
+        se2_t*    state_out)
 {
     float c = cosf(A.theta);
     float s = sinf(A.theta);
@@ -401,9 +424,9 @@ inline void compose_SE2(
  *  - `delta_X` = `inv(A)` @ `B`
  */
 inline void difference_SE2(
-        state_se2_t     A,
-        state_se2_t     B,
-        state_se2_t*    state_out)
+        se2_t     A,
+        se2_t     B,
+        se2_t*    state_out)
 {
     float c     = cosf(A.theta);
     float s     = sinf(A.theta);
@@ -431,8 +454,8 @@ inline void difference_SE2(
  * @return float 
  */
 inline float euclidean_distance_SE2(
-        state_se2_t A,
-        state_se2_t B)
+        se2_t A,
+        se2_t B)
 {
     float dx = B.x - A.x;
     float dy = B.y - A.y;
@@ -456,13 +479,13 @@ inline float euclidean_distance_SE2(
  * @param A_inv 
  */
 inline void inverse_3x3(
-        float   A[TOTAL],
-        float   A_inv[TOTAL])
+        const float   A[TOTAL],
+              float   A_inv[TOTAL])
 {
 
 }
 
-
+      
 /**
  * @brief simple matrix multiplication for 3x3 matrices
  * 
@@ -471,23 +494,19 @@ inline void inverse_3x3(
  * @param AB 
  */
 inline void matmul_3x3(
-        float   A[TOTAL],
-        float   B[TOTAL],
-        float   AB[TOTAL])
+        const float   A[TOTAL],
+        const float   B[TOTAL],
+              float   AB[TOTAL])
 {
-    #define LOOP_UNROLLING 1
-
     // M_00, M_01, M_02
     // M_10, M_11, M_12
     // M_20, M_21, M_22
 
-    #ifdef LOOP_UNROLLING
 
     // definitions
     float A_00 = A[M_00], A_01 = A[M_01], A_02 = A[M_02];
     float A_10 = A[M_10], A_11 = A[M_11], A_12 = A[M_12];
     float A_20 = A[M_20], A_21 = A[M_21], A_22 = A[M_22];
-
 
     // row 1
     AB[M_00] = A_00*B[M_00] + A_01*B[M_10] + A_02*B[M_20];
@@ -503,24 +522,6 @@ inline void matmul_3x3(
     AB[M_20] = A_20*B[M_00] + A_21*B[M_10] + A_22*B[M_20];
     AB[M_21] = A_20*B[M_01] + A_21*B[M_11] + A_22*B[M_21];
     AB[M_22] = A_20*B[M_02] + A_21*B[M_12] + A_22*B[M_22];
-
-    #else 
-
-    // single for loop method
-
-    int i;
-
-    // row X
-    for (i = 0; i < TOTAL; i += DIMS) {
-        float A_i0 = A[i + 0], A_i1 = A[i + 1], A_i2 = A[i + 2];
-
-        AB[i + 0] = A_i0*B[M_00] + A_i1*B[M_10] + A_i2*B[M_20];
-        AB[i + 1] = A_i0*B[M_01] + A_i1*B[M_11] + A_i2*B[M_21];
-        AB[i + 2] = A_i0*B[M_02] + A_i1*B[M_12] + A_i2*B[M_22];
-    }
-
-    #endif
-
 }
 
 
@@ -552,17 +553,16 @@ inline void matmul_3x3_3x1(
 /**
  * @brief element-wise addition of two 3x3 matrices
  * 
- * @param A 
- * @param B 
- * @param AB 
+ * @param[in]  A 
+ * @param[in]  B 
+ * 
+ * @param[out] AB 
  */
 inline void matadd_3x3(
         const float A[TOTAL],
         const float B[TOTAL],
               float AB[TOTAL])
 {
-    #ifdef LOOP_UNROLLING
-
     AB[M_00] = A[M_00] + B[M_00];
     AB[M_01] = A[M_01] + B[M_01];
     AB[M_02] = A[M_02] + B[M_02];
@@ -574,16 +574,6 @@ inline void matadd_3x3(
     AB[M_20] = A[M_20] + B[M_20];
     AB[M_21] = A[M_21] + B[M_21];
     AB[M_22] = A[M_22] + B[M_22];
-
-    #else
-
-    int i;
-
-    for (i = 0; i < TOTAL; i++) {
-        AB[i] = A[i] + B[i];
-    }
-
-    #endif
 }
 
 /**
@@ -611,12 +601,12 @@ inline void matmul_3_1x1_3(
  * 
  * @param A 
  * @param B 
- * @param ABA_T 
+ * @param A_B_AT 
  */
 void congruence_3x3(
-        float   A[TOTAL],
-        float   B[TOTAL],
-        float   ABA_T[TOTAL]);
+        const float A[TOTAL],
+        const float B[TOTAL],
+              float A_B_AT[TOTAL]);
 
 
 /**
@@ -626,27 +616,27 @@ void congruence_3x3(
  *  specific structure of the matrices we are working with, by only transposing
  *  the relevant elements and skipping diagonal elements.
  * 
- * @param[in] matrix_in input matrix to be transposed
- * @param[out] matrix_out output transposed matrix
+ * @param[in]  in  input matrix to be transposed
+ * @param[out] out output transposed matrix
  */
 inline void transpose_3x3(
-        float   matrix_in[TOTAL],
-        float   matrix_out[TOTAL])
+        const float in[TOTAL],
+              float out[TOTAL])
 {
     // assigning lower triangular elements to upper
-    matrix_out[M_10] = matrix_in[M_01];
-    matrix_out[M_20] = matrix_in[M_02];
-    matrix_out[M_21] = matrix_in[M_12];
+    out[M_10]   = in[M_01];
+    out[M_20]   = in[M_02];
+    out[M_21]   = in[M_12];
     
-    // assigning upper triangular elements to lower
-    matrix_out[M_01] = matrix_in[M_10];
-    matrix_out[M_02] = matrix_in[M_20];
-    matrix_out[M_12] = matrix_in[M_21];
+    // assign   ng upper triangular elements to lower
+    out[M_01]   = in[M_10];
+    out[M_02]   = in[M_20];
+    out[M_12]   = in[M_21];
 
-    // keeping diagonal elements the same
-    matrix_out[M_00] = matrix_in[M_00];
-    matrix_out[M_11] = matrix_in[M_11];
-    matrix_out[M_22] = matrix_in[M_22];
+    // keepin    diagonal elements the same
+    out[M_00]   = in[M_00];
+    out[M_11]   = in[M_11];
+    out[M_22]   = in[M_22];
 }
 
 /**
@@ -667,12 +657,12 @@ inline float dot_product_3(
 /**
  * @brief helper function to compute the determinant of a 3x3 matrix.
  * 
- * @note this is unrolled with the keyword `inline` for speed
+ * @see - `TOTAL` macro for the aggregate size of the 3x3 matrix
  * 
  * @param[in] A 3x3 row-major matrix
  * @return `float` determinant of the matrix
  * 
- * @see `TOTAL` macro for the aggregate size of the 3x3 matrix
+ * @note this is unrolled with the keyword `inline` for speed
  */
 inline float determinant_3x3(const float A[TOTAL])
 {
@@ -689,7 +679,8 @@ inline float determinant_3x3(const float A[TOTAL])
  * 
  * @note - `determinant_3x3()` is used for computing the determinant of the matrix `A`
  * 
- * @todo - if needed, swap `x` float system with one for `state_se2_t` if need be 
+ * @todo - if needed, swap `x` float system with one for `se2_t` if need be
+ * 
  * @note - internally checks if the system is solvable or unconstrained. only situation where that happens is when the correspondences are all co-linear, which can have multiple solutions for the best-fit transform.
  * 
  *      - For a PL-ICP application, this is where the scan detects a long, flat wall with no clearly visible features
@@ -707,26 +698,26 @@ void solve_3x3_system(
 
 
 
-// -----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 //
 //  ERROR & JACOBIAN FUNCTIONS
 //
-// -----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 
 /**
  * @brief Evaluate pose-pose error
  * 
  * @param[in] x_i First pose
  * @param[in] x_j Second pose
+ * @param[in] z_ij Observed relative pose [`dx`, `dy`, `dtheta`]
  * 
- * @param[out] z_ij Observed relative pose [`dx`, `dy`, `dtheta`]
  * @param[out] error Output error vector [3]
  */
 void evaluate_error_pose_pose(
-        const Pose* x_i,
-        const Pose* x_j,
-        const float z_ij[3],
-              float error[3]);
+        const se2_t* x_i,
+        const se2_t* x_j,
+        const float  z_ij[DIMS],
+              float  error[DIMS]);
 
 
 /**
@@ -739,10 +730,10 @@ void evaluate_error_pose_pose(
  * @param[out] B Output Jacobian w.r.t. `x_j` [3x3]
  */
 void compute_jacobian_pose_pose(
-        const Pose* x_i,
-        const Pose* x_j,
-              float A[3][3],
-              float B[3][3]);
+        const se2_t* x_i,
+        const se2_t* x_j,
+              float  A[DIMS][DIMS],
+              float  B[DIMS][DIMS]);
 
 
 #ifdef __cplusplus

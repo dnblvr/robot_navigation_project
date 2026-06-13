@@ -184,9 +184,9 @@ void LPUART8_ProcessByte(uint8_t b);
 /**
  * @brief extra
  * 
- * @return state_se2_t 
+ * @return se2_t 
  */
-state_se2_t Get_Current_State(void);
+se2_t Get_Current_State(void);
 
 // ----------------------------------------------------------------------------
 //

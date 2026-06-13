@@ -314,7 +314,7 @@ void LPUART8_ProcessByte(uint8_t b)
     } else if (b == '#') {
 
         uart_buffer_pointer = RX_POINTER;
-        length = 2 + sizeof(state_se2_t); // 14 bytes for the pose struct
+        length = 2 + sizeof(se2_t); // 14 bytes for the pose struct
 
     }
     

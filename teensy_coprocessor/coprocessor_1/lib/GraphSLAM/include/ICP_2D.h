@@ -20,18 +20,7 @@
 #include <assert.h>
 
 
-#ifdef __IMXRT1062__
-  #include <Arduino.h>
-  #include <arm_math.h>
 
-  #define PRINTF (Serial.printf)
-
-#else
-  #include <math.h>
-
-  #define PRINTF (printf)
-
-#endif
 
 
 #ifdef __cplusplus
@@ -63,7 +52,7 @@ extern "C" {
 /**
  * @brief Maximum correspondence quality expressed in distance (mm)
  */
-#define ICP_MAX_CORR_DIST       500.f
+#define ICP_MAX_CORR_DIST        500.f
 
 
 /**
@@ -83,7 +72,7 @@ extern "C" {
  *  algorithm. Must be able to hold an index for any point in the target cloud,
  *  which has at most `ICP_MAX_POINTS` points.
  */
-typedef uint8_t index_t;
+typedef uint16_t index_t;
 
 /**
  * @brief max unsigned integer value of an index in the `icp_correspondences`

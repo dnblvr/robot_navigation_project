@@ -28,6 +28,9 @@
 #include <Arduino.h>    // Serial.printf for debug output
 #endif
 
+#ifdef __FAST_MATH__
+    #include <arm_math.h>
+#endif
 
 
 // ----------------------------------------------------------------------------
@@ -113,7 +116,7 @@ void Initialize_RPLiDAR_C1(C1_States* config);
  *                     the number of valid points written.
  */
 void Process_RPLiDAR_Data(
-        const state_se2_t   pose, 
+        const se2_t   pose, 
               PointCloud*   output);
 
 

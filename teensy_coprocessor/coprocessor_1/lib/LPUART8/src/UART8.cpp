@@ -22,7 +22,7 @@
  * 
  * @note 
  */
-static volatile state_se2_t pose_buffer[2] = {{0}, {0}};
+static volatile se2_t pose_buffer[2] = {{0}, {0}};
 
 /**
  * @brief index of the `pose_buffer` written by the ISR
@@ -77,7 +77,7 @@ void Handle_UART_Communications(volatile char UART_Buffer[]) {
         // copy the last 12 bytes into whichever buffer the ISR is permitted to write to
         memcpy((void*)&pose_buffer[write_index],
                (const void*)(&UART_Buffer[0] + 2),
-               sizeof(state_se2_t));
+               sizeof(se2_t));
 
         // Atomically swap buffer positions. now the freshly-written slot becomes the readable one
         write_index ^= 1;
@@ -101,15 +101,15 @@ void Block_Wait_Until(uint32_t requested_flag) {
 
 }
 
-state_se2_t Get_Current_State(void) {
+se2_t Get_Current_State(void) {
 
     // 
-    state_se2_t current_state;
+    se2_t current_state;
 
     // copy the most recent pose from the buffer into a local variable to return
     memcpy((void*)&current_state,
            (const void*)&pose_buffer[read_index],
-           sizeof(state_se2_t));
+           sizeof(se2_t));
 
     return current_state;
 }

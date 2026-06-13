@@ -22,11 +22,11 @@ extern "C" {
 #endif
 
 
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 // 
 //  CONSTANTS
 // 
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 
 /**
  * @brief Math constant for pi (if not defined by the system)
@@ -83,11 +83,11 @@ extern "C" {
 #define ICP_CONVERGENCE_TOLERANCE   0.01f
 
 
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 //
 //  DATA STRUCTURES
 //
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 
 
 /**
@@ -131,7 +131,7 @@ typedef struct {
  */
 typedef struct {
 
-    Pose        pose_pool[MAX_POSES];
+    se2_t        pose_pool[MAX_POSES];
     PointCloud  scan_pool[MAX_POSES];
 
     int         current_pose_count;
@@ -151,11 +151,11 @@ typedef struct {
 } SLAMOptimizer;
 
 
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 //
 //  ICP INTEGRATION FUNCTIONS
 //
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 
 /**
  * @brief Perform ICP alignment between two scans
@@ -175,7 +175,7 @@ typedef struct {
 void slam_perform_icp(
         const PointCloud*   scan1,
         const PointCloud*   scan2,
-        const Pose*         initial_guess,
+        const se2_t*         initial_guess,
               ICPResult*    result);
 
 
@@ -192,7 +192,7 @@ void slam_perform_icp(
 void slam_perform_icp_i(
         const PointCloud*   scan1,
         const PointCloud*   scan2,
-        const Pose*         initial_guess,
+        const se2_t*         initial_guess,
               ICPResult*    result);
 
 
@@ -226,11 +226,11 @@ float slam_compute_icp_confidence(
 float slam_compute_icp_confidence_i();
 
 
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 //
 //  CORE SLAM FUNCTIONS
 //
-// ----------------------------------------------------------------------------
+// ────────────────────────────────────────────────────────────────────────────
 
 /**
  * @brief Initialize the SLAM optimizer
@@ -258,7 +258,7 @@ uint8_t slam_initialize(SLAMOptimizer* optimizer);
  */
 uint8_t slam_add_pose(
           SLAMOptimizer*    optimizer,
-    const Pose*             pose,
+    const se2_t*             pose,
     const PointCloud*       scan);
 
 
@@ -337,13 +337,13 @@ void slam_optimize_gauss_newton(
  */
 void slam_get_current_pose(
         const SLAMOptimizer* optimizer,
-              Pose*          out_pose);
+              se2_t*          out_pose);
 
 
 /**
  * @brief Get a specific pose by index
  * 
- * Pose IDs are logical indices in the circular buffer (0 = oldest,
+ * se2_t IDs are logical indices in the circular buffer (0 = oldest,
  *  `buffer_size-1` = newest). Valid range is [0, `buffer_size`).
  * 
  * @param[in] optimizer Pointer to `SLAMOptimizer` structure
@@ -357,13 +357,13 @@ void slam_get_current_pose(
 uint8_t slam_get_pose(
         const SLAMOptimizer*    optimizer,
               int               pose_id,
-              Pose*             out_pose);
+              se2_t*             out_pose);
 
 
 /**
  * @brief Get the point cloud for a specific pose
  * 
- * Pose IDs are logical indices in the circular buffer (0 = oldest,
+ * se2_t IDs are logical indices in the circular buffer (0 = oldest,
  *  `buffer_size-1` = newest). Valid range is [0, `buffer_size`).
  * 
  * @param[in] optimizer Pointer to `SLAMOptimizer` structure
@@ -414,7 +414,7 @@ static inline int slam_get_buffer_size(
 void slam_perform_icp_play(
         const PointCloud*   scan1,
         const PointCloud*   scan2,
-        const Pose*         initial_guess,
+        const se2_t*         initial_guess,
               ICPResult*    result);
 
 

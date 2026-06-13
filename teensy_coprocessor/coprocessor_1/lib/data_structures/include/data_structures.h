@@ -14,15 +14,29 @@
 #include <stdint.h>
 // #include <assert.h> // for static_assert()
 
+
+
 #ifdef __IMXRT1062__
   #include <Arduino.h>
-  #define PRINTF (Serial.printf)
+  #include <arm_math.h>
 
+  #ifdef __cplusplus
+    // If compiling as C++, use Serial object
+    #define PRINTF(...) (Serial.printf(__VA_ARGS__))
+  #else
+    // If compiling as plain C, use standard printf (Teensy redirects this to Serial)
+    #include <stdio.h>
+    #define PRINTF(...) (printf(__VA_ARGS__))
+  #endif
+  
 #else
-  #include <stdio.h>
-  #define PRINTF (printf)
-
+  #include <stdio.h> 
+  #include <math.h>
+  
+  #define PRINTF(...) (printf(__VA_ARGS__))
+  
 #endif
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,7 +51,7 @@ extern "C" {
 /**
  * @brief Buffer lengths for UART communication, processing, etc
  */
-#define OUTPUT_BUFFER               100
+#define OUTPUT_BUFFER               400
 
 /**
  * @brief 2D point representation
@@ -62,27 +76,7 @@ typedef struct {
     float   x;
     float   y;
     float   theta;
-} state_se2_t;
-
-
-/**
- * @brief Pose state representation (x, y, theta)
- * 
- * @param x change in X plane in mm
- * @param y change in Y plane in mm
- * @param theta change in orientation in radians
- * 
- * @param timestamp (optional) timestamp of the pose measurement (e.g., for synchronization)
- * 
- * @note remove `timestamp` as it might be a vestigial feature
- */
-typedef struct {
-    float   x,
-            y,
-            theta;
-            
-    uint32_t    timestamp;
-} Pose;
+} se2_t;
 
 /**
  * @brief Point cloud data structure
@@ -129,7 +123,7 @@ typedef struct {
  * @param cloud 
  */
 void processing4_print(
-        const state_se2_t   pose, 
+        const se2_t   pose, 
         const PointCloud*   cloud);
 
 
@@ -140,8 +134,54 @@ void processing4_print(
  * @param cloud Pointer to the point cloud to print.
  */
 void C_format_print(
-        const state_se2_t   pose, 
+        const se2_t   pose, 
         const PointCloud*   cloud);
+
+
+void numpy_format_print(
+        const se2_t   pose, 
+        const PointCloud*   cloud);
+
+
+// ────────────────────────────────────────────────────────────────────────────
+//
+//  TIMING HELPERS
+//
+// ────────────────────────────────────────────────────────────────────────────
+
+#ifdef __IMXRT1062__
+
+/**
+ * @brief use the DWT cycle counter on the ARM Cortex-M7 to start a free-
+ *  running timer
+ * 
+ * @todo fix this function so it gets rid of the unneccessary `uint32_t` output
+ *  as the timer is restarted already by enabling the cycle counter
+ * 
+ * @return uint32_t 
+ * @retval `start_time` in microseconds
+ */
+void start_free_running_timer(void);
+
+/**
+ * @brief Calculate elapsed time in microseconds since `start_time` using the
+ *  DWT cycle counter.
+ * 
+ * @param[in] start_time The start time returned by `start_free_running_timer()`
+ * 
+ * @return `uint32_t`
+ * @retval `elapsed_us` in microseconds
+ * 
+ * @note Cast to `uint64_t` before multiplying - `uint32_t` overflows at ~7 µs
+ *  real elapsed time (4295 cycles × 1,000,000 > 2^32).
+ * 
+ * @note Must call `start_free_running_timer()` first to initialize DWT and
+ *  avoid overflow issues.
+ */
+uint32_t get_elapsed_time_us();
+
+
+#endif // __IMXRT1062__
 
 
 #ifdef __cplusplus

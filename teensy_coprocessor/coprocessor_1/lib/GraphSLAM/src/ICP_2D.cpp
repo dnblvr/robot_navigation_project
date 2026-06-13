@@ -133,7 +133,7 @@ void Find_Closest_Points(
         Point2D q2;   // second closest point, used for normal estimation
 
         float closest_dist_sq[2] = {FLT_MAX, FLT_MAX};
-        int indices[2];
+        int indices[2] = {-1, -1};
 
         for (i = 0; i < target_size; i++) {
     
@@ -208,7 +208,7 @@ void range_sort(
     for (i = 0; i < source_size; i++) {
 
         float range_sq  =   source[i].x*source[i].x \
-                            + source[i].y*source[i].y;
+                          + source[i].y*source[i].y;
 
         if (range_sq < (MAX_ICP_RANGE*MAX_ICP_RANGE)) {
 
@@ -277,10 +277,10 @@ void accumulate_PL_ICP(
         // calculate cross-section term `ci` and diagonal terms `di` using the dot product dot_2(q1 - p, n_hat) to determine translational movement; negate x and y distance from previous calcs fit for reuse
         x = -x; y = -y;
 
-        // float ci    =   (src[i].x - src_centroid.x)*n_hat[1]
-        //               - (src[i].y - src_centroid.y)*n_hat[0];
-        float ci    =   (src[i].x)*n_hat[1]
-                      - (src[i].y)*n_hat[0];
+        float ci    =   (src[i].x - src_centroid.x)*n_hat[1]
+                      - (src[i].y - src_centroid.y)*n_hat[0];
+        // float ci    =   (src[i].x)*n_hat[1]
+        //               - (src[i].y)*n_hat[0];
         float di    = x*n_hat[0] + y*n_hat[1];
 
 #ifdef DEBUG_OUTPUT
@@ -880,8 +880,8 @@ void ICP_2D_i(
 
     // 9. perform post-processing of far-range points with final R, t
     int num_far   = (int)(source_size - icp_valid_range);
-    int far_start = (int)ICP_MAX_POINTS - num_far;
-    for (j = (int)ICP_MAX_POINTS - 1; j >= far_start; j--) {
+    int far_start = (int)source_size - num_far;
+    for (j = (int)source_size - 1; j >= far_start; j--) {
         
         // first, perform an action on the far points with the final transformation
         float x = icp_src_trans[j].x;
@@ -1049,7 +1049,7 @@ void ICP_2D_play(
                &icp_valid_range);
 
 #ifdef DEBUG_OUTPUT
-    PRINTF("ICP_2D_i: `ICP_MAX_RANGE` filtered source from %u to %u points\n",
+    PRINTF("ICP_2D_play: `ICP_MAX_RANGE` filtered source from %u to %u points\n",
           source_size,
           icp_valid_range);
 
@@ -1098,7 +1098,7 @@ void ICP_2D_play(
         }
         dummy_cloud.num_pts = source_size;
 
-        C_format_print((state_se2_t){0,0,0},
+        numpy_format_print((se2_t){0,0,0},
                         &dummy_cloud);
 #endif
 
@@ -1178,7 +1178,7 @@ void ICP_2D_play(
 
 
         // 7. Check error (only on valid correspondences)
-        mean_error  = 0.0f;
+        mean_error  = 0.f;
         valid_count = 0;
         for (i = 0; i < icp_valid_range; i++) {
 
@@ -1219,8 +1219,8 @@ void ICP_2D_play(
 
     // 9. perform post-processing of far-range points with final R, t
     int num_far   = (int)(source_size - icp_valid_range);
-    int far_start = (int)ICP_MAX_POINTS - num_far;
-    for (j = (int)ICP_MAX_POINTS - 1; j >= far_start; j--) {
+    int far_start = (int)source_size - num_far;
+    for (j = (int)source_size - 1; j >= far_start; j--) {
         
         // first, perform an action on the far points with the final transformation
         float x = icp_src_trans[j].x;
@@ -1255,7 +1255,43 @@ void ICP_2D_play(
     *num_iter   = iter;
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 #else 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1303,13 +1339,13 @@ void ICP_2D_play(
     // Copy source to static buffer while sorting this array such that near
     // points are filled in downwards while far points are filled in from the
     // end, upward.
-    range_sort(source, 
+    range_sort(source,
                source_size, 
                icp_src_trans,
                &icp_valid_range);
 
 #ifdef DEBUG_OUTPUT
-    PRINTF("ICP_2D_i: `ICP_MAX_RANGE` filtered source from %u to %u points\n",
+    PRINTF("ICP_2D_play: `ICP_MAX_RANGE` filtered source from %u to %u points\n",
           source_size,
           icp_valid_range);
 
@@ -1357,7 +1393,7 @@ void ICP_2D_play(
         }
         dummy_cloud.num_pts = source_size;
 
-        C_format_print((state_se2_t){0,0,0},
+        C_format_print((se2_t){0,0,0},
                        &dummy_cloud);
 #endif
 

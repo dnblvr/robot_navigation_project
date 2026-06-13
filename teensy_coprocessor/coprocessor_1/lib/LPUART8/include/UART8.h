@@ -61,9 +61,9 @@ void Block_Wait_Until(uint32_t requested_flag);
 /**
  * @brief get function for the latest pose received over UART
  * 
- * @return state_se2_t
+ * @return se2_t
  */
-state_se2_t Get_Current_State(void);
+se2_t Get_Current_State(void);
 
 
 #endif /* __UART8_H__ */ 

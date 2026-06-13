@@ -33,7 +33,7 @@ extern "C" {
  *  magnetometer for heading measurements
  * 
  * @details The state is stored as a 1D array for ease of use in C, but the
- *  order of the elements is [x, y, theta] to match the `state_se2_t` struct
+ *  order of the elements is [x, y, theta] to match the `se2_t` struct
  */
 typedef struct {
 
@@ -58,21 +58,21 @@ typedef struct {
 
 
     // —— filter variables ————————————————————————————————————————————————————
-    state_se2_t state;
+    se2_t state;
 
     // process noise covariance matrix, aka `Q`
-    // state_se2_t process_noise;
+    // se2_t process_noise;
     float process_noise[TOTAL];
 
     // innovation gate threshold for outlier rejection
     float chi2_threshold;
 
     // covariance in tangent space, aka `P`
-    // state_se2_t covariance;
+    // se2_t covariance;
     float covariance[TOTAL];
 
     // measurement noise covariance matrix, aka `R`
-    // state_se2_t measurement_noise;
+    // se2_t measurement_noise;
     float mag_noise;
 
 } InEKF_SE2_t;
@@ -107,7 +107,7 @@ void inEKF_SE2_init(
 
         float           dt,
         float           L,
-        state_se2_t*    process_noise,
+        se2_t*    process_noise,
         float           mag_noise,
         float           chi2_threshold);
 
@@ -162,12 +162,12 @@ uint8_t inEKF_SE2_update_mag(
  * 
  * @param[in] filter `InEKF_SE2_t` struct containing the current state
  *      estimate, covariance, and other filter parameters
- * @param[out] state_out `state_se2_t` struct to store the retrieved state
+ * @param[out] state_out `se2_t` struct to store the retrieved state
  *      estimate
  */
 inline void inEKF_SE2_get_state(
         InEKF_SE2_t*    filter,
-        state_se2_t*    state_out)
+        se2_t*    state_out)
 {
     state_out->x      = filter->state.x;
     state_out->y      = filter->state.y;

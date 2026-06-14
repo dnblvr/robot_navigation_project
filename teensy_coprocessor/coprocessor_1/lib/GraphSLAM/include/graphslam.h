@@ -58,7 +58,7 @@ extern "C" {
 // Optimization parameters
 #define MAX_GAUSS_NEWTON_ITERS  3
 #define CONVERGENCE_TOLERANCE   1e-4f
-#define MAX_ICP_ITERATIONS      30
+#define MAX_ICP_ITERATIONS      25
 
 /**
  * @brief weight amount to add to diagonal of H for the first pose to fix it as
@@ -75,7 +75,7 @@ extern "C" {
 /**
  * @brief Scale factor for error confidence
  */
-#define ERROR_CONFIDENCE_SCALE  70.f
+#define ERROR_CONFIDENCE_SCALE  40.f
 
 /**
  * @brief ICP convergence tolerance

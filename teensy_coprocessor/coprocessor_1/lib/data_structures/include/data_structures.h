@@ -115,12 +115,6 @@ typedef struct {
 //
 // ————————————————————————————————————————————————————————————————————————————
 
-inline Point2D* transform_point(
-        const Point2D*  pt,
-        const se2_t*    transform)
-{
-    
-}
 
 /**
  * @brief Helper function to print the current pose and scan in a format

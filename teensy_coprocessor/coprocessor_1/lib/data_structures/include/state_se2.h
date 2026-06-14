@@ -327,6 +327,19 @@ void invert_pose(
 
 
 
+inline Point2D transform_point(
+        const Point2D*  pt,
+        const float     R_t[TOTAL])
+{
+    Point2D result;
+    float x = pt->x;
+    float y = pt->y;
+
+    result.x  = R_t[R_00]*x  +  R_t[R_01]*y  +  R_t[T_x_];
+    result.y  = R_t[R_10]*x  +  R_t[R_11]*y  +  R_t[T_y_];
+
+    return result;
+}
 
 
 /**

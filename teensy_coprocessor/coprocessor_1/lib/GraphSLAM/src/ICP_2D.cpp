@@ -641,6 +641,8 @@ void ICP_2D_i(
     float prev_error;
 
     // Initialize transformation matrices
+    float R_t[TOTAL]   = I_3x3;
+
     float R[2][2]   = { {1, 0},
                         {0, 1} };
     float t[2]      =   {0, 0};
@@ -822,6 +824,22 @@ void ICP_2D_i(
                           + R_iter[1][1]*centroid_src.y);
 
 
+        float R_t_iter[TOTAL]   = I_3x3;
+        float R_t_new[TOTAL]    = I_3x3;
+        R_t_iter[R_00] = c;  R_t_iter[R_01] = -s;  
+        R_t_iter[R_10] = s;  R_t_iter[R_11] =  c;  
+
+        R_t_iter[T_x_] =    centroid_tgt.x
+                        - (   R_iter[0][0]*centroid_src.x
+                            + R_iter[0][1]*centroid_src.y);
+
+        R_t_iter[T_y_] =    centroid_tgt.y
+                        - (   R_iter[1][0]*centroid_src.x
+                            + R_iter[1][1]*centroid_src.y);
+
+        
+
+
         // Update transformation (compose) before transforming points
         // R_new = R_iter * R_old, t_new = R_iter * t_old + t_iter
         R_new[0][0] = R_iter[0][0]*R[0][0]  +  R_iter[0][1]*R[1][0];
@@ -832,19 +850,36 @@ void ICP_2D_i(
         t_new[0]    = R_iter[0][0]*t[0]  +  R_iter[0][1]*t[1]  +  t_iter[0];
         t_new[1]    = R_iter[1][0]*t[0]  +  R_iter[1][1]*t[1]  +  t_iter[1];
 
+
+        // replace with function that does the same operation as above
+        matmul_3x3(R_t_iter, R_t, R_t_new);
+
+
         // update R, t with new values for next iteration        
-        memcpy(R, R_new, sizeof(float)*4);
-        memcpy(t, t_new, sizeof(float)*2);
+        // memcpy(R, R_new, sizeof(float)*4);
+        // memcpy(t, t_new, sizeof(float)*2);
+
+
+        // replace with function that does the same operation as above
+        R_t[R_00] = R_t_new[R_00];  R_t[R_01] = R_t_new[R_01];
+        R_t[R_10] = R_t_new[R_10];  R_t[R_11] = R_t_new[R_11];
+        R_t[T_x_] = R_t_new[0];
+        R_t[T_y_] = R_t_new[1];
+        
+        // memcpy(R_t, R_t_new, sizeof(float)*2);
 
 
         // 6. Transform source points using accumulated transformation R, t
         for (i = 0; i < icp_valid_range; i++) {
 
-            float x = icp_src_trans[i].x;
-            float y = icp_src_trans[i].y;
+            // float x = icp_src_trans[i].x;
+            // float y = icp_src_trans[i].y;
 
-            icp_src_trans[i].x = R_iter[0][0]*x + R_iter[0][1]*y + t_iter[0];
-            icp_src_trans[i].y = R_iter[1][0]*x + R_iter[1][1]*y + t_iter[1];
+            // icp_src_trans[i].x = R_iter[0][0]*x + R_iter[0][1]*y + t_iter[0];
+            // icp_src_trans[i].y = R_iter[1][0]*x + R_iter[1][1]*y + t_iter[1];
+
+            // replace with function that does the same operation as above
+            icp_src_trans[i] = transform_point(&icp_src_trans[i], R_t_iter);
         }
 
 
@@ -889,11 +924,14 @@ void ICP_2D_i(
     for (j = (int)ICP_MAX_POINTS - 1; j >= far_start; j--) {
         
         // first, perform an action on the far points with the final transformation
-        float x = icp_src_trans[j].x;
-        float y = icp_src_trans[j].y;
+        // float x = icp_src_trans[j].x;
+        // float y = icp_src_trans[j].y;
 
-        icp_src_trans[j].x  = R[0][0]*x + R[0][1]*y + t[0];
-        icp_src_trans[j].y  = R[1][0]*x + R[1][1]*y + t[1];
+        // icp_src_trans[j].x  = R[0][0]*x + R[0][1]*y + t[0];
+        // icp_src_trans[j].y  = R[1][0]*x + R[1][1]*y + t[1];
+
+        // replace with function that does the same operation as above
+        icp_src_trans[j] = transform_point(&icp_src_trans[j], R_t);
 
         // then, find their correspondences for potential use in downstream
         // processing (e.g. loop closure)
@@ -908,8 +946,11 @@ void ICP_2D_i(
 
 
     // 10. return final transformation R,t
-    out_R_t[R_00] = R[0][0];  out_R_t[R_01] = R[0][1];  out_R_t[T_x_] = t[0];
-    out_R_t[R_10] = R[1][0];  out_R_t[R_11] = R[1][1];  out_R_t[T_y_] = t[1];
+    out_R_t[R_00] = R_t[R_00];  out_R_t[R_01] = R_t[R_01];
+    out_R_t[R_10] = R_t[R_10];  out_R_t[R_11] = R_t[R_11];
+
+    out_R_t[T_x_] = R_t[T_x_];
+    out_R_t[T_y_] = R_t[T_y_];
 
     *num_iter = iter;
     
@@ -1020,8 +1061,10 @@ void ICP_2D_play(
 #endif
 
         // Assign default identity transform
-        out_R_t[R_00] = 1.f;  out_R_t[R_01] = 0.f;  out_R_t[T_x_] = 0.f;
-        out_R_t[R_10] = 0.f;  out_R_t[R_11] = 1.f;  out_R_t[T_y_] = 0.f;
+        // out_R_t[R_00] = 1.f;  out_R_t[R_01] = 0.f;  out_R_t[T_x_] = 0.f;
+        // out_R_t[R_10] = 0.f;  out_R_t[R_11] = 1.f;  out_R_t[T_y_] = 0.f;
+
+        memcpy(out_R_t, (float[TOTAL])I_3x3, sizeof(float)*TOTAL);
 
         return;
     }
@@ -1034,9 +1077,7 @@ void ICP_2D_play(
     float prev_error;
 
     // Initialize transformation matrices
-    float R[2][2]   = { {1, 0},
-                        {0, 1} };
-    float t[2]      =   {0, 0};
+    float R_t[TOTAL] = I_3x3;
 
 
     // reset cache variables for this ICP run
@@ -1073,14 +1114,11 @@ void ICP_2D_play(
     for (iter = 0; iter < max_iteration; iter++)
     {
 
-        // Point2D centroid_src, centroid_tgt;
-        float theta, c, s;
-        float R_iter[2][2];
-        float t_iter[2];
-        float mean_error;
-        float R_new[2][2];
-        float t_new[2];
         Point2D src_centroid = {0.f, 0.f};
+        float theta, c, s;
+        float R_t_iter[TOTAL] = I_3x3;
+        float R_t_new[TOTAL]  = I_3x3;
+        float mean_error;
 
         // number of correspondences within max distance
         uint16_t valid_count;
@@ -1137,38 +1175,24 @@ void ICP_2D_play(
             denormalize_delta(delta_centered, src_centroid, delta);
         }
 
-        // 5. compute the incremental transformation R_iter, t_iter from the solution vector `delta`
+        // 5. compute the incremental transformation R_t_iter from the solution vector `delta`
         theta       = delta[2];
         c   = cosf(theta);  s   = sinf(theta);
-        R_iter[0][0] = c;   R_iter[0][1] = -s;   t_iter[0] = delta[0];
-        R_iter[1][0] = s;   R_iter[1][1] =  c;   t_iter[1] = delta[1];
-
-        // matrix_to_state();
+        R_t_iter[R_00] = c;  R_t_iter[R_01] = -s;  R_t_iter[T_x_] = delta[0];
+        R_t_iter[R_10] = s;  R_t_iter[R_11] =  c;  R_t_iter[T_y_] = delta[1];
 
 
-        // Update transformation (compose) before transforming points
-        // R_new = R_iter * R_old, t_new = R_iter * t_old + t_iter
-        R_new[0][0] = R_iter[0][0]*R[0][0]  +  R_iter[0][1]*R[1][0];
-        R_new[0][1] = R_iter[0][0]*R[0][1]  +  R_iter[0][1]*R[1][1];
-        R_new[1][0] = R_iter[1][0]*R[0][0]  +  R_iter[1][1]*R[1][0];
-        R_new[1][1] = R_iter[1][0]*R[0][1]  +  R_iter[1][1]*R[1][1];
+        // Update transformation (compose) before transforming points using matrix multiplication function
+        // R_t_new = R_t_iter * R_t
+        matmul_3x3(R_t_iter, R_t, R_t_new);
 
-        t_new[0]    = R_iter[0][0]*t[0]  +  R_iter[0][1]*t[1]  +  t_iter[0];
-        t_new[1]    = R_iter[1][0]*t[0]  +  R_iter[1][1]*t[1]  +  t_iter[1];
-
-        // update R, t with new values for next iteration        
-        memcpy(R, R_new, sizeof(float)*4);
-        memcpy(t, t_new, sizeof(float)*2);
+        // update R_t with new values for next iteration
+        memcpy(R_t, R_t_new, sizeof(float)*TOTAL);
 
 
-        // 6. Transform source points using accumulated transformation R, t
+        // 6. Transform source points using accumulated transformation R_t_iter using function
         for (i = 0; i < icp_valid_range; i++) {
-
-            float x = icp_src_trans[i].x;
-            float y = icp_src_trans[i].y;
-
-            icp_src_trans[i].x = R_iter[0][0]*x + R_iter[0][1]*y + t_iter[0];
-            icp_src_trans[i].y = R_iter[1][0]*x + R_iter[1][1]*y + t_iter[1];
+            icp_src_trans[i] = transform_point(&icp_src_trans[i], R_t_iter);
         }
 
     #ifdef DEBUG_OUTPUT
@@ -1229,12 +1253,8 @@ void ICP_2D_play(
     int far_start = (int)source_size - num_far;
     for (j = (int)source_size - 1; j >= far_start; j--) {
         
-        // first, perform an action on the far points with the final transformation
-        float x = icp_src_trans[j].x;
-        float y = icp_src_trans[j].y;
-
-        icp_src_trans[j].x  = R[0][0]*x + R[0][1]*y + t[0];
-        icp_src_trans[j].y  = R[1][0]*x + R[1][1]*y + t[1];
+        // first, perform an action on the far points with the final transformation using function
+        icp_src_trans[j] = transform_point(&icp_src_trans[j], R_t);
 
         // then, find their correspondences for potential use in downstream
         // processing (e.g. loop closure)
@@ -1249,15 +1269,18 @@ void ICP_2D_play(
 
 #ifdef DEBUG_OUTPUT
     PRINTF("ICP result: t=(%.3f, %.3f)  theta=%.4f rad (%.2f deg)\n",
-           t[0],
-           t[1],
-           atan2f(R[1][0], R[0][0]),
-           atan2f(R[1][0], R[0][0]) * 57.2958f);
+           R_t[T_x_],
+           R_t[T_y_],
+           atan2f(R_t[R_10], R_t[R_00]),
+           atan2f(R_t[R_10], R_t[R_00]) * 57.2958f);
 #endif
 
     // 10. return final transformation R,t
-    out_R_t[R_00] = R[0][0];  out_R_t[R_01] = R[0][1];  out_R_t[T_x_] = t[0];
-    out_R_t[R_10] = R[1][0];  out_R_t[R_11] = R[1][1];  out_R_t[T_y_] = t[1];
+    out_R_t[R_00] = R_t[R_00];  out_R_t[R_01] = R_t[R_01];
+    out_R_t[R_10] = R_t[R_10];  out_R_t[R_11] = R_t[R_11];
+
+    out_R_t[T_x_] = R_t[T_x_];
+    out_R_t[T_y_] = R_t[T_y_];
 
     *num_iter   = iter;
 }
@@ -1303,8 +1326,9 @@ void ICP_2D_play(
         PRINTF("\tICP: source_size %d exceeds ICP_MAX_POINTS\n", source_size);
 #endif
         // Assign default identity transform
-        out_R_t[R_00] = 1.f;    out_R_t[R_01] = 0.f;    out_R_t[T_x_] = 0.f;
-        out_R_t[R_10] = 0.f;    out_R_t[R_11] = 1.f;    out_R_t[T_y_] = 0.f;
+        // out_R_t[R_00] = 1.f;    out_R_t[R_01] = 0.f;    out_R_t[T_x_] = 0.f;
+        // out_R_t[R_10] = 0.f;    out_R_t[R_11] = 1.f;    out_R_t[T_y_] = 0.f;
+        memcpy(out_R_t, (float[TOTAL])I_3x3, sizeof(float)*TOTAL);
 
         return;
     }
@@ -1315,11 +1339,9 @@ void ICP_2D_play(
 
     // iterative error for convergence check
     float prev_error;
-
+    
     // Initialize transformation matrices
-    float R[2][2]   = { {1, 0},
-                        {0, 1} };
-    float t[2]      =   {0, 0};
+    float R_t[TOTAL]   = I_3x3;
 
     // reset cache variables for this ICP run
     memset(&icp_src_trans[0],       0, sizeof(Point2D)*ICP_MAX_POINTS);
@@ -1356,11 +1378,9 @@ void ICP_2D_play(
     {
         Point2D centroid_src, centroid_tgt;
         float theta, c, s;
-        float R_iter[2][2];
-        float t_iter[2];
         float mean_error;
-        float R_new[2][2];
-        float t_new[2];
+        float R_t_iter[TOTAL]   = I_3x3;
+        float R_t_new[TOTAL]    = I_3x3;
 
         // number of correspondences within max distance
         uint16_t valid_count;
@@ -1384,8 +1404,7 @@ void ICP_2D_play(
         }
         dummy_cloud.num_pts = source_size;
 
-        C_format_print((se2_t){0,0,0},
-                       &dummy_cloud);
+        C_format_print((se2_t){0,0,0}, &dummy_cloud);
 #endif
 
         // 1. Find correspondences between each source pt. and
@@ -1417,7 +1436,6 @@ void ICP_2D_play(
                 centroid_tgt.y += target[icp_correspondences[i]].y;
                 valid_count++;
             }
-
         }
 
         // Need at least 3 valid correspondences to compute transformation
@@ -1430,10 +1448,8 @@ void ICP_2D_play(
             break;
         }
 
-        centroid_src.x /= valid_count;
-        centroid_src.y /= valid_count;
-        centroid_tgt.x /= valid_count;
-        centroid_tgt.y /= valid_count;
+        centroid_src.x /= valid_count;      centroid_src.y /= valid_count;
+        centroid_tgt.x /= valid_count;      centroid_tgt.y /= valid_count;
 
 
         // 3. Compute cross-covariance matrix using only valid correspondences
@@ -1454,15 +1470,14 @@ void ICP_2D_play(
             float y_t   =   target[icp_correspondences[i]].y
                           - centroid_tgt.y;
 
-            S_xx   += x_s * x_t;
-            S_xy   += x_s * y_t; 
-            S_yx   += y_s * x_t;
-            S_yy   += y_s * y_t;
+            S_xx   += x_s * x_t;    S_xy   += x_s * y_t; 
+            S_yx   += y_s * x_t;    S_yy   += y_s * y_t;
         }
 
 
         // 4. Compute rotation (using SVD for 2x2)
         theta       = atan2f(S_xy - S_yx, S_xx + S_yy);
+        c   = cosf(theta);  s   = sinf(theta);
         
     #ifdef DEBUG_OUTPUT
         // if (PRINT_CHECK) {
@@ -1471,58 +1486,36 @@ void ICP_2D_play(
         //            S_xx, S_xy, S_yx, S_yy, theta, theta * 57.2958f);
         // }
     #endif
+
+        R_t_iter[R_00] = c;  R_t_iter[R_01] = -s;  
+        R_t_iter[R_10] = s;  R_t_iter[R_11] =  c;  
+
+        R_t_iter[T_x_] =    centroid_tgt.x
+                        - (   R_t_iter[R_00]*centroid_src.x
+                            + R_t_iter[R_01]*centroid_src.y);
+
+        R_t_iter[T_y_] =    centroid_tgt.y
+                        - (   R_t_iter[R_10]*centroid_src.x
+                            + R_t_iter[R_11]*centroid_src.y);
         
-        c   = cosf(theta);  s   = sinf(theta);
 
-        R_iter[0][0]    =  c;   R_iter[0][1]    = -s;
-        R_iter[1][0]    =  s;   R_iter[1][1]    =  c;
-
-
-        // 5. Compute translation
-        t_iter[0]   =   centroid_tgt.x
-                      - (   R_iter[0][0]*centroid_src.x
-                          + R_iter[0][1]*centroid_src.y);
-
-        t_iter[1]   =   centroid_tgt.y
-                      - (   R_iter[1][0]*centroid_src.x
-                          + R_iter[1][1]*centroid_src.y);
+        // Update transformation (compose) before transforming points using matrix multiplication function
+        // R_t_new = R_t_iter * R_t
+        matmul_3x3(R_t_iter, R_t, R_t_new);
 
 
-        // Update transformation (compose) before transforming points
-        // R_new = R_iter * R_old, t_new = R_iter * t_old + t_iter
-        R_new[0][0] = R_iter[0][0]*R[0][0]  +  R_iter[0][1]*R[1][0];
-        R_new[0][1] = R_iter[0][0]*R[0][1]  +  R_iter[0][1]*R[1][1];
-        R_new[1][0] = R_iter[1][0]*R[0][0]  +  R_iter[1][1]*R[1][0];
-        R_new[1][1] = R_iter[1][0]*R[0][1]  +  R_iter[1][1]*R[1][1];
-
-        t_new[0]    = R_iter[0][0]*t[0]  +  R_iter[0][1]*t[1]  +  t_iter[0];
-        t_new[1]    = R_iter[1][0]*t[0]  +  R_iter[1][1]*t[1]  +  t_iter[1];
-
-        // update R, t with new values for next iteration        
-        memcpy(R, R_new, sizeof(float)*4);
-        memcpy(t, t_new, sizeof(float)*2);
+        // update R, t with new values for next iteration using functions
+        memcpy(R_t, R_t_new, sizeof(float)*TOTAL);
 
 
-        // 6. Transform source points using accumulated transformation R, t
+        // 6. Transform source points using accumulated transformation R_t using function
         for (i = 0; i < icp_valid_range; i++) {
-
-            float x = icp_src_trans[i].x;
-            float y = icp_src_trans[i].y;
-
-            icp_src_trans[i].x = R_iter[0][0]*x + R_iter[0][1]*y + t_iter[0];
-            icp_src_trans[i].y = R_iter[1][0]*x + R_iter[1][1]*y + t_iter[1];
+            icp_src_trans[i] = transform_point(&icp_src_trans[i], R_t_iter);
         }
 
     #ifdef DEBUG_OUTPUT
-        // char buf[80];
-        // snprintf(buf, sizeof(buf), "    movement: t=(%.3f, %.3f)",
-        //                            t_iter[0], t_iter[1]);
-        // TEST_MESSAGE(buf);
-
-        printf("    movement: t=(%.3f, %.3f)\n", t_iter[0], t_iter[1]);
-
+        printf("    movement: t=(%.3f, %.3f)\n", R_t_iter[0], R_t_iter[1]);
     #endif
-
 
         // 7. Check error (only on valid correspondences)
         mean_error  = 0.0f;
@@ -1564,19 +1557,13 @@ void ICP_2D_play(
     int far_start = (int)source_size - num_far;
     for (j = (int)source_size - 1; j >= far_start; j--) {
         
-        // first, perform an action on the far points with the final transformation
-        float x = icp_src_trans[j].x;
-        float y = icp_src_trans[j].y;
-
-        icp_src_trans[j].x  = R[0][0]*x + R[0][1]*y + t[0];
-        icp_src_trans[j].y  = R[1][0]*x + R[1][1]*y + t[1];
+        // first, perform an action on the far points with the final transformation using function
+        icp_src_trans[j] = transform_point(&icp_src_trans[j], R_t);
 
         // then, find their correspondences for potential use in downstream
         // processing (e.g. loop closure)
         Find_Closest_Point(
-                icp_src_trans[j],
-                target,
-                target_size,
+                icp_src_trans[j], target, target_size,
 
                 &icp_correspondences[j],
                 &icp_corr_dist_sq[j]);
@@ -1585,19 +1572,17 @@ void ICP_2D_play(
 
 #ifdef DEBUG_OUTPUT
     PRINTF("ICP result: t=(%.3f, %.3f)  theta=%.4f rad (%.2f deg)\n",
-           t[0],
-           t[1],
-           atan2f(R[1][0], R[0][0]),
-           atan2f(R[1][0], R[0][0]) * 57.2958f);
+           R_t[T_x_],
+           R_t[T_y_],
+           atan2f(R_t[R_10], R_t[R_00]),
+           atan2f(R_t[R_10], R_t[R_00]) * 57.2958f);
 #endif
 
 
-    // 10. return final transformation R,t
-    out_R_t[R_00] = R[0][0];  out_R_t[R_01] = R[0][1];  out_R_t[T_x_] = t[0];
-    out_R_t[R_10] = R[1][0];  out_R_t[R_11] = R[1][1];  out_R_t[T_y_] = t[1];
+    // 10. return final transformation R_t
+    memcpy(out_R_t, R_t, sizeof(float)*TOTAL);
 
     *num_iter = iter;
-
 }
 
 #endif // PLAY_ICP_IMPLEMENTATION

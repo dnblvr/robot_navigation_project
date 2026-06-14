@@ -10,7 +10,7 @@
 #define __ICP_2D_H__
 
 
-#include <inEKF_se2.h>
+#include <state_se2.h>
 #include <data_structures.h>
 
 #include <stdio.h>

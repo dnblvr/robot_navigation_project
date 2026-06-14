@@ -19,12 +19,12 @@ static void slam_apply_constraint(
         float   dtheta,
         float   confidence);
 
-
-// ────────────────────────────────────────────────────────────────────────────
+        
+// ----------------------------------------------------------------------------
 //
 //  ICP INTEGRATION
 //
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 
 void slam_perform_icp(
         const PointCloud*   scan1,
@@ -40,9 +40,9 @@ void slam_perform_icp(
     // If initial guess is non-zero, pre-transform scan1 so ICP only has to
     // find the small residual correction, then compose the two to recover
     // the full transformation: z_ij = initial_guess + residual
-    if (    (initial_guess->x      != 0.f)
-         || (initial_guess->y      != 0.f)
-         || (initial_guess->theta  != 0.f))
+    if (    initial_guess->x       != 0.f
+         || initial_guess->y       != 0.f
+         || initial_guess->theta   != 0.f)
     {
 
         se2_t icp_residual;
@@ -260,11 +260,11 @@ float slam_compute_icp_confidence_i()
 }
 
 
-// ────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 //
 //  CORE SLAM FUNCTIONS
 //
-// ────────────────────────────────────────────────────────────────────────────
+// -----------------------------------------------------------------------------
 
 uint8_t slam_initialize(SLAMOptimizer* optimizer)
 {
@@ -351,6 +351,8 @@ uint8_t slam_add_pose(
     }
 
 
+
+
     
     // Store pose and scan at computed index
     optimizer->pose_pool[idx]   = *pose;
@@ -428,9 +430,14 @@ static void slam_apply_constraint(
     if (!optimizer->matrices_initialized)
         return;
 
-    if (    (pose1_id < 0)  ||  (pose1_id >= optimizer->buffer_size)
-         || (pose2_id < 0)  ||  (pose2_id >= optimizer->buffer_size) )
+    if (    (pose1_id < 0)
+         || (pose1_id >= optimizer->buffer_size))
         return;
+
+    if (    (pose2_id < 0)
+         || (pose2_id >= optimizer->buffer_size))
+        return;
+    
 
     // Direct indexing - no circular buffer
     i1  = pose1_id * 3;
@@ -720,7 +727,7 @@ void slam_optimize_gauss_newton(
     Constraint *con;
 
     // Static buffers for Gauss-Newton optimization
-    // Size: STATE_SIZE = 3 * MAX_POSES = 45
+    // Size: STATE_SIZE = 3 * MAX_POSES
     static float L[STATE_SIZE * STATE_SIZE];
     static float y[STATE_SIZE];
     static float dx[STATE_SIZE];
@@ -754,7 +761,6 @@ void slam_optimize_gauss_newton(
             {
                 continue;
             }
-
                 
             slam_apply_constraint(optimizer,
                                   con->pose1_id,
@@ -860,11 +866,11 @@ void slam_optimize_gauss_newton(
 }
 
 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 // 
 //  GETTER FUNCTIONS
 // 
-// ────────────────────────────────────────────────────────────────────────────
+// ----------------------------------------------------------------------------
 
 void slam_get_current_pose(
         const SLAMOptimizer*    optimizer,
@@ -940,9 +946,7 @@ uint8_t slam_get_scan(
 
 
 
-// #define PL_ICP 1
 
-#ifdef PL_ICP
 
 void slam_perform_icp_play(
         const PointCloud*   scan1,
@@ -952,14 +956,14 @@ void slam_perform_icp_play(
 {
 
     // output variables
-    float R_t[TOTAL];  // 2x2 rotation matrix (row-major)
+    float R_t[TOTAL];  // 3x3 se2 matrix (row-major)
 
 #ifdef DEBUG_OUTPUT     
-    PRINTF("MAX_ICP_RANGE: %.2f\n", MAX_ICP_RANGE);
+    PRINTF("MAX_ICP_RANGE:     %.2f\n", MAX_ICP_RANGE);
     PRINTF("ICP_MAX_CORR_DIST: %.2f\n", ICP_MAX_CORR_DIST);
 #endif
 
-    se2_t init_guess = *initial_guess;    // starter guess 
+    se2_t init_guess = *initial_guess;    // starter guess
     se2_t full_transform;
     
     
@@ -971,124 +975,25 @@ void slam_perform_icp_play(
          || (fabsf(init_guess.theta) > 1e-3f))
     {
         se2_t icp_residual;
+        PointCloud transformed_scan2;
         
-        // tune the initial guess for better convergence, less overshoot, and, within limiting factors, the lowest amount of iterations required for convergence. increasing this ratio doesn't necessarily lessen iterations
-        init_guess.x       *=   0.8f;
-        init_guess.y       *=   0.8f;
-        init_guess.theta   *=   1.f;
+        // tune the initial guess for better convergence, less overshoot, and, within limiting factors, the lowest amount of iterations required for convergence. Increasing this ratio doesn't necessarily lessen iterations
+        init_guess.x       *=  0.9f;
+        init_guess.y       *=  0.9f;
+        init_guess.theta   *=  1.f;
+
+        // init_guess.x       *=  0;
+        // init_guess.y       *=  0;
+        // init_guess.theta   *=  1;
         
-        // Pre-transform scan1 with the initial guess
-        PointCloud transformed_scan1;
-        transform_point_cloud(scan1, &init_guess, &transformed_scan1);
-
-#ifdef PROCESSING4_OUTPUT
-        numpy_format_print((se2_t){0.f, 0.f, 0.f},
-                           &transformed_scan1);
-#endif
-        
-        // ICP finds the residual correction between scan1' and scan2
-        ICP_2D_play(transformed_scan1.points, transformed_scan1.num_pts,
-                    (Point2D*)scan2->points, scan2->num_pts,
-                    MAX_ICP_ITERATIONS,
-                    ICP_CONVERGENCE_TOLERANCE,
-                    
-                    &result->num_iterations,
-                    R_t);
-
-        // Compose initial_guess + icp_residual to get the full transformation.
-        // compose_poses(p2, p1, result) computes result = p1 + p2
-        icp_residual    = (se2_t){R_t[T_x_],
-                                  R_t[T_y_],
-                                  atan2f(R_t[R_10], R_t[R_00])};
-        
-        compose_poses(&init_guess, &icp_residual, &full_transform);
-    
-
-    // ICP finds the full transformation directly
-    } else {
-
-        ICP_2D_play((Point2D*)scan1->points, scan1->num_pts,
-                    (Point2D*)scan2->points, scan2->num_pts,
-                    MAX_ICP_ITERATIONS,
-                    ICP_CONVERGENCE_TOLERANCE,
-    
-                    &result->num_iterations,
-                    R_t);
-
-        full_transform  = (se2_t){R_t[T_x_],
-                                  R_t[T_y_],
-                                  atan2f(R_t[R_10], R_t[R_00])};
-    }
-
-    result->dx      = full_transform.x;
-    result->dy      = full_transform.y;
-    result->dtheta  = full_transform.theta;
-    result->valid   = true;
-
-}
-
-
-
-
-
-#else 
-
-
-
-
-
-
-void slam_perform_icp_play(
-        const PointCloud*   scan1,
-        const PointCloud*   scan2,
-        const se2_t*        initial_guess,
-              ICPResult*    result)
-{
-
-    // output variables
-    float R_t[TOTAL];  // 2x2 rotation matrix (row-major)
-
-#ifdef DEBUG_OUTPUT     
-    PRINTF("MAX_ICP_RANGE: %.2f\n", MAX_ICP_RANGE);
-    PRINTF("ICP_MAX_CORR_DIST: %.2f\n", ICP_MAX_CORR_DIST);
-#endif
-
-
-    se2_t init_guess_aligned;    // starter guess 
-    se2_t uninverted_transform;
-
-    // invert_pose(initial_guess, &init_guess_aligned);
-
-    init_guess_aligned = *initial_guess;
-    
-    // If initial guess is non-zero, pre-transform scan1 so ICP only has to
-    // find the small residual correction, then compose the two to recover
-    // the full transformation: `z_ij` = initial_guess + residual
-    if (    (fabsf(init_guess_aligned.x    ) > 1e-3f)
-         || (fabsf(init_guess_aligned.y    ) > 1e-3f)
-         || (fabsf(init_guess_aligned.theta) > 1e-3f))
-    {
-        se2_t icp_residual;
-        se2_t full_transform;
-        
-        // tune the initial guess for better convergence, less overshoot, and, within limiting factors, the lowest amount of iterations required for convergence. increasing this ratio doesn't necessarily lessen iterations
-        init_guess_aligned.x       *=  0.8f;
-        init_guess_aligned.y       *=  0.8f;
-        init_guess_aligned.theta   *=  1.f; 
-        
-        // Pre-transform scan1 with the initial guess
-        PointCloud transformed_scan1;
-        transform_point_cloud(scan1, &init_guess_aligned, &transformed_scan1);
-
-#ifdef PROCESSING4_OUTPUT
-    C_format_print((se2_t){0.f, 0.f, 0.f},
-                   &transformed_scan1);
-#endif
+        // Pre-transform scan2 with the initial guess
+        transform_point_cloud(scan2, &init_guess, &transformed_scan2);
         
         
-        // ICP finds the residual correction between scan1' and scan2
-        ICP_2D_play(transformed_scan1.points, transformed_scan1.num_pts,
-                    (Point2D*)scan2->points, scan2->num_pts,
+        // ICP finds the residual correction between scan1 and scan2
+        ICP_2D_play(
+                    transformed_scan2.points, transformed_scan2.num_pts,
+                    (Point2D*)scan1->points, scan1->num_pts,
                     MAX_ICP_ITERATIONS,
                     ICP_CONVERGENCE_TOLERANCE,
                     
@@ -1098,37 +1003,32 @@ void slam_perform_icp_play(
         // Compose initial_guess + icp_residual to get the full transformation.
         // compose_poses(p2, p1, result) computes result = p1 + p2
         icp_residual   = (se2_t){R_t[T_x_],
-                                 R_t[T_y_],
-                                 atan2f(R_t[R_10], R_t[R_00])};
+                                R_t[T_y_],
+                                atan2f(R_t[R_10], R_t[R_00])};
         
-        compose_poses(&icp_residual, &init_guess_aligned, &full_transform);
-
-        invert_pose(&full_transform, &uninverted_transform);
+        compose_poses(&init_guess, &icp_residual, &full_transform);
     
 
     // ICP finds the full transformation directly
     } else {
 
-        ICP_2D_play((Point2D*)scan1->points, scan1->num_pts,
+        ICP_2D_play(
                     (Point2D*)scan2->points, scan2->num_pts,
+                    (Point2D*)scan1->points, scan1->num_pts,
                     MAX_ICP_ITERATIONS,
                     ICP_CONVERGENCE_TOLERANCE,
     
                     &result->num_iterations,
                     R_t);
 
-        se2_t inverted_guess = {R_t[T_x_],
-                                R_t[T_y_],
-                                atan2f(R_t[R_10], R_t[R_00])};
-
-        invert_pose(&inverted_guess, &uninverted_transform);
+        full_transform = (se2_t){R_t[T_x_],
+                                 R_t[T_y_],
+                                 atan2f(R_t[R_10], R_t[R_00])};
     }
 
-    result->dx      = uninverted_transform.x;
-    result->dy      = uninverted_transform.y;
-    result->dtheta  = uninverted_transform.theta;
+    result->dx      = full_transform.x;
+    result->dy      = full_transform.y;
+    result->dtheta  = full_transform.theta;
     result->valid   = true;
 
 }
-
-#endif // PL_ICP

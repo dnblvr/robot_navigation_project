@@ -14,29 +14,15 @@
 #include <stdint.h>
 // #include <assert.h> // for static_assert()
 
-
-
 #ifdef __IMXRT1062__
   #include <Arduino.h>
-  #include <arm_math.h>
+  #define PRINTF (Serial.printf)
 
-  #ifdef __cplusplus
-    // If compiling as C++, use Serial object
-    #define PRINTF(...) (Serial.printf(__VA_ARGS__))
-  #else
-    // If compiling as plain C, use standard printf (Teensy redirects this to Serial)
-    #include <stdio.h>
-    #define PRINTF(...) (printf(__VA_ARGS__))
-  #endif
-  
 #else
-  #include <stdio.h> 
-  #include <math.h>
-  
-  #define PRINTF(...) (printf(__VA_ARGS__))
-  
-#endif
+  #include <stdio.h>
+  #define PRINTF (printf)
 
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,7 +37,7 @@ extern "C" {
 /**
  * @brief Buffer lengths for UART communication, processing, etc
  */
-#define OUTPUT_BUFFER               400
+#define OUTPUT_BUFFER               200
 
 /**
  * @brief 2D point representation
@@ -72,10 +58,24 @@ typedef struct {
  * @param y y-position in the plane
  * @param theta heading angle in the plane
  */
+// typedef struct {
+//     float   x;
+//     float   y;
+//     float   theta;
+// } se2_t;
+
+
+/**
+ * @brief se2_t state representation (x, y, theta)
+ * 
+ * @param x change in X plane in mm
+ * @param y change in Y plane in mm
+ * @param theta change in orientation in radians
+ */
 typedef struct {
-    float   x;
-    float   y;
-    float   theta;
+    float   x,
+            y,
+            theta;
 } se2_t;
 
 /**
@@ -115,6 +115,13 @@ typedef struct {
 //
 // ————————————————————————————————————————————————————————————————————————————
 
+inline Point2D* transform_point(
+        const Point2D*  pt,
+        const se2_t*    transform)
+{
+    
+}
+
 /**
  * @brief Helper function to print the current pose and scan in a format
  *  expected by the Processing visualization sketch.
@@ -123,7 +130,7 @@ typedef struct {
  * @param cloud 
  */
 void processing4_print(
-        const se2_t   pose, 
+        const se2_t         pose, 
         const PointCloud*   cloud);
 
 
@@ -134,54 +141,19 @@ void processing4_print(
  * @param cloud Pointer to the point cloud to print.
  */
 void C_format_print(
-        const se2_t   pose, 
+        const se2_t         pose, 
         const PointCloud*   cloud);
 
 
+/**
+ * @brief helper function to print the current pose and scan in a numpy format for debugging.
+ * 
+ * @param pose The pose to print.
+ * @param cloud Pointer to the point cloud to print.
+ */
 void numpy_format_print(
-        const se2_t   pose, 
+        const se2_t         pose, 
         const PointCloud*   cloud);
-
-
-// ────────────────────────────────────────────────────────────────────────────
-//
-//  TIMING HELPERS
-//
-// ────────────────────────────────────────────────────────────────────────────
-
-#ifdef __IMXRT1062__
-
-/**
- * @brief use the DWT cycle counter on the ARM Cortex-M7 to start a free-
- *  running timer
- * 
- * @todo fix this function so it gets rid of the unneccessary `uint32_t` output
- *  as the timer is restarted already by enabling the cycle counter
- * 
- * @return uint32_t 
- * @retval `start_time` in microseconds
- */
-void start_free_running_timer(void);
-
-/**
- * @brief Calculate elapsed time in microseconds since `start_time` using the
- *  DWT cycle counter.
- * 
- * @param[in] start_time The start time returned by `start_free_running_timer()`
- * 
- * @return `uint32_t`
- * @retval `elapsed_us` in microseconds
- * 
- * @note Cast to `uint64_t` before multiplying - `uint32_t` overflows at ~7 µs
- *  real elapsed time (4295 cycles × 1,000,000 > 2^32).
- * 
- * @note Must call `start_free_running_timer()` first to initialize DWT and
- *  avoid overflow issues.
- */
-uint32_t get_elapsed_time_us();
-
-
-#endif // __IMXRT1062__
 
 
 #ifdef __cplusplus

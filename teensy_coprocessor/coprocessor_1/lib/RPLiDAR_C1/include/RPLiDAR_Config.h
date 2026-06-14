@@ -37,10 +37,10 @@
  * @note  Must be >= 2.  Value of 4 gives full angle coverage at 100 points/
  *        scan on an RPLiDAR C1 running at its standard ~4 000 samples/s.
  */
-#define DECIMATION_FACTOR   2
+#define DECIMATION_FACTOR   4
 
 #if DECIMATION_FACTOR < 2
-  #error "DECIMATION_FACTOR must be >= 2"
+#error "DECIMATION_FACTOR must be >= 2"
 #endif
 
 

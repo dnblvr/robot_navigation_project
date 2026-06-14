@@ -36,30 +36,19 @@ extern volatile uint8_t timer_ignore_flag;
 //
 // ----------------------------------------------------------------------------
 
-/**
- * @brief Bound serial port — set by `RPLiDAR_UART_SetPort()`
- */
+/** Bound serial port — set by RPLiDAR_UART_SetPort() */
 static HardwareSerial* _serial = nullptr;
 
-/**
- * @brief Non-owning pointer to the caller's C1_States struct
- */
+/** Non-owning pointer to the caller's C1_States struct */
 C1_States* config       = nullptr;
 
-/**
- * @brief Pointer into the raw 5-byte staging buffer
- */
+/** Pointer into the raw 5-byte staging buffer */
 uint8_t*  RX_POINTER    = nullptr;
 
-/**
- * @brief  Pointer into the packed `(angle << 16 | distance)` buffer
- */
+/** Pointer into the packed (angle << 16 | distance) buffer */
 uint32_t* INTERM_POINTER = nullptr;
 
-/**
- * @brief Flag set by Record_Action when a valid packed word is ready for
- *  filtering
- */
+/** Flag set by Record_Action when a valid packed word is ready for filtering */
 static uint32_t process_data_flag = 0;
 
 /**

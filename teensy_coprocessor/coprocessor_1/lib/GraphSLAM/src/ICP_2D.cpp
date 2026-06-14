@@ -133,7 +133,7 @@ void Find_Closest_Points(
         Point2D q2;   // second closest point, used for normal estimation
 
         float closest_dist_sq[2] = {FLT_MAX, FLT_MAX};
-        int indices[2] = {-1, -1};
+        int indices[2];
 
         for (i = 0; i < target_size; i++) {
     
@@ -207,8 +207,8 @@ void range_sort(
     *valid_range_limit = 0;
     for (i = 0; i < source_size; i++) {
 
-        float range_sq  =   source[i].x*source[i].x \
-                          + source[i].y*source[i].y;
+        float range_sq  =     source[i].x*source[i].x \
+                            + source[i].y*source[i].y;
 
         if (range_sq < (MAX_ICP_RANGE*MAX_ICP_RANGE)) {
 
@@ -285,10 +285,10 @@ void accumulate_PL_ICP(
 
 #ifdef DEBUG_OUTPUT
         // Phase 3: per-correspondence sanity sample (first 3 valid corrs only)
-        // if (i < 3) {
-        //     PRINTF("  corr[%d]: src=(%.1f,%.1f) q1=(%.1f,%.1f) n=(%.3f,%.3f) ci=%.2f di=%.3f\n",
-        //            i, src[i].x, src[i].y, q1.x, q1.y, n_hat[0], n_hat[1], ci, di);
-        // }
+        if (i < 3) {
+            PRINTF("  corr[%d]: src=(%.1f,%.1f) q1=(%.1f,%.1f) n=(%.3f,%.3f) ci=%.2f di=%.3f\n",
+                   i, src[i].x, src[i].y, q1.x, q1.y, n_hat[0], n_hat[1], ci, di);
+        }
 #endif
 
         // assign one piece of the overdetermined vector `a` and 
@@ -320,10 +320,15 @@ void denormalize_delta(
     
               float     delta_true[DIMS])
 {
+
+    /**
+     * p'_x = px + (dx_c - dθ·py) + dθ·μy
+     * p'_y = py + (dy_c + dθ·px) − dθ·μx
+     */
     memcpy(delta_true, delta_centered, sizeof(float)*DIMS);
 
-    delta_true[0] -= delta_centered[2]*centroid.y;
-    delta_true[1] += delta_centered[2]*centroid.x;
+    delta_true[0] += delta_centered[2]*centroid.y;
+    delta_true[1] -= delta_centered[2]*centroid.x;
     // angle component is unaffected because this is a translation of the center of rotation
 }
 
@@ -880,8 +885,8 @@ void ICP_2D_i(
 
     // 9. perform post-processing of far-range points with final R, t
     int num_far   = (int)(source_size - icp_valid_range);
-    int far_start = (int)source_size - num_far;
-    for (j = (int)source_size - 1; j >= far_start; j--) {
+    int far_start = (int)ICP_MAX_POINTS - num_far;
+    for (j = (int)ICP_MAX_POINTS - 1; j >= far_start; j--) {
         
         // first, perform an action on the far points with the final transformation
         float x = icp_src_trans[j].x;
@@ -1049,7 +1054,7 @@ void ICP_2D_play(
                &icp_valid_range);
 
 #ifdef DEBUG_OUTPUT
-    PRINTF("ICP_2D_play: `ICP_MAX_RANGE` filtered source from %u to %u points\n",
+    PRINTF("ICP_2D_i: `ICP_MAX_RANGE` filtered source from %u to %u points\n",
           source_size,
           icp_valid_range);
 
@@ -1083,12 +1088,12 @@ void ICP_2D_play(
 
         // print first few source and target points on first iteration
 #ifdef DEBUG_OUTPUT
-        // if (PRINT_CHECK) {
-        //     PRINTF("ICP iter %u:  src[0]=(%.2f,%.2f)  src[1]=(%.2f,%.2f)\n",
-        //            iter,
-        //            icp_src_trans[0].x, icp_src_trans[0].y,
-        //            icp_src_trans[1].x, icp_src_trans[1].y);
-        // }
+        if (PRINT_CHECK) {
+            PRINTF("ICP iter %u:  src[0]=(%.2f,%.2f)  src[1]=(%.2f,%.2f)\n",
+                   iter,
+                   icp_src_trans[0].x, icp_src_trans[0].y,
+                   icp_src_trans[1].x, icp_src_trans[1].y);
+        }
 #endif
 
 #ifdef PROCESSING4_OUTPUT
@@ -1098,7 +1103,7 @@ void ICP_2D_play(
         }
         dummy_cloud.num_pts = source_size;
 
-        numpy_format_print((se2_t){0,0,0},
+        C_format_print((se2_t){0,0,0},
                         &dummy_cloud);
 #endif
 
@@ -1137,6 +1142,8 @@ void ICP_2D_play(
         c   = cosf(theta);  s   = sinf(theta);
         R_iter[0][0] = c;   R_iter[0][1] = -s;   t_iter[0] = delta[0];
         R_iter[1][0] = s;   R_iter[1][1] =  c;   t_iter[1] = delta[1];
+
+        // matrix_to_state();
 
 
         // Update transformation (compose) before transforming points
@@ -1178,7 +1185,7 @@ void ICP_2D_play(
 
 
         // 7. Check error (only on valid correspondences)
-        mean_error  = 0.f;
+        mean_error  = 0.0f;
         valid_count = 0;
         for (i = 0; i < icp_valid_range; i++) {
 
@@ -1265,23 +1272,7 @@ void ICP_2D_play(
 
 
 
-
-
-
-
-
-
-
-
-
 #else 
-
-
-
-
-
-
-
 
 
 
@@ -1339,7 +1330,7 @@ void ICP_2D_play(
     // Copy source to static buffer while sorting this array such that near
     // points are filled in downwards while far points are filled in from the
     // end, upward.
-    range_sort(source,
+    range_sort(source, 
                source_size, 
                icp_src_trans,
                &icp_valid_range);
@@ -1570,8 +1561,8 @@ void ICP_2D_play(
 
     // 9. perform post-processing of far-range points with final R, t
     int num_far   = (int)(source_size - icp_valid_range);
-    int far_start = (int)ICP_MAX_POINTS - num_far;
-    for (j = (int)ICP_MAX_POINTS - 1; j >= far_start; j--) {
+    int far_start = (int)source_size - num_far;
+    for (j = (int)source_size - 1; j >= far_start; j--) {
         
         // first, perform an action on the far points with the final transformation
         float x = icp_src_trans[j].x;

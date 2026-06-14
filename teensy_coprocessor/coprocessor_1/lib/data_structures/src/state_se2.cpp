@@ -148,7 +148,7 @@ float pose_distance(
 
 void transform_point_cloud(
         const PointCloud*   scan,
-        const se2_t*        pose,
+        const se2_t*         pose,
               PointCloud*   out_scan)
 {
     // counter
@@ -279,12 +279,15 @@ void compute_jacobian_pose_pose(
               float A[3][3],
               float B[3][3])
 {
+
+    // helper variables
+    float si, ci, dx, dy;
+
+    si  = sinf(x_i->theta);
+    ci  = cosf(x_i->theta);
     
-    float si    = sinf(x_i->theta);
-    float ci    = cosf(x_i->theta);
-    
-    float dx    = x_j->x - x_i->x;
-    float dy    = x_j->y - x_i->y;
+    dx  = x_j->x - x_i->x;
+    dy  = x_j->y - x_i->y;
 
     /**
      * Jacobian w.r.t. x_i (A)
@@ -305,10 +308,18 @@ void compute_jacobian_pose_pose(
      *      - del e_θ / del y_i =  0,
      *      - del e_θ / del θ_i = -1
      */
-    A[0][0] = -ci;   A[0][1] = -si;    A[0][2] = -si*dx + ci*dy;
-    A[1][0] =  si;   A[1][1] = -ci;    A[1][2] = -ci*dx - si*dy;
+
+    A[0][0] = -ci;
+    A[0][1] = -si;
+    A[1][0] =  si;
+    A[1][1] = -ci;
     
-    A[2][0] =  0.f;  A[2][1] =  0.f;   A[2][2] = -1.f;
+    A[0][2] = -si*dx + ci*dy;
+    A[1][2] = -ci*dx - si*dy;
+    
+    A[2][0] =  0.f;
+    A[2][1] =  0.f;
+    A[2][2] = -1.f;
     
 
     /**
@@ -331,10 +342,17 @@ void compute_jacobian_pose_pose(
      *     - del e_θ / del y_j =  0,
      *     - del e_θ / del θ_j =  1
      */
-    B[0][0] =  ci;   B[0][1] =  si;    B[0][2] =  0.f;
-    B[1][0] = -si;   B[1][1] =  ci;    B[1][2] =  0.f;
+    B[0][0] =  ci;
+    B[0][1] =  si;
+    B[1][0] = -si;
+    B[1][1] =  ci;
     
-    B[2][0] =  0.f;  B[2][1] =  0.f;   B[2][2] =  1.f;
+    B[0][2] =  0.f;
+    B[1][2] =  0.f;
+    
+    B[2][0] =  0.f;
+    B[2][1] =  0.f;
+    B[2][2] =  1.f;
 }
 
 
@@ -348,17 +366,20 @@ void compute_jacobian_pose_pose(
 
 
 void congruence_3x3(
-        const float A[TOTAL],
-        const float B[TOTAL],
-              float A_B_AT[TOTAL])
+        float   A[TOTAL],
+        float   B[TOTAL],
+        float   A_B_AT[TOTAL])
 {
 
     float AB[TOTAL]     = Z_3x3;
     float A_T[TOTAL]    = Z_3x3;
 
     matmul_3x3(A, B, AB);
+
     transpose_3x3(A, A_T);
+
     matmul_3x3(AB, A_T, A_B_AT);
+
 }
 
 void solve_3x3_system(

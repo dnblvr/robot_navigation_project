@@ -186,15 +186,14 @@ void transform_point_cloud(
 
 void compose_poses(
         const se2_t*	p2,
-        const se2_t*	p1,
-              se2_t* result)
+        const se2_t*    p1,
+              se2_t*    result)
 {
 
-    float c = cosf(p1->theta);
-    float s = sinf(p1->theta);
+    float   c = cosf(p1->theta),    s = sinf(p1->theta);
     
-    result->x       = p1->x  +  c*p2->x  -  s*p2->y;
-    result->y       = p1->y  +  s*p2->x  +  c*p2->y;
+    result->x       = c*p2->x  -  s*p2->y  +  p1->x;
+    result->y       = s*p2->x  +  c*p2->y  +  p1->y;
     result->theta   = normalize_angle(p1->theta + p2->theta);
 
 }

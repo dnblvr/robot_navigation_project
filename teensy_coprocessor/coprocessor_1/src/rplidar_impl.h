@@ -1,11 +1,8 @@
 /**
  * @file rplidar_impl.h
- * @brief Teensy test harness for the RPLiDAR C1 Arduino driver.
+ * @brief Teensy test harness for the RPLiDAR C1 driver.
  *
- * @details This file mirrors the floating_point_impl.h pattern: the entire
- *  implementation lives here and main.cpp switches into it via a single
- *  preprocessor guard.  It exercises the new RPLiDAR_C1 library end-to-end on
- *  the Teensy without touching any other subsystems.
+ * @details This file is patterned so the entire implementation lives here and main.cpp switches into it via a single preprocessor guard.  It exercises the new RPLiDAR_C1 library end-to-end on the Teensy without touching any other subsystems.
  *
  *  Hardware wiring assumed:
  *    Teensy pin 0  (RX1)  ←  RPLiDAR C1 TX
@@ -16,10 +13,8 @@
  *    [env:teensy40]  or  [env:teensy41]
  *    build_flags = -DRPLIDAR_IMPL
  *
- * @note The byte feed is implemented as a polling loop in loop() rather than
- *  via serialEvent1() so that the data path is fully explicit during
- *  bring-up.  Switching to a serialEvent is a one-line change once confirmed
- *  working (see comment in loop()).
+ * @note The byte feed is implemented as a customized state machine in a
+ *  similar way to the msp432 design pattern.
  *
  * @author Gian Fajardo
  */
@@ -32,9 +27,11 @@
 #include "Timer_Tasks.h"
 
 
-// ----------------------------------------------------------------------------
-//  Configuration
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
+//
+//  CONFIGURATION
+//
+// ————————————————————————————————————————————————————————————————————————————
 
 /**
  * @brief Hardware serial port wired to the RPLiDAR C1.
@@ -44,9 +41,11 @@
 
 
 
-// ----------------------------------------------------------------------------
-//  Module-level state
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
+//
+//  MODULE-LEVEL STATE
+//
+// ————————————————————————————————————————————————————————————————————————————
 
 /**
  * @brief FSM and buffer state for the RPLiDAR C1.
@@ -80,11 +79,11 @@ IntervalTimer loop_timer;
 #define WaitForInterrupt()  asm("wfi")
 
 
-// ============================================================================
+// ————————————————————————————————————————————————————————————————————————————
 //
 //  SETUP
 //
-// ============================================================================
+// ————————————————————————————————————————————————————————————————————————————
 
 void setup()
 {
@@ -98,7 +97,7 @@ void setup()
     Serial.println("==============================================");
 
 
-    // Bind Serial1 to the RPLiDAR driver ---------------------------------
+    // ── Bind Serial1 to the RPLiDAR driver ──────────────────────────────────
     RPLiDAR_UART_SetPort(&RPLIDAR_Serial);
 
     
@@ -126,11 +125,11 @@ void setup()
 }
 
 
-// ============================================================================
+// ————————————————————————————————————————————————————————————————————————————
 //
-//  LOOP
+//  SUPERLOOP
 //
-// ============================================================================
+// ————————————————————————————————————————————————————————————————————————————
 
 void loop()
 {
@@ -149,7 +148,7 @@ void loop()
 
     }
 
-    // -------------------------------------------------------------------------
+    // ────────────────────────────────────────────────────────────────────────
     // TASK_4: process a complete scan frame (gated by the task scheduler)
     //
     // task_flag is set by Task_Selector() (IntervalTimer ISR) only when
@@ -157,17 +156,21 @@ void loop()
     // via _timer_ignore() at recording start and clears it via
     // _timer_acknowledge() when End_Record() transitions the state to
     // PROCESSING.  So TASK_4_FLAG arrives only after a full frame is ready.
-    // -------------------------------------------------------------------------
+    // ────────────────────────────────────────────────────────────────────────
 
     if (task_flag & TASK_4_FLAG) {
         task_flag &= ~TASK_4_FLAG;
 
         if (rplidar_cfg.current_state == PROCESSING) {
 
-            Process_RPLiDAR_Data(&local_cloud);
+            se2_t pose = {0.f, 0.f, 0.f}; // placeholder — replace with actual pose when available
 
+            Process_RPLiDAR_Data(pose, &local_cloud);
             
             #ifdef PROCESSING4_OUTPUT
+            
+            Serial.println("CLEAR");
+            
             Serial.printf("POSE,%5.2f,%5.2f,%5.2f\n",
                         //   global_pose.x,
                         //   global_pose.y,
@@ -194,10 +197,12 @@ void loop()
     #endif
 
 
-            // --- Re-arm for next frame --------------------------------------
+            // ─── Re-arm for next frame ──────────────────────────────────────
             rplidar_cfg.current_state   = IDLING;
 
         } // if (state == PROCESSING)
 
     } // if (task_flag & TASK_4_FLAG)
+
+    
 }

@@ -58,12 +58,12 @@ extern "C" {
 /**
  * @brief Maximum range for points to be included in ICP convergence processing
  */
-#define MAX_ICP_RANGE   1500.f
+#define MAX_ICP_RANGE   2500.f
 
 /**
  * @brief Maximum correspondence quality expressed in distance (mm)
  */
-#define ICP_MAX_CORR_DIST       500.f
+#define ICP_MAX_CORR_DIST       400.f
 
 
 /**
@@ -156,10 +156,9 @@ void Compute_Centroid(
 // ────────────────────────────────────────────────────────────────────────────
 
 /**
- * @brief helper function that finds the index of the closest point in target 
- *  given a source point.
+ * @brief helper function that, like `Find_Closest_Point()` finds the index of the closest point in target given a source point *in addition* to finding the surface normal direction.
  * 
- * @note the point of this is to find two points that are somewhat perpendicular to each other, which is used to compute the perpendicular 
+ * @note this function finds two nearest points, which is close enough to assume is a which is used to compute the perpendicular 
  * 
  * @param[in] src           point of type `Point2D`
  * @param[in] target        target array of `Point2D` to search through
@@ -185,10 +184,11 @@ void Find_Closest_Points(
  * points are filled in downwards while far points are filled in from the
  * end, upward.
  * 
- * @param source 
- * @param source_size 
- * @param icp_src_trans 
- * @param valid_range_limit 
+ * @param[in] source        array of `Point2D` to be sorted
+ * @param[in] source_size   number of points in `source` array
+ * @param[out] icp_src_trans        sorted output array 
+ * @param[out] valid_range_limit    counter for number of points within
+ *  `MAX_ICP_RANGE` in `icp_src_trans`
  */
 void range_sort(
               Point2D*  source, 
@@ -200,7 +200,7 @@ void range_sort(
 /**
  * @brief computes the available match distance for a given iteration
  * 
- * @param iteration current iteration of the ICP algorithm
+ * @param[in] iteration current iteration of the ICP algorithm
  * @return `float` available match distance squared
  * 
  * @note - the `DECAYING_MATCH_DISTANCE` setting determines whether the match
@@ -212,8 +212,8 @@ inline float icp_match_distance_sq(uint8_t iteration)
 
 #if defined(DECAYING_MATCH_DISTANCE) // ───────────────────────────────────────
 
-    float range = ICP_MAX_CORR_DIST - 15.f*iteration;
-    range   = fmaxf(range, 100.f);   // clamp to a minimum range
+    float range = ICP_MAX_CORR_DIST - 30.f*iteration;
+    range   = fmaxf(range, 40.f);   // clamp to a minimum range
 
     return range*range;
 
@@ -350,7 +350,23 @@ void ICP_2D_i(
 
 
 
+/**
+ * @brief 
+ * 
+ * @note it is recommended that the source points are the ones to be
+ *  transformed while the target points are fixed in place. it is also recommended that 
+ * 
+ * @param source 
+ * @param source_size 
 
+ * @param target 
+ * @param target_size 
+
+ * @param max_iteration 
+ * @param tolerance 
+ * @param num_iter 
+ * @param out_R_t 
+ */
 void ICP_2D_play(
         Point2D* source, uint16_t source_size,
         Point2D* target, uint16_t target_size,

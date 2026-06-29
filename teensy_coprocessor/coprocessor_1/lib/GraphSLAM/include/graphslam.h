@@ -75,7 +75,7 @@ extern "C" {
 /**
  * @brief Scale factor for error confidence
  */
-#define ERROR_CONFIDENCE_SCALE  40.f
+#define ERROR_CONFIDENCE_SCALE  30.f
 
 /**
  * @brief ICP convergence tolerance

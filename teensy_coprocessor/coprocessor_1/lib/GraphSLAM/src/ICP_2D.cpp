@@ -129,19 +129,20 @@ void Find_Closest_Points(
     
     // iterates through target points to find the closest point via brute-force search
     {
-        uint16_t i;     // counter
-        Point2D q2;   // second closest point, used for normal estimation
+        uint16_t i;                 // counter
+        *q1 = (Point2D){0.f, 0.f};  // second closest point, used for normal estimation
+        Point2D q2 = {0.f, 0.f};    // second closest point, used for normal estimation
 
         float closest_dist_sq[2] = {FLT_MAX, FLT_MAX};
-        int indices[2];
+        int indices[2] = {-1, -1};
 
-        for (i = 0; i < target_size; i++) {
-    
+        for (i = 0; i < target_size; i += 1)
+        {
             float dx    = src.x - target[i].x;
             float dy    = src.y - target[i].y;
             float d_sq  = dx*dx + dy*dy;
     
-            // if point is closer than the closest point, it is implicit that it is also closer than the second closest point. so checking for this filter first allows us to avoid an extra comparison for the second closest index
+            // if point is closer than the closest point, it is implicit that it is also closer than the second closest point. so checking for this filter first allows us to avoid an extra comparison
             if (d_sq < closest_dist_sq[0]) {
 
                 closest_dist_sq[1]  = closest_dist_sq[0];
@@ -202,7 +203,7 @@ void range_sort(
 {
     uint32_t i;
     Point2D* near   = icp_src_trans;
-    Point2D* far    = icp_src_trans + source_size - 1;
+    Point2D* far    = icp_src_trans + (source_size - 1);
     
     *valid_range_limit = 0;
     for (i = 0; i < source_size; i++) {
@@ -239,7 +240,7 @@ void accumulate_PL_ICP(
     
     memset(AT_A, 0.f, sizeof(float)*TOTAL);
     memset(AT_b, 0.f, sizeof(float)*DIMS);
-    // correlation distance_squared array declared elsewhere.
+    // correlation distance_squared array declared elsewhere
     
     
     // it takes this form of this overdetermined system which tracks every correspondence `i` to the following equality:
@@ -257,7 +258,7 @@ void accumulate_PL_ICP(
 
         Find_Closest_Points(src[i], target, target_size,
 
-                            &idx,    &q1,    n_hat);
+                            &idx,   &q1,    n_hat);
 
         // compute distance of its closest point via subtracting the target q from the source aka p; in other words, the equation is `x = p.x - q.x` and `y = p.y - q.y`
         float x = src[i].x - q1.x;
@@ -285,10 +286,10 @@ void accumulate_PL_ICP(
 
 #ifdef DEBUG_OUTPUT
         // Phase 3: per-correspondence sanity sample (first 3 valid corrs only)
-        if (i < 3) {
-            PRINTF("  corr[%d]: src=(%.1f,%.1f) q1=(%.1f,%.1f) n=(%.3f,%.3f) ci=%.2f di=%.3f\n",
-                   i, src[i].x, src[i].y, q1.x, q1.y, n_hat[0], n_hat[1], ci, di);
-        }
+        // if (i < 3) {
+        //     PRINTF("  corr[%d]: src=(%.1f,%.1f) q1=(%.1f,%.1f) n=(%.3f,%.3f) ci=%.2f di=%.3f\n",
+        //            i, src[i].x, src[i].y, q1.x, q1.y, n_hat[0], n_hat[1], ci, di);
+        // }
 #endif
 
         // assign one piece of the overdetermined vector `a` and 
@@ -486,7 +487,6 @@ void ICP_2D(
                 continue;
             }
 
-
             float x_s   = icp_src_trans[i].x - centroid_src.x;
             float y_s   = icp_src_trans[i].y - centroid_src.y;
             float x_t   = target[icp_correspondences[i]].x - centroid_tgt.x;
@@ -496,10 +496,8 @@ void ICP_2D(
              * {{S_xx, S_xy},
              *  {S_yx, S_yy}}
              */
-            S_xx   += x_s * x_t;
-            S_xy   += x_s * y_t;
-            S_yx   += y_s * x_t;
-            S_yy   += y_s * y_t;
+            S_xx += x_s * x_t;      S_xy += x_s * y_t;
+            S_yx += y_s * x_t;      S_yy += y_s * y_t;
         }
 
 
@@ -514,20 +512,15 @@ void ICP_2D(
         // }
         #endif
         
-        cos_theta   = cosf(theta);
-        sin_theta   = sinf(theta);
-
-        R_iter[0][0]    =  cos_theta;
-        R_iter[0][1]    = -sin_theta;
-        R_iter[1][0]    =  sin_theta;
-        R_iter[1][1]    =  cos_theta;
+        cos_theta = cosf(theta);    sin_theta = sinf(theta);
+        R_iter[0][0] =  cos_theta;  R_iter[0][1] = -sin_theta;
+        R_iter[1][0] =  sin_theta;  R_iter[1][1] =  cos_theta;
 
 
         // 5. Compute translation
         t_iter[0]   =   centroid_tgt.x
                       - (   R_iter[0][0]*centroid_src.x
                           + R_iter[0][1]*centroid_src.y);
-
         t_iter[1]   =   centroid_tgt.y
                       - (   R_iter[1][0]*centroid_src.x
                           + R_iter[1][1]*centroid_src.y);
@@ -565,6 +558,7 @@ void ICP_2D(
 
             // Skip pairs that are too far apart
             if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ) {
+                icp_corr_dist_sq[i] = 0.0f;
                 continue;
             }
 
@@ -889,8 +883,10 @@ void ICP_2D_i(
         for (i = 0; i < icp_valid_range; i++) {
 
             // Skip pairs that are too far apart
-            if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ) 
+            if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ) {
+                icp_corr_dist_sq[i] = 0.0f;
                 continue;
+            }
 
             float dx = icp_src_trans[i].x - target[icp_correspondences[i]].x;
             float dy = icp_src_trans[i].y - target[icp_correspondences[i]].y;
@@ -922,13 +918,6 @@ void ICP_2D_i(
     int num_far   = (int)(source_size - icp_valid_range);
     int far_start = (int)ICP_MAX_POINTS - num_far;
     for (j = (int)ICP_MAX_POINTS - 1; j >= far_start; j--) {
-        
-        // first, perform an action on the far points with the final transformation
-        // float x = icp_src_trans[j].x;
-        // float y = icp_src_trans[j].y;
-
-        // icp_src_trans[j].x  = R[0][0]*x + R[0][1]*y + t[0];
-        // icp_src_trans[j].y  = R[1][0]*x + R[1][1]*y + t[1];
 
         // replace with function that does the same operation as above
         icp_src_trans[j] = transform_point(&icp_src_trans[j], R_t);
@@ -1042,7 +1031,7 @@ void ICP_2D_i(
 
 #if defined(PL_ICP)
 
-// __attribute__ (( section(".fastrun") ))
+__attribute__ (( section(".fastrun") ))
 void ICP_2D_play(
         Point2D* source, uint16_t source_size,
         Point2D* target, uint16_t target_size,
@@ -1052,19 +1041,19 @@ void ICP_2D_play(
         uint8_t* num_iter,
         float    out_R_t[TOTAL])
 {   
+
+    // Initialize transformation matrices
+    float R_t[TOTAL] = I_3x3;
+
     // early-return to validate input size against static buffer limits
-    if (    (source_size > ICP_MAX_POINTS)
-         || (source_size <= 0))
-    {
+    if (source_size > ICP_MAX_POINTS) {
+
 #ifdef DEBUG_OUTPUT
-        PRINTF("\tICP: source_size %d exceeds %d\n", source_size, ICP_MAX_POINTS);
+        PRINTF("\tICP: source_size %d exceeds %d\n",
+               source_size, ICP_MAX_POINTS);
 #endif
 
-        // Assign default identity transform
-        // out_R_t[R_00] = 1.f;  out_R_t[R_01] = 0.f;  out_R_t[T_x_] = 0.f;
-        // out_R_t[R_10] = 0.f;  out_R_t[R_11] = 1.f;  out_R_t[T_y_] = 0.f;
-
-        memcpy(out_R_t, (float[TOTAL])I_3x3, sizeof(float)*TOTAL);
+        memcpy(out_R_t, R_t, sizeof(float)*TOTAL);
 
         return;
     }
@@ -1076,14 +1065,11 @@ void ICP_2D_play(
     // iterative error for convergence check
     float prev_error;
 
-    // Initialize transformation matrices
-    float R_t[TOTAL] = I_3x3;
-
 
     // reset cache variables for this ICP run
-    memset(&icp_src_trans[0],       0, sizeof(Point2D)*ICP_MAX_POINTS);
-    memset(&icp_correspondences[0], 0, sizeof(index_t)*ICP_MAX_POINTS);
-    memset(&icp_corr_dist_sq[0],    0,   sizeof(float)*ICP_MAX_POINTS);
+    memset(icp_src_trans,       0, sizeof(Point2D)*ICP_MAX_POINTS);
+    memset(icp_correspondences, 0, sizeof(index_t)*ICP_MAX_POINTS);
+    memset(icp_corr_dist_sq,    0,   sizeof(float)*ICP_MAX_POINTS);
 
 
     // Copy source to static buffer while sorting this array such that near
@@ -1114,10 +1100,11 @@ void ICP_2D_play(
     for (iter = 0; iter < max_iteration; iter++)
     {
 
-        Point2D src_centroid = {0.f, 0.f};
+        Point2D src_centroid    = {0.f, 0.f};
+        float R_t_iter[TOTAL]   = I_3x3;
+        float R_t_new[TOTAL]    = I_3x3;
+        float delta[DIMS];
         float theta, c, s;
-        float R_t_iter[TOTAL] = I_3x3;
-        float R_t_new[TOTAL]  = I_3x3;
         float mean_error;
 
         // number of correspondences within max distance
@@ -1141,26 +1128,25 @@ void ICP_2D_play(
         }
         dummy_cloud.num_pts = source_size;
 
-        C_format_print((se2_t){0,0,0},
-                        &dummy_cloud);
+        numpy_format_print((se2_t){0,0,0}, &dummy_cloud);
 #endif
 
-        float delta[DIMS];
         {
             float delta_centered[DIMS];
             
-            // 3. alternatively, the PLICP paper suggests that I accumulate the overdetermined system that solves the matrix `A x = b` firstly by accumulating these matrices incrementally as I find correspondences, 
+            // 3. the PLICP paper suggests that I accumulate the overdetermined system `AT_A` and `AT_b` using known correspondences. then solve the matrix `A x == b`.
             float AT_A[TOTAL]   = {0};
             float AT_b[DIMS]    = {0}; 
 
 
-            Compute_Centroid(&icp_src_trans[0], icp_valid_range, &src_centroid);
+            Compute_Centroid(icp_src_trans, icp_valid_range, &src_centroid);
 
             // here, we accumulate the A and b matrices of points up to limit `icp_valid_range`. This function also calculates the `icp_correspondences` that is needed for further processing in step 7, so we can reuse this buffer for both purposes. hopefully the array from 0 to `icp_valid_range` is fully populated
-            accumulate_PL_ICP(&icp_src_trans[0], src_centroid, icp_valid_range,
-                          target, target_size,  
-                          icp_correspondences,
-                          AT_A, AT_b);
+            accumulate_PL_ICP(icp_src_trans, src_centroid, icp_valid_range,
+                              target, target_size,
+
+                              icp_correspondences,
+                              AT_A, AT_b);
 
 #ifdef DEBUG_OUTPUT
             // Phase 2: normal equations conditioning
@@ -1192,19 +1178,13 @@ void ICP_2D_play(
 
         // 6. Transform source points using accumulated transformation R_t_iter using function
         for (i = 0; i < icp_valid_range; i++) {
-            icp_src_trans[i] = transform_point(&icp_src_trans[i], R_t_iter);
+            icp_src_trans[i] = transform_point(icp_src_trans + i, R_t_iter);
         }
 
     #ifdef DEBUG_OUTPUT
-        // char buf[80];
-        // snprintf(buf, sizeof(buf), "    movement: t=(%.3f, %.3f)",
-        //                            t_iter[0], t_iter[1]);
-        // TEST_MESSAGE(buf);
-
         // Phase 1: full delta summary (translation + rotation)
         PRINTF("iter %u: delta=(%.3f, %.3f, %.2fdeg)\n",
                iter, delta[0], delta[1], delta[2]*57.2958f);
-
     #endif
 
 
@@ -1213,21 +1193,22 @@ void ICP_2D_play(
         valid_count = 0;
         for (i = 0; i < icp_valid_range; i++) {
 
-            // Skip pairs that are too far apart
-            if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ) 
-                continue;
-
             float dx = icp_src_trans[i].x - target[icp_correspondences[i]].x;
             float dy = icp_src_trans[i].y - target[icp_correspondences[i]].y;
 
             // update two places to speed up work
             icp_corr_dist_sq[i] = dx*dx + dy*dy;
-            mean_error         += icp_corr_dist_sq[i];
 
+            // most important part of the alg: skip pairs very far apart
+            if (icp_corr_dist_sq[i] >= icp_match_distance_sq(iter)) {
+                icp_corr_dist_sq[i] = 0.0f;
+                continue;
+            }
+
+            mean_error         += icp_corr_dist_sq[i];
             valid_count++;
         }
 
-        // 
         if (valid_count > 0) {
             mean_error  = sqrtf(mean_error / valid_count);
         }
@@ -1249,12 +1230,12 @@ void ICP_2D_play(
 
 
     // 9. perform post-processing of far-range points with final R, t
-    int num_far   = (int)(source_size - icp_valid_range);
-    int far_start = (int)source_size - num_far;
+    int num_far   = (int)(source_size  -  icp_valid_range);
+    int far_start = (int)(source_size) -  num_far;
     for (j = (int)source_size - 1; j >= far_start; j--) {
         
         // first, perform an action on the far points with the final transformation using function
-        icp_src_trans[j] = transform_point(&icp_src_trans[j], R_t);
+        icp_src_trans[j] = transform_point(icp_src_trans + j, R_t);
 
         // then, find their correspondences for potential use in downstream
         // processing (e.g. loop closure)
@@ -1262,8 +1243,7 @@ void ICP_2D_play(
         Find_Closest_Point(
                 icp_src_trans[j],  target,  target_size,
 
-                &icp_correspondences[j],
-                &icp_corr_dist_sq[j]);
+                &icp_correspondences[j], &icp_corr_dist_sq[j]);
     }
 
 
@@ -1276,11 +1256,13 @@ void ICP_2D_play(
 #endif
 
     // 10. return final transformation R,t
-    out_R_t[R_00] = R_t[R_00];  out_R_t[R_01] = R_t[R_01];
-    out_R_t[R_10] = R_t[R_10];  out_R_t[R_11] = R_t[R_11];
+    // out_R_t[R_00] = R_t[R_00];  out_R_t[R_01] = R_t[R_01];
+    // out_R_t[R_10] = R_t[R_10];  out_R_t[R_11] = R_t[R_11];
 
-    out_R_t[T_x_] = R_t[T_x_];
-    out_R_t[T_y_] = R_t[T_y_];
+    // out_R_t[T_x_] = R_t[T_x_];
+    // out_R_t[T_y_] = R_t[T_y_];
+
+    memcpy(out_R_t, R_t, sizeof(float)*TOTAL);
 
     *num_iter   = iter;
 }
@@ -1470,8 +1452,8 @@ void ICP_2D_play(
             float y_t   =   target[icp_correspondences[i]].y
                           - centroid_tgt.y;
 
-            S_xx   += x_s * x_t;    S_xy   += x_s * y_t; 
-            S_yx   += y_s * x_t;    S_yy   += y_s * y_t;
+            S_xx += x_s * x_t;  S_xy += x_s * y_t; 
+            S_yx += y_s * x_t;  S_yy += y_s * y_t;
         }
 
 
@@ -1523,8 +1505,10 @@ void ICP_2D_play(
         for (i = 0; i < icp_valid_range; i++) {
 
             // Skip pairs that are too far apart
-            if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ) 
+            if (icp_corr_dist_sq[i] >= ICP_MAX_CORR_DIST_SQ) {
+                icp_corr_dist_sq[i] = 0.0f;
                 continue;
+            }
 
             float dx = icp_src_trans[i].x - target[icp_correspondences[i]].x;
             float dy = icp_src_trans[i].y - target[icp_correspondences[i]].y;

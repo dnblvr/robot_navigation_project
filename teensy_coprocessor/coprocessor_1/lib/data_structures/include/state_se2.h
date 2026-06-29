@@ -186,8 +186,8 @@ inline void vee_se2(
  * @param[out] exp_tau 3x3 matrix in the Lie group `SE(2)`
  */
 void exp_se2(
-        const se2_t*  tau,
-              float         exp_tau[TOTAL]);
+        const se2_t*    tau,
+              float     exp_tau[TOTAL]);
 
 
 /**
@@ -285,8 +285,8 @@ void transform_point_cloud(
 /**
  * @brief Compose two poses (`p1` + `p2`)
  * 
- * @param[in] p1 First pose
- * @param[in] p2 Second pose (relative to `p1`)
+ * @param[in]  p1     First pose
+ * @param[in]  p2     Second pose (relative to `p1`)
  * @param[out] result Output composed pose
  */
 void compose_poses(
@@ -325,7 +325,13 @@ void invert_pose(
 
 
 
-
+inline uint8_t is_nonzero_pose(
+        const se2_t* p)
+{
+    return      (fabsf(p->x)     > 1e-3f)
+             || (fabsf(p->y)     > 1e-3f)
+             || (fabsf(p->theta) > 1e-3f);
+}
 
 inline Point2D transform_point(
         const Point2D*  pt,
@@ -374,8 +380,8 @@ inline float _wrap_angle(float theta)
  * @param state pointer to `se2_t` struct to store the converted state
  */
 inline void matrix_to_state(
-        const float         state_matrix[TOTAL],
-              se2_t*  state)
+        const float     state_matrix[TOTAL],
+              se2_t*    state)
 {
     state->x        = state_matrix[T_x_];
     state->y        = state_matrix[T_y_];
@@ -606,17 +612,17 @@ inline void matadd_3x3(
  *  magnetometer measurement update
  */
 inline void matmul_3_1x1_3(
-        const float   A[DIMS],
-        const float   B[DIMS],
+        const float   a[DIMS],
+        const float   b[DIMS],
               float   AB[TOTAL])
 {
-    // [A_00
-    //  A_10  * [B_00, B_01, B_02]
-    //  A_20] 
+    // [a_00
+    //  a_10  * [b_00, b_01, b_02]
+    //  a_20] 
 
-    AB[M_00] = A[0]*B[0];   AB[M_01] = A[0]*B[1];   AB[M_02] = A[0]*B[2];
-    AB[M_10] = A[1]*B[0];   AB[M_11] = A[1]*B[1];   AB[M_12] = A[1]*B[2];
-    AB[M_20] = A[2]*B[0];   AB[M_21] = A[2]*B[1];   AB[M_22] = A[2]*B[2];
+    AB[M_00] = a[0]*b[0];   AB[M_01] = a[0]*b[1];   AB[M_02] = a[0]*b[2];
+    AB[M_10] = a[1]*b[0];   AB[M_11] = a[1]*b[1];   AB[M_12] = a[1]*b[2];
+    AB[M_20] = a[2]*b[0];   AB[M_21] = a[2]*b[1];   AB[M_22] = a[2]*b[2];
 }
 
 /**

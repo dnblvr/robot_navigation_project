@@ -67,7 +67,7 @@ void numpy_format_print(
     
     for (k = 0; k < cloud->num_pts; k++) {
 
-        PRINTF("\t\t[%.2ff,%.2ff],\n",
+        PRINTF("\t\t[%.1f,%.1f],\n",
             cloud->points[k].x,
             cloud->points[k].y);
     }

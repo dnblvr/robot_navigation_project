@@ -8,11 +8,11 @@
 
 #include <stdint.h>
 
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
 //
 //  TIMER A1 TASK SELECTOR
 //
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
 
 /**
  * @note here are the following delegated tasks:
@@ -63,24 +63,26 @@
 #define TASK_7_OFFSET   MAX_DIV_FREQ
 
 
-
-// sets the flag to be performed in the main loop
+/**
+ * @brief sets the flag to be performed in the main loop
+ */
 volatile uint8_t    task_flag           = 0;
 
 /**
  * @brief When non-zero, all task_flag assignments are suppressed.
  *
- * @details Mirrors MSP432 Timer_A1_Ignore() / Timer_A1_Acknowledge().
- *  Set to 1 by the FSM (via _timer_ignore()) when it begins recording a scan
- *  frame; cleared to 0 by the FSM (via _timer_acknowledge()) when the frame
- *  is handed off for processing.  tick_counter still increments so phase is
- *  preserved across the recording window.
+ * @details Mirrors MSP432 `Timer_A1_Ignore()` / `Timer_A1_Acknowledge()`. Set
+ *  to `1` by the FSM (via `_timer_ignore()`) when it begins recording a scan
+ *  frame; cleared to `0` by the FSM (via `_timer_acknowledge()`) when the
+ *  frame is handed off for processing.  `tick_counter` still increments so
+ *  phase is preserved across the recording window.
  */
 volatile uint8_t    timer_ignore_flag   = 0;
 
-// system tick counter
+/**
+ * @brief system tick counter
+ */
 volatile uint32_t   tick_counter        = 0;
-
 
 /**
  * @brief Task selector function that will run at each tick
@@ -137,6 +139,5 @@ void Task_Selector(void) {
     tick_counter++;
 
 }
-
 
 #endif /* __INC_TIMER_A1_TASKS_H__ */

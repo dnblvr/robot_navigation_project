@@ -28,7 +28,9 @@
 #include <Arduino.h>    // Serial.printf for debug output
 #endif
 
-
+#ifdef __FAST_MATH__
+    #include <arm_math.h>
+#endif
 
 // ----------------------------------------------------------------------------
 //

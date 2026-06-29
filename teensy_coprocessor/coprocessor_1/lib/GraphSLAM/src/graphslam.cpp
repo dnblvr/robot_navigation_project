@@ -62,10 +62,7 @@ void slam_perform_icp(
 
         // Compose initial_guess + icp_residual to get the full transformation.
         // compose_poses(p2, p1, result) computes result = p1 + p2
-        icp_residual   = (se2_t){R_t[T_x_],
-                                R_t[T_y_],
-                                atan2f(R_t[R_10], R_t[R_00])};
-        
+        matrix_to_state(R_t, &icp_residual);
         compose_poses(&icp_residual, initial_guess, &full_transform);
 
         result->dx      = full_transform.x;
@@ -80,8 +77,8 @@ void slam_perform_icp(
                (Point2D*)scan2->points, scan2->num_pts,
                MAX_ICP_ITERATIONS,
                ICP_CONVERGENCE_TOLERANCE,
-               &result->num_iterations,
-               R_t);
+
+               &result->num_iterations, R_t);
 
         result->dx      = R_t[T_x_];
         result->dy      = R_t[T_y_];
@@ -174,7 +171,7 @@ float slam_compute_icp_confidence(
 void slam_perform_icp_i(
         const PointCloud*   scan1,
         const PointCloud*   scan2,
-        const se2_t*         initial_guess,
+        const se2_t*        initial_guess,
               ICPResult*    result)
 {
     // output variables
@@ -188,9 +185,7 @@ void slam_perform_icp_i(
     // If initial guess is non-zero, pre-transform scan1 so ICP only has to
     // find the small residual correction, then compose the two to recover
     // the full transformation: z_ij = initial_guess + residual
-    if (    initial_guess->x       != 0.f
-         || initial_guess->y       != 0.f
-         || initial_guess->theta   != 0.f)
+    if (is_nonzero_pose(initial_guess))
     {
         se2_t icp_residual;
         se2_t full_transform;
@@ -956,74 +951,53 @@ void slam_perform_icp_play(
 {
 
     // output variables
-    float R_t[TOTAL];  // 3x3 se2 matrix (row-major)
+    float R_t[TOTAL]        = I_3x3;            // 3x3 se2 matrix (row-major)
+    se2_t init_guess        = *initial_guess;   // starter guess
+    se2_t full_transform    = {0.f, 0.f, 0.f};  // final result
+
 
 #ifdef DEBUG_OUTPUT     
     PRINTF("MAX_ICP_RANGE:     %.2f\n", MAX_ICP_RANGE);
     PRINTF("ICP_MAX_CORR_DIST: %.2f\n", ICP_MAX_CORR_DIST);
 #endif
 
-    se2_t init_guess = *initial_guess;    // starter guess
-    se2_t full_transform;
-    
     
     // If initial guess is non-zero, pre-transform scan1 so ICP only has to
     // find the small residual correction, then compose the two to recover
     // the full transformation: `z_ij` = initial_guess + residual
-    if (    (fabsf(init_guess.x    ) > 1e-3f)
-         || (fabsf(init_guess.y    ) > 1e-3f)
-         || (fabsf(init_guess.theta) > 1e-3f))
+    if (is_nonzero_pose(&init_guess))
     {
         se2_t icp_residual;
         PointCloud transformed_scan2;
-        
-        // tune the initial guess for better convergence, less overshoot, and, within limiting factors, the lowest amount of iterations required for convergence. Increasing this ratio doesn't necessarily lessen iterations
-        init_guess.x       *=  0.9f;
-        init_guess.y       *=  0.9f;
-        init_guess.theta   *=  1.f;
-
-        // init_guess.x       *=  0;
-        // init_guess.y       *=  0;
-        // init_guess.theta   *=  1;
         
         // Pre-transform scan2 with the initial guess
         transform_point_cloud(scan2, &init_guess, &transformed_scan2);
         
         
         // ICP finds the residual correction between scan1 and scan2
-        ICP_2D_play(
-                    transformed_scan2.points, transformed_scan2.num_pts,
+        ICP_2D_play(transformed_scan2.points, transformed_scan2.num_pts,
                     (Point2D*)scan1->points, scan1->num_pts,
                     MAX_ICP_ITERATIONS,
                     ICP_CONVERGENCE_TOLERANCE,
                     
-                    &result->num_iterations,
-                    R_t);
+                    &(result->num_iterations), R_t);
 
-        // Compose initial_guess + icp_residual to get the full transformation.
-        // compose_poses(p2, p1, result) computes result = p1 + p2
-        icp_residual   = (se2_t){R_t[T_x_],
-                                R_t[T_y_],
-                                atan2f(R_t[R_10], R_t[R_00])};
-        
+        // Compose initial_guess + icp_residual to get the full transformation
+        matrix_to_state(R_t, &icp_residual);
         compose_poses(&init_guess, &icp_residual, &full_transform);
     
 
     // ICP finds the full transformation directly
     } else {
 
-        ICP_2D_play(
-                    (Point2D*)scan2->points, scan2->num_pts,
+        ICP_2D_play((Point2D*)scan2->points, scan2->num_pts,
                     (Point2D*)scan1->points, scan1->num_pts,
                     MAX_ICP_ITERATIONS,
                     ICP_CONVERGENCE_TOLERANCE,
     
-                    &result->num_iterations,
-                    R_t);
+                    &(result->num_iterations), R_t);
 
-        full_transform = (se2_t){R_t[T_x_],
-                                 R_t[T_y_],
-                                 atan2f(R_t[R_10], R_t[R_00])};
+        matrix_to_state(R_t, &full_transform);
     }
 
     result->dx      = full_transform.x;

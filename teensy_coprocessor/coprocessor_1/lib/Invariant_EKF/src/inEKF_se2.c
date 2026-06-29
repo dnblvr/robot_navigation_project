@@ -128,12 +128,12 @@ void inEKF_SE2_predict(
     omega           =   filter->alpha * omega_gyro
                       + (1.0f - filter->alpha) * omega_encoders;
     
-    // u consists of [v*dt, 0, omega*dt] from the local robot frame
+    // u consists of [v*dt, 0, omega*dt] from the robot body-frame
     u.x     = v * filter->dt;
     u.y     = 0.0f;
     u.theta = omega * filter->dt;
 
-    // translating the control input into the Lie algebra se(2)
+    // translating the control input into the Lie Group se(2)
     exp_se2(&u, X_delta);
 
 
@@ -154,6 +154,7 @@ void inEKF_SE2_predict(
 
 
     // —— covariance propagation ——————————————————————————————————————————————
+    // P = Ad * P * Ad^T + Q
     // first, compute the adjoint and adjoint-transpose of the state increment
     adjoint_se2(X_delta, Ad);
 
@@ -216,7 +217,7 @@ uint8_t inEKF_SE2_update_mag(
          *  estimator conditions, we would use normal matrix multiplication
          *  operations.
          */
-        S = H_mag * filter->covariance[M_22] * H_mag  +  filter->mag_noise;
+        S   = H_mag * filter->covariance[M_22] * H_mag  +  filter->mag_noise;
     
         // calculate mahalanobis distance for outlier rejection
         // mahalanobis_distance = y * (1 / S) * y;
@@ -254,7 +255,7 @@ uint8_t inEKF_SE2_update_mag(
         // map the state increment from the tangent space to the manifold
         exp_se2(&delta_xi_struct, delta_xi_exp); 
     
-        // convert the state increment from the matrix representation to the se2_t struct for easier composition with the current state estimate
+        // convert the state increment from the matrix representation to the `se2_t` struct for easier composition with the current state estimate
         matrix_to_state(delta_xi_exp, &delta_xi_struct); 
     
         // compose the state increment with the current state estimate to get the updated state estimate

@@ -6,7 +6,6 @@
  * @date 2026-04-23
  * 
  * @copyright MIT license or whatever I see fit at the time of publication lmao
- * 
  */
 
 #include <Arduino.h>
@@ -14,11 +13,26 @@
 
 #include <ICM_20948.h>
 #include <RPLiDAR_C1.h>
-#include <inEKF_se2.h>
 #include <arm_math.h>
 
 
-/* ----------------------------------------------------------------------------
+
+// #define UNCALIBRATED_OUTPUT 1
+// #define CALIBRATED_MOTIONCAL_OUTPUT 1
+// #define CALIBRATED_OUTPUT 1
+#define FXP_OUTPUT 1
+
+#if(    0                                       \
+      + defined(UNCALIBRATED_OUTPUT)            \
+      + defined(CALIBRATED_MOTIONCAL_OUTPUT)    \
+      + defined(CALIBRATED_OUTPUT)              \
+      + defined(FXP_OUTPUT)                     \
+       > 1)
+    #error "Only one output mode can be defined at a time."
+#endif
+
+
+/* ————————————————————————————————————————————————————————————————————————————
  * interrupt functions
  */
 
@@ -56,16 +70,12 @@ void Data_Ready_ISR() {
 }
 
 
-// #define UNCALIBRATED_OUTPUT
-// #define CALIBRATED_MOTIONCAL_OUTPUT
-// #define CALIBRATED_OUTPUT
-#define FXP_OUTPUT
 
-// ICM-20948 configuration structures ----------------------------------------
+// —— ICM-20948 configuration structures ——————————————————————————————————————
 
 icm_data_t icm_offsets = {
     .accel  = {0},
-    .gyro   = {74, 85, -46},
+    .gyro   = {0, 0, 0},
     .temp   =  0,
     .counts =  0
 };
@@ -90,18 +100,18 @@ sensor_config_t ak_config = {
 };
 
 
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
 //
 //  Module-level state
 //
-// ----------------------------------------------------------------------------
+// ————————————————————————————————————————————————————————————————————————————
 
 /**
  * @brief FSM and buffer state for the RPLiDAR C1.
  *        Passed by pointer to Initialize_RPLiDAR_C1() and consulted by
  *        the application to detect PROCESSING frames.
  */
-static C1_States rplidar_cfg;
+// static C1_States rplidar_cfg;
 
 #define RPLIDAR_Serial Serial1
 
@@ -131,13 +141,13 @@ void setup() {
 
 
     // Bind Serial1 to the RPLiDAR driver ---------------------------------
-    RPLiDAR_UART_SetPort(&RPLIDAR_Serial);
+    // RPLiDAR_UART_SetPort(&RPLIDAR_Serial);
 
     
     // Initialize the 2D LiDAR scanner for any magnetic interference it may
     // cause to the IMU
-    Serial.println("Initializing RPLiDAR C1...");
-    Initialize_RPLiDAR_C1(&rplidar_cfg);
+    // Serial.println("Initializing RPLiDAR C1...");
+    // Initialize_RPLiDAR_C1(&rplidar_cfg);
 
     
 
@@ -205,13 +215,21 @@ void loop() {
                 gx = 0, gy = 0, gz = 0,
                 mx = 0, my = 0, mz = 0; 
 
-        float cal_mx = 0, cal_my = 0, cal_mz = 0;
-
         // scaling mag since AK09916 has a magnetic sensor sensitivity of 0.15 uT per LSB, and we want to work with integer values in microteslas (uT)
         mx = (int32_t)(data.mag.x * 1.5f);
         my = (int32_t)(data.mag.y * 1.5f);
         mz = (int32_t)(data.mag.z * 1.5f);
+        
+        // from the current +/- 2g, convert to the +/- 4g range 
+        ax = (int32_t)(data.accel.x * 0.5f);
+        ay = (int32_t)(data.accel.y * 0.5f);
+        az = (int32_t)(data.accel.z * 0.5f);
 
+        // gyroscope data
+        gx = (int32_t)(data.gyro.x / 131.f);
+        gy = (int32_t)(data.gyro.y / 131.f);
+        gz = (int32_t)(data.gyro.z / 131.f);
+        
         Serial.printf("Raw:%i,%i,%i,%i,%i,%i,%i,%i,%i\r\n",
                       ax, ay, az,
                       gx, gy, gz,
@@ -228,13 +246,14 @@ void loop() {
         float cal_mx = 0, cal_my = 0, cal_mz = 0;
 
         // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. this was made from tools like MotionCal, and is used to apply the factory calibration to the raw sensor data.
-        float S[TOTAL] = { 1.041f,  -0.009f,  -0.0005f,
-                          -0.009f,	 0.985f,   0.0245f,
-                          -0.0005f,	 0.0245f,  0.9765f};
+        float S[TOTAL] = {  
+                 1.05225f, -0.00625f, -0.01675f,
+                -0.00625f,  0.98675f,  0.0095f,
+                -0.01675f,  0.0095f,   0.964f};
 
-        float hard_offset_x = -126.715f;
-        float hard_offset_y =  -52.53f;
-        float hard_offset_z =   89.245f;
+        float hard_offset_x = -118.36f;
+        float hard_offset_y =  -75.44f;
+        float hard_offset_z =   86.76f;
 
         // scaling mag since AK09916 has a magnetic sensor sensitivity of 0.15 uT per LSB, and we want to work with integer values in microteslas (uT)
         mx  = data.mag.x * 1.5f;
@@ -243,9 +262,13 @@ void loop() {
 
         // MotionCal reports hard iron in uT; mx/my/mz are in 0.1 uT/count, so
         // multiply offsets by 10 to match units before subtracting.
-        mx -= (hard_offset_x * 10.0f);
-        my -= (hard_offset_y * 10.0f);
-        mz -= (hard_offset_z * 10.0f); // 2. still in counts
+        // mx -= (hard_offset_x * 10.0f);
+        // my -= (hard_offset_y * 10.0f);
+        // mz -= (hard_offset_z * 10.0f); // 2. still in counts
+
+        mx -= (hard_offset_x);
+        my -= (hard_offset_y);
+        mz -= (hard_offset_z); // 2. still in counts
 
         // matrix transformation to apply factory calibration to raw mag data, reshaping the ellipsoid model into a sphere
         cal_mx  = mx*S[0] + my*S[1] + mz*S[2];
@@ -269,13 +292,14 @@ void loop() {
         float cal_mx = 0, cal_my = 0, cal_mz = 0;
 
         // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. this was made from tools like MotionCal, and is used to apply the factory calibration to the raw sensor data.
-        float S[TOTAL] = { 1.041f,  -0.009f,  -0.0005f,
-                          -0.009f,	 0.985f,   0.0245f,
-                          -0.0005f,	 0.0245f,  0.9765f};
+        float S[TOTAL] = {
+                 1.05225f, -0.00625f, -0.01675f,
+                -0.00625f,  0.98675f,  0.0095f,
+                -0.01675f,  0.0095f,   0.964f};
 
-        float hard_offset_x = -126.715f;
-        float hard_offset_y =  -52.53f;
-        float hard_offset_z =   89.245f;
+        float hard_offset_x = -118.36f;
+        float hard_offset_y =  -75.44f;
+        float hard_offset_z =   86.76f;
 
         // scaling mag since AK09916 has a magnetic sensor sensitivity of 0.15 uT per LSB, and we want to work with integer values in microteslas (uT)
         mx  = data.mag.x * 0.15f;
@@ -303,25 +327,25 @@ void loop() {
 
     #ifdef FXP_OUTPUT
 
-
         int16_t ax = 0, ay = 0, az = 0,
                 gx = 0, gy = 0, gz = 0,
-                mx = 0, my = 0, mz = 0; 
+                mx = 0, my = 0, mz = 0;
 
         int32_t cal_mx = 0, cal_my = 0, cal_mz = 0;
 
         // matrix that reshapes the raw elliptical model sensor data into the spherical model data expected in typical systems. these values were computed from MotionCal.
         // to get Q1.15, multiply each element by 32768 (2^15) and round to the nearest integer
-        const int32_t S[TOTAL] = { 
-                34111,	 -295,	  -16,  //  1.041f,  -0.009f,  -0.0005f,
-                 -295,	32276,	  803,  // -0.009f,   0.985f,   0.0245f,
-                  -16,	  803,	31998}; // -0.0005f,  0.0245f,  0.9765f};
+
+        const int32_t S[TOTAL] = {
+                34480,  -205,  -549, 	//  1.05225, -0.00625, -0.01675,
+                 -205, 32334,   311, 	// -0.00625,  0.98675,	0.0095,
+                 -549,   311, 31588};	// -0.01675,  0.0095,   0.964};
 
 
         // hard iron offsets in counts (0.15 uT/count)
-        int16_t hard_offset_x = -845;   // -126.715f;
-        int16_t hard_offset_y = -350;   //  -52.53f;
-        int16_t hard_offset_z =  595;   //   89.245f;
+        int16_t hard_offset_x = -789;   // -118.36f uT
+        int16_t hard_offset_y = -503;   //  -75.44f uT
+        int16_t hard_offset_z =  578;   //   86.76f uT
 
         // start by converting to Q16.0; mx/my/mz are in 0.1 uT/count (counts)
         mx  = (int16_t)(data.mag.x); 
@@ -343,14 +367,14 @@ void loop() {
         // reshaping the ellipsoid model for data gathering into a sphere
         // note: S is in int32_t Q1.15 format, so we can multiply directly
         // Q8.8 * Q1.15 = Q9.23 in int32
-        cal_mx  = mx * S[0] + my * S[1] + mz * S[2];
-        cal_my  = mx * S[3] + my * S[4] + mz * S[5];
-        cal_mz  = mx * S[6] + my * S[7] + mz * S[8];
+        cal_mx  = (mx * S[M_00]  +  my * S[M_01]  +  mz * S[M_02]) >> 15;
+        cal_my  = (mx * S[M_10]  +  my * S[M_11]  +  mz * S[M_12]) >> 15;
+        cal_mz  = (mx * S[M_20]  +  my * S[M_21]  +  mz * S[M_22]) >> 15;
 
         // shift 15 for Q8.8 fixed point representation
-        cal_mx  = cal_mx >> 15; 
-        cal_my  = cal_my >> 15;
-        cal_mz  = cal_mz >> 15;
+        // cal_mx  = cal_mx >> 15; 
+        // cal_my  = cal_my >> 15;
+        // cal_mz  = cal_mz >> 15;
 
         // @note: print formatting of int64_t causes problems because of stack misalignment on ARM
         // with switching to Q8.8, this is no longer a problem
